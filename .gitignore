@@ -7,6 +7,14 @@ __pycache__/
 .DS_Store
 outputs/
 .env
+delivery-packages/
+review-output/
+procurement-prototype/test-artifacts/uploads/
+procurement-prototype/test-artifacts/design-qa/
+procurement-prototype/* 2.js
+procurement-prototype/* 2.html
+procurement-prototype/* 2.css
+檔案範例/
 data/logs/*.log
 data/state/*.db
 data/output/**/*
