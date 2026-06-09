@@ -301,6 +301,73 @@ const roleProfiles = {
   admin: { name: "Admin", dept: "IT", functionName: "System Admin", defaultView: "adminSetup" },
 };
 
+const roleCapabilityMatrix = [
+  {
+    role: "Requester",
+    owns: "Creates demand, draft, submit, revise",
+    canApprove: "No",
+    canOperate: "Add item/spec, edit phase qty, save draft, submit, create warehouse candidate",
+    visibility: "Own scope status; no vendor, PAS material, factory material, OM assignee, FTV",
+    nextAction: "Fix Action Required rows or wait for pending owner",
+  },
+  {
+    role: "Dept DRI",
+    owns: "Department submission review",
+    canApprove: "Approve / reject requester submission and price escalation first gate",
+    canOperate: "Review reason, send approved rows forward, return rejected rows to Requester",
+    visibility: "Department scope and decision evidence",
+    nextAction: "Approve, reject with reason, or clarify department scope",
+  },
+  {
+    role: "Cost Manager",
+    owns: "P&L cost visibility and final authorization",
+    canApprove: "Authorize / reject after Dept DRI",
+    canOperate: "Review Submission Monitor, Cost Dashboard, Station Matrix, carryover impact",
+    visibility: "Cost, qty, phase/unit/station analysis; no OM quote operation forms",
+    nextAction: "Authorize, reject with reason, or inspect Station Matrix",
+  },
+  {
+    role: "OM Leader",
+    owns: "OM intake, assignment, exchange rate, feedback triage",
+    canApprove: "No business approval",
+    canOperate: "Assign / monitor OM rows, maintain exchange rate, review OM feedback",
+    visibility: "OM queue, assignee, quote progress, export readiness",
+    nextAction: "Assign stuck rows and watch SLA / quote expiry",
+  },
+  {
+    role: "OM Purchasing",
+    owns: "Assigned PAS / quote / export work",
+    canApprove: "No business approval",
+    canOperate: "Enter PAS Demand No, quote result, quote validity, quote files, export package",
+    visibility: "Assigned rows only, supplier/PAS fields required for work",
+    nextAction: "Complete missing quote fields or move confirmed rows to export",
+  },
+  {
+    role: "Budget Approver",
+    owns: "Budget approval for escalated price/temporary budget",
+    canApprove: "Approve / reject budget escalation",
+    canOperate: "Review escalation evidence and decision history",
+    visibility: "Escalation scope, estimate vs quote, threshold reason",
+    nextAction: "Approve budget or reject with reason",
+  },
+  {
+    role: "Buyer Handoff",
+    owns: "PR / PO after OM export",
+    canApprove: "No upstream approval",
+    canOperate: "Track external PR / PO status, evidence, block reason",
+    visibility: "Export package and external purchasing progress",
+    nextAction: "Record PR / PO progress or blocker",
+  },
+  {
+    role: "Admin",
+    owns: "Prototype setup and UAT configuration",
+    canApprove: "No business approval by role",
+    canOperate: "Maintain test user roles, thresholds, approver mapping",
+    visibility: "All prototype setup views for testing",
+    nextAction: "Keep setup aligned with locked decisions",
+  },
+];
+
 const pageTitles = {
   department: "Requester Workspace",
   manager: "Cost Manager Dashboard",
@@ -1993,6 +2060,71 @@ function workflowStatusForRow(row, role = "requester") {
 
 function workflowStatusForGroup(group, role = "costOwner") {
   return workflowStatusModule().buildWorkflowGroupStatus?.(group, { role, today: new Date() }) || workflowStatusForRow((group.rows || [])[0] || {}, role);
+}
+
+function workflowStatusStripHtml(status = {}, options = {}) {
+  const title = options.title || "Workflow Status";
+  const compact = options.compact ? " workflow-status-strip-compact" : "";
+  const daysLabel = status.daysPending === null || status.daysPending === undefined ? "Done" : `${status.daysPending}d`;
+  if (options.compact) {
+    const summary = [
+      status.pendingOwner || "-",
+      status.currentStage || "-",
+      daysLabel,
+      status.nextAction || "-",
+    ].join(" · ");
+    return `
+      <div class="workflow-status-strip${compact}" aria-label="${htmlAttr(title)}" title="${htmlAttr(summary)}">
+        <strong>${htmlText(title)}</strong>
+        <span class="workflow-status-inline">${htmlText(summary)}</span>
+      </div>`;
+  }
+  const items = [
+    ["Pending Owner", status.pendingOwner || "-"],
+    ["Current Stage", status.currentStage || "-"],
+    ["Days Pending", daysLabel],
+    ["Next Action", status.nextAction || "-"],
+  ];
+  return `
+    <div class="workflow-status-strip${compact}" aria-label="${htmlAttr(title)}">
+      <strong>${htmlText(title)}</strong>
+      ${items.map(([label, value]) => `
+        <span class="workflow-status-chip" title="${htmlAttr(`${label}: ${value}`)}">
+          <small>${htmlText(label)}</small>
+          <b>${htmlText(value)}</b>
+        </span>`).join("")}
+    </div>`;
+}
+
+function renderRoleCapabilityMatrix() {
+  const target = document.getElementById("adminRoleMatrix");
+  if (!target) return;
+  target.innerHTML = `
+    <div class="table-wrap role-matrix-wrap">
+      <table class="data-table role-capability-table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Owns</th>
+            <th>Approve / Reject</th>
+            <th>Can Operate</th>
+            <th>Visibility Boundary</th>
+            <th>Primary Next Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${roleCapabilityMatrix.map((row) => `
+            <tr>
+              <td><strong>${htmlText(row.role)}</strong></td>
+              <td>${htmlText(row.owns)}</td>
+              <td>${htmlText(row.canApprove)}</td>
+              <td>${htmlText(row.canOperate)}</td>
+              <td>${htmlText(row.visibility)}</td>
+              <td>${htmlText(row.nextAction)}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
 }
 
 function formatUsd(value) {
@@ -4728,6 +4860,22 @@ function renderManagerDemandCostDashboard() {
   const filters = managerDemandCostFilters();
   const meta = document.getElementById("managerDemandCostCurrencyMeta");
   if (meta) meta.textContent = `${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · ${filters.lineCount} line count · ${currencyDisplay} view`;
+  const explain = document.getElementById("managerDemandCostExplain");
+  if (explain) {
+    explain.innerHTML = `
+      <div>
+        <strong>Decision Formula</strong>
+        <span>Original demand - locked/applied carryover = actual need. Cost cells show ${filters.viewMode === "qty" ? "effective quantity" : `effective ${currencyDisplay} amount`} by unit.</span>
+      </div>
+      <div>
+        <strong>Status Meaning</strong>
+        <span>Pending carryover is evidence only; it changes cost only after owner lock. Price Pending means quantity is visible but final cost is not approved yet.</span>
+      </div>
+      <div>
+        <strong>Drilldown</strong>
+        <span>Use cell buttons or Open Matrix only when station-level detail is needed.</span>
+      </div>`;
+  }
   renderManagerDemandCostHead();
   syncManagerDemandCostTableWidth();
   const body = document.getElementById("managerDemandCostRows");
@@ -8954,7 +9102,9 @@ function renderSubmissionRows() {
     });
 
   document.getElementById("submissionRows").innerHTML = rows.length
-    ? rows.map((row) => `
+    ? rows.map((row) => {
+      const status = workflowStatusForRow(row, "requester");
+      return `
       <tr>
         <td>${row.id}</td>
         <td>${row.project}</td>
@@ -8963,12 +9113,17 @@ function renderSubmissionRows() {
           <div class="reason-text">${userVisibleItemDetail(row) || partName(row) || "-"}</div>
         </td>
         <td>${totalQty(row)}</td>
-        <td><div class="submission-status-stack">${submissionCurrentStatus(row).map((status) => `<span class="status-pill ${statusClass(status)}">${status}</span>`).join("")}</div>${row.managerReason ? `<div class="reason-text">${row.managerReason}</div>` : ""}</td>
+        <td>
+          <div class="submission-status-stack">${submissionCurrentStatus(row).map((label) => `<span class="status-pill ${statusClass(label)}">${label}</span>`).join("")}</div>
+          ${workflowStatusStripHtml(status, { title: "Now", compact: true })}
+          ${row.managerReason ? `<div class="reason-text">${row.managerReason}</div>` : ""}
+        </td>
         <td>${submissionEstimateVarianceCell(row)}</td>
         <td class="cell-action">${row.status === "Draft" ? `<button class="mini approve" title="Edit demand rows" data-edit-demand="${row.id}">Edit</button>` : submissionActionStatusCell(row)}</td>
         <td class="cell-timeline">${row.status === "Draft" ? draftTimelineCell(row) : `<div class="timeline table-timeline">${timelineFor(row)}</div>`}</td>
         <td class="cell-action">${itemDetailButton("request", row.id)}</td>
-      </tr>`).join("")
+      </tr>`;
+    }).join("")
     : `<tr><td colspan="9" class="empty-cell">No draft or submitted demand for ${currentProject} yet.</td></tr>`;
 }
 
@@ -11089,6 +11244,41 @@ function saveOmExchangeRate() {
   showToast(`Exchange rate saved: 1 USD = ${rate.toLocaleString("en-US")} VND.`, "success");
 }
 
+function renderOmSubmissionTriage(rows = []) {
+  const target = document.getElementById("omSubmissionTriage");
+  if (!target) return;
+  const missingPasNo = rows.filter((group) => group.rows.some((row) => !row.pasDemandNo && omPendingOwnerForGroup(group) === "OM Purchasing"));
+  const waitingPasReply = rows.filter((group) => omPendingOwnerForGroup(group) === "PAS / Bidding");
+  const quoteMissing = rows.filter((group) => group.rows.some((row) => row.pasDemandNo && omQuoteStatusForGroup(group) === "Missing Validity"));
+  const expiryRisk = rows.filter((group) => ["Expiring Soon", "Expired / Requote Required"].includes(omQuoteStatusForGroup(group)));
+  const exportReady = rows.filter((group) => group.rows.some((row) => row.userAQuoteDecisionStatus === OM_USER_CONFIRMED && !row.finalExportedAt));
+  const overSla = rows.filter((group) => {
+    const days = omDaysInStage(group);
+    return days !== null && days > OM_INTERNAL_SLA_DAYS;
+  });
+  const triageItems = [
+    { label: "Over SLA", value: overSla.length, helper: `>${OM_INTERNAL_SLA_DAYS}d in current stage`, tone: overSla.length ? "warning" : "ok" },
+    { label: "Missing PAS Demand No", value: missingPasNo.length, helper: "Start PAS tracking", tone: missingPasNo.length ? "warning" : "ok" },
+    { label: "Waiting PAS Reply", value: waitingPasReply.length, helper: "Follow bidding result", tone: waitingPasReply.length ? "pending" : "ok" },
+    { label: "Quote Validity Missing", value: quoteMissing.length, helper: "Fill Valid Until", tone: quoteMissing.length ? "warning" : "ok" },
+    { label: "Expiry Risk", value: expiryRisk.length, helper: `Expired or <= ${QUOTE_EXPIRING_SOON_DAYS}d`, tone: expiryRisk.length ? "warning" : "ok" },
+    { label: "Ready to Export", value: exportReady.length, helper: "Confirmed by Requester", tone: exportReady.length ? "info" : "ok" },
+  ];
+  target.innerHTML = `
+    <div class="triage-title">
+      <strong>Queue Triage</strong>
+      <span>Prioritize overdue, missing PAS number, quote validity, and export-ready rows before routine monitoring.</span>
+    </div>
+    <div class="triage-grid">
+      ${triageItems.map((item) => `
+        <div class="triage-card triage-${item.tone}">
+          <span>${htmlText(item.label)}</span>
+          <strong>${item.value}</strong>
+          <small>${htmlText(item.helper)}</small>
+        </div>`).join("")}
+    </div>`;
+}
+
 function renderOmSubmission() {
   syncOmSubmissionFilters();
   renderOmExchangeRatePanel();
@@ -11116,6 +11306,7 @@ function renderOmSubmission() {
       { label: "Expiring Soon", value: expiringSoon, helper: `Quote expires within ${QUOTE_EXPIRING_SOON_DAYS}d` },
     ]);
   }
+  renderOmSubmissionTriage(rows);
   renderOmSubmissionExpiryMonitor();
   const body = document.getElementById("omSubmissionRows");
   if (!body) return;
@@ -16074,6 +16265,7 @@ function renderAdminSetup() {
         <td>${row.projectDri}</td>
       </tr>`).join("");
   }
+  renderRoleCapabilityMatrix();
 }
 
 function saveAdminApprovalSetup() {

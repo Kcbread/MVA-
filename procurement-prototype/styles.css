@@ -9982,6 +9982,171 @@ a {
   padding: 7px 8px;
 }
 
+.decision-explain-strip,
+.queue-triage-strip {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #c8d9e4;
+  background: #f7fbfd;
+}
+
+.decision-explain-strip {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.decision-explain-strip div,
+.triage-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.decision-explain-strip strong,
+.triage-title strong {
+  color: #0b3556;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.decision-explain-strip span,
+.triage-title span {
+  color: #53636e;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.triage-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.triage-card {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #d3dde3;
+  background: #fff;
+}
+
+.triage-card span,
+.triage-card small {
+  color: #5f6f78;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.triage-card strong {
+  color: #24313a;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.triage-warning {
+  border-color: #e2b76a;
+  background: #fff7e7;
+}
+
+.triage-pending {
+  border-color: #c7d8e5;
+  background: #f3f8fc;
+}
+
+.triage-info {
+  border-color: #9bc4dd;
+  background: #ecf7fd;
+}
+
+.triage-ok {
+  border-color: #c9dfd2;
+  background: #f5fbf7;
+}
+
+.workflow-status-strip {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(100px, 1fr));
+  gap: 6px;
+  align-items: stretch;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.workflow-status-strip > strong {
+  align-self: center;
+  color: #0b3556;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.workflow-status-strip-compact {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  align-items: center;
+  margin-top: 5px;
+}
+
+.workflow-status-strip-compact > strong {
+  flex: 0 0 auto;
+  color: #0b3556;
+  font-size: 11px;
+}
+
+.workflow-status-chip {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid #d6e1e8;
+  background: #fff;
+}
+
+.workflow-status-chip small {
+  color: #62737d;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.15;
+}
+
+.workflow-status-chip b {
+  color: #24313a;
+  font-size: 11px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.workflow-status-inline {
+  min-width: 0;
+  color: #52616a;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-matrix-wrap {
+  margin-top: 4px;
+}
+
+.role-capability-table {
+  min-width: 1180px;
+}
+
+.role-capability-table th,
+.role-capability-table td {
+  vertical-align: top;
+}
+
+.role-capability-table td {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 @media (max-width: 760px) {
   .app-screen {
     padding: 8px;
@@ -10084,6 +10249,12 @@ a {
 
   .carryover-cost-strip,
   .line-compare-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-explain-strip,
+  .triage-grid,
+  .workflow-status-strip {
     grid-template-columns: 1fr;
   }
 }
