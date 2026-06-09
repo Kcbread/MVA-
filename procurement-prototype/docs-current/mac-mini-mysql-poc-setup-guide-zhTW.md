@@ -323,6 +323,29 @@ mysql -umva_uat_app -p -h127.0.0.1 -e "SHOW DATABASES LIKE 'mva_procurement_uat'
 - 如果需要 reset UAT data，必須記錄誰 reset、何時 reset、原因。
 - 附件第一版若只做 metadata，請不要宣稱正式檔案保存已完成。
 
+## 後續更新 SOP
+
+若 Mac mini 上的專案已經是 git clone，後續更新建議直接在 `procurement-prototype` 目錄執行：
+
+```bash
+bash scripts/update-mac-mini-runtime.sh
+```
+
+這個 script 會：
+
+- `git fetch` + `git pull --ff-only origin main`
+- 依 `package-lock.json` 狀態決定是否執行 `npm install`
+- 停掉目前 `8080` listener
+- 以 `PORT=8080 npm start` 重啟服務
+- 驗證 `/api/health`
+- 驗證首頁包含目前 Requester worksheet UI tag：`20260608-requester-worksheet-v4`
+
+若只想更新但不重裝 dependencies，可用：
+
+```bash
+INSTALL_DEPS=never bash scripts/update-mac-mini-runtime.sh
+```
+
 ## 常見問題
 
 ### 別人連不到 Mac mini
