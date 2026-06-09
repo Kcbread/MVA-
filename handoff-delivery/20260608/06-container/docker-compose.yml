@@ -1,0 +1,51 @@
+services:
+  mysql:
+    image: mysql:9.0
+    container_name: mva-procurement-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-mva_procurement_uat}
+      MYSQL_USER: ${DB_USER:-mva_uat_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-change-me}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-root-me}
+    volumes:
+      - mva_mysql_data:/var/lib/mysql
+      - ../04-db/schema-current.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../04-db/seed-uat-users.sql:/docker-entrypoint-initdb.d/02-seed-uat-users.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: ../01-source/procurement-prototype
+      dockerfile: ../../06-container/Dockerfile
+    container_name: mva-procurement-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-mva_procurement_uat}
+      DB_USER: ${DB_USER:-mva_uat_app}
+      DB_PASSWORD: ${DB_PASSWORD:-change-me}
+      UPLOAD_ROOT: /var/lib/mva-procurement/uploads
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - mva_uploads:/var/lib/mva-procurement/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/api/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mva_mysql_data:
+  mva_uploads:

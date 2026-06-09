@@ -1,0 +1,14 @@
+erDiagram
+  users ||--o{ sessions : owns
+  users ||--o{ om_assignments : assigns
+  users ||--o{ uat_feedback : submits
+  users ||--o{ attachments : uploads
+  item_master ||--o{ material_identity : has
+  item_master ||--o{ ftv_code_master : maps
+  material_identity ||--o{ ftv_code_master : maps
+  request_packages ||--o{ request_items : target
+  request_items ||--o{ request_demand_lines : contains
+  request_items ||--o{ approvals : reviewed_by
+  request_items ||--o{ pas_quotes : quoted_by
+  pas_quotes ||--o{ exports : exported_as
+  exports ||--o{ buyer_handoff_events : received_by

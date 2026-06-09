@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <title>採購需求系統化流程 - Boss Report</title>
+    <style>
+      :root {
+        --ink: #f7fbff;
+        --muted: #c7d7e8;
+        --line: #b7c6d5;
+        --blue: #39a3dc;
+        --navy: #062f52;
+        --teal: #11c6bd;
+        --orange: #d9952d;
+        --green: #38d36f;
+        --red: #ef6464;
+        --paper: #062f52;
+        --panel: rgba(12, 57, 92, 0.86);
+        --panel-2: rgba(22, 75, 113, 0.72);
+        --border: rgba(187, 216, 238, 0.46);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #062f52;
+        font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif;
+        color: var(--ink);
+      }
+
+      .canvas {
+        width: 1920px;
+        height: 1080px;
+        padding: 32px 56px 30px;
+        background:
+          radial-gradient(circle at 74% 96%, rgba(30, 121, 183, 0.38) 0 2px, transparent 3px) 0 0 / 22px 22px,
+          radial-gradient(circle at 80% 20%, rgba(17, 198, 189, 0.18), transparent 28%),
+          linear-gradient(135deg, #052846 0%, #073d68 54%, #042846 100%);
+      }
+
+      header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 32px;
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: #5ed0ff;
+        font-size: 23px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+      }
+
+      h1 {
+        margin: 0;
+        color: #fff;
+        font-size: 48px;
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+      }
+
+      .headline-note {
+        width: 520px;
+        padding: 15px 20px;
+        border: 1px solid rgba(165, 209, 235, 0.48);
+        border-radius: 18px;
+        background: rgba(9, 45, 77, 0.74);
+        box-shadow: 0 20px 52px rgba(0, 12, 28, 0.28);
+      }
+
+      .headline-note strong {
+        display: block;
+        color: #55f2ff;
+        font-size: 20px;
+        margin-bottom: 7px;
+      }
+
+      .headline-note p {
+        margin: 0;
+        color: #d6e6f4;
+        font-size: 17px;
+        line-height: 1.45;
+      }
+
+      .legend {
+        display: flex;
+        gap: 10px;
+        margin-top: 13px;
+        flex-wrap: wrap;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(200, 225, 242, 0.38);
+        color: #dcecff;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+
+      .main {
+        display: grid;
+        grid-template-columns: 1fr 1.08fr 1fr;
+        gap: 22px;
+      }
+
+      .lane {
+        min-height: 606px;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: 0 22px 54px rgba(0, 12, 28, 0.22);
+        padding: 18px;
+        position: relative;
+      }
+
+      .lane h2 {
+        margin: 0 0 13px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #fff;
+        font-size: 25px;
+      }
+
+      .lane-tag {
+        padding: 5px 10px;
+        border-radius: 999px;
+        color: #fff;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+      }
+
+      .stack {
+        display: grid;
+        gap: 10px;
+      }
+
+      .box {
+        border: 1px solid rgba(199, 224, 241, 0.36);
+        border-left: 7px solid var(--blue);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.08);
+        padding: 13px 15px;
+        min-height: 80px;
+      }
+
+      .box h3 {
+        margin: 0 0 8px;
+        font-size: 21px;
+        color: #fff;
+      }
+
+      .box p {
+        margin: 0;
+        color: #d1e0ee;
+        font-size: 16px;
+        line-height: 1.42;
+      }
+
+      .box.small { min-height: 68px; }
+      .box.blue { border-left-color: var(--blue); }
+      .box.teal { border-left-color: var(--teal); }
+      .box.orange { border-left-color: var(--orange); }
+      .box.green { border-left-color: var(--green); }
+      .box.red { border-left-color: var(--red); }
+      .box.navy { border-left-color: var(--navy); }
+
+      .arrow {
+        text-align: center;
+        color: #9cc0da;
+        font-size: 24px;
+        line-height: 0.8;
+        font-weight: 900;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .split-card {
+        border: 1px solid rgba(199, 224, 241, 0.32);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.07);
+        padding: 13px;
+      }
+
+      .split-card h3 {
+        margin: 0 0 10px;
+        font-size: 20px;
+      }
+
+      .split-card ul,
+      .outputs ul {
+        margin: 0;
+        padding-left: 20px;
+        color: #d1e0ee;
+        font-size: 15px;
+        line-height: 1.48;
+      }
+
+      .outputs {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 20px;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        background: rgba(10, 47, 80, 0.88);
+        padding: 14px 18px;
+        box-shadow: 0 12px 30px rgba(31, 62, 90, 0.08);
+      }
+
+      .panel h2 {
+        margin: 0 0 12px;
+        color: #fff;
+        font-size: 23px;
+      }
+
+      .file-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+
+      .file {
+        padding: 13px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(199, 224, 241, 0.34);
+        min-height: 78px;
+      }
+
+      .file strong {
+        display: block;
+        color: #fff;
+        font-size: 17px;
+        margin-bottom: 5px;
+      }
+
+      .file span {
+        color: #cbdced;
+        font-size: 14px;
+        line-height: 1.35;
+      }
+
+      .tracker {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 9px;
+      }
+
+      .step {
+        padding: 10px 8px;
+        border-radius: 15px;
+        text-align: center;
+        font-size: 15px;
+        font-weight: 800;
+        background: rgba(17, 198, 189, 0.16);
+        color: #86fff7;
+        border: 1px solid rgba(115, 240, 232, 0.46);
+      }
+
+      .step:nth-child(3) {
+        background: rgba(217, 149, 45, 0.18);
+        color: #ffd493;
+        border-color: rgba(255, 209, 138, 0.48);
+      }
+
+      .step:nth-child(4), .step:nth-child(5) {
+        background: rgba(57, 163, 220, 0.18);
+        color: #bde8ff;
+        border-color: rgba(151, 213, 246, 0.5);
+      }
+
+      .footer-note {
+        position: absolute;
+        right: 56px;
+        bottom: 20px;
+        color: #b4cadd;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="canvas">
+      <header>
+        <div>
+          <p class="eyebrow">MVA PROCUREMENT GOVERNANCE</p>
+          <h1>MVA採購資料治理與端到端流程數位化<br />開發進度</h1>
+          <div class="legend">
+            <span class="chip"><span class="dot" style="background: var(--blue)"></span>User / Manager</span>
+            <span class="chip"><span class="dot" style="background: var(--orange)"></span>MFG Coordinator</span>
+            <span class="chip"><span class="dot" style="background: var(--teal)"></span>OM Purchasing</span>
+            <span class="chip"><span class="dot" style="background: var(--green)"></span>Sourcing / Buyer</span>
+          </div>
+        </div>
+        <aside class="headline-note">
+          <strong>本階段定位</strong>
+          <p>從分散式郵件作業，升級為可追溯、可稽核、可量化的採購協同平台，建立需求、報價、預算、PR / PO 的資料閉環。</p>
+        </aside>
+      </header>
+
+      <main class="main">
+        <section class="lane">
+          <h2><span class="lane-tag" style="background: var(--blue)">1</span>需求標準化與審批治理</h2>
+          <div class="stack">
+            <div class="box blue">
+              <h3>User A / DRI：統一需求入口</h3>
+              <p>以自然語言搜尋、歷史複用與新品項建立，沉澱標準化需求資料。</p>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="box orange">
+              <h3>MFG Coordinator：Line / Phase 完整性收斂</h3>
+              <p>彙整 Mainline / Packing / Supporting 與各階段需求，降低漏提與重複採購。</p>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="box blue">
+              <h3>Manager B：需求合理性與成本風險決策</h3>
+              <p>以 Demand vs Actual Buy、殘留復用與成本信心作為審批依據。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="lane">
+          <h2><span class="lane-tag" style="background: var(--navy)">2</span>責任分流與流程閉環</h2>
+          <div class="box navy">
+            <h3>Manager Approved 後形成角色責任鏈</h3>
+            <p>依品項責任歸屬進入 OM Purchasing、Sourcing 或 Buyer 追蹤節點，避免郵件式交接斷點。</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="split">
+            <div class="split-card">
+              <h3 style="color: var(--teal)">OM Purchasing</h3>
+              <ul>
+                <li>IT / OM Buy 需求收斂</li>
+                <li>PAS 資訊彙整與預算資料承接</li>
+                <li>Final spec/model 確認</li>
+                <li>報價資料與 Quote PDF 管理</li>
+                <li>正式 OM Excel + PDF package 輸出</li>
+              </ul>
+            </div>
+            <div class="split-card">
+              <h3 style="color: var(--green)">Sourcing / Buyer</h3>
+              <ul>
+                <li>Sourcing：RFQ 詢價、供應商與報價回覆</li>
+                <li>Buyer：外部系統結果、PR / PO 狀態回填</li>
+                <li>不重建 CFA / ECS 規則</li>
+                <li>聚焦外部結果與佐證回收</li>
+              </ul>
+            </div>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="box teal small">
+            <h3>外部系統進度追蹤</h3>
+            <p>以 Status + Evidence 形成可稽核紀錄，補齊跨系統作業的可追溯缺口。</p>
+          </div>
+        </section>
+
+        <section class="lane">
+          <h2><span class="lane-tag" style="background: var(--green)">3</span>外部系統與採購執行追蹤</h2>
+          <div class="stack">
+            <div class="box teal">
+              <h3>Package Readiness Control</h3>
+              <p>PAS 資訊、OM Excel、Quote PDF 與送件佐證完成檢核。</p>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="box green">
+              <h3>External Submission：外部送件結果留痕</h3>
+              <p>記錄 External System、External Request No.，並綁定截圖、貼上結果或附件。</p>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="box green">
+              <h3>Buyer PR / PO：節點與佐證回填</h3>
+              <p>PR Created、PO Issued、Completed 皆保留 PR / PO No. 與 evidence。</p>
+            </div>
+            <div class="box red small">
+              <h3>Revision Control：退件與重送治理</h3>
+              <p>退件、修正、重送全程保留版本紀錄，避免責任與資料斷點。</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <section class="outputs">
+        <div class="panel">
+          <h2>標準化輸出與佐證資料</h2>
+          <div class="file-grid">
+            <div class="file"><strong>OM Excel Package</strong><span>預算摘要與採購明細標準格式。</span></div>
+            <div class="file"><strong>Quote PDF</strong><span>供應商報價與正式附件管理。</span></div>
+            <div class="file"><strong>RFQ Excel / Email Draft</strong><span>詢價資料標準化輸出與溝通。</span></div>
+            <div class="file"><strong>External Evidence</strong><span>截圖、貼上文字、email、PDF、Excel、zip / msg。</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>流程狀態閉環</h2>
+          <div class="tracker">
+            <div class="step">Preparing</div>
+            <div class="step">Submitted</div>
+            <div class="step">Returned</div>
+            <div class="step">PR Created</div>
+            <div class="step">PO Issued</div>
+          </div>
+          <ul style="margin-top: 15px;">
+            <li>短期：IE、Coordinator、Purchasing 作業效率提升。</li>
+            <li>中期：建立可追溯且可分析的採購紀錄。</li>
+            <li>長期：提升採購議價能力，支撐節省成本目標。</li>
+          </ul>
+        </div>
+      </section>
+
+      <div class="footer-note">FIH Equipment Management Handoff System · Prototype progress · 2026-05-18</div>
+    </div>
+  </body>
+</html>

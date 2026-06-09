@@ -1,0 +1,20 @@
+stateDiagram-v2
+  [*] --> Draft
+  Draft --> Submitted: Requester submit
+  Submitted --> DeptDriApproved: Dept DRI approve
+  Submitted --> RequesterActionRequired: Dept DRI reject
+  DeptDriApproved --> CostManagerAuthorized: Cost Manager approve
+  DeptDriApproved --> RequesterActionRequired: Cost Manager reject
+  CostManagerAuthorized --> OmAssigned: OM Leader assign
+  OmAssigned --> PasDemandNoRecorded
+  PasDemandNoRecorded --> QuoteSaved
+  QuoteSaved --> AutoCleared: delta <= 0.40
+  QuoteSaved --> PriceException: delta > 0.40 / no history / temp budget
+  PriceException --> BudgetReview: Dept DRI approve
+  PriceException --> RequesterActionRequired: Dept DRI reject
+  BudgetReview --> ExportReady: Budget Approver approve
+  BudgetReview --> RequesterActionRequired: Budget Approver reject
+  AutoCleared --> ExportReady
+  ExportReady --> Exported
+  Exported --> BuyerHandoff
+  RequesterActionRequired --> Submitted: revise/resubmit

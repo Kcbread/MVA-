@@ -1,0 +1,24 @@
+flowchart TB
+  subgraph Requester
+    R1["Create demand"] --> R2["Submit"] --> R3["Revise if rejected"]
+  end
+  subgraph Dept_DRI
+    D1["Submission review"] --> D2["Price / stock / carryover review"]
+  end
+  subgraph Cost_Manager
+    C1["Final authorization"] --> C2["Cost dashboard / station matrix"]
+  end
+  subgraph OM
+    L1["Leader assignment"] --> O1["PAS Demand No"] --> O2["Quote Result"] --> O3["Export Package"]
+  end
+  subgraph Budget_Approver
+    B1["Final exception approval"]
+  end
+  subgraph Buyer_Handoff
+    H1["PR / PO owner after export"]
+  end
+  R2 --> D1 --> C1 --> L1
+  O2 --> D2 --> B1 --> O3 --> H1
+  D1 --> R3
+  C1 --> R3
+  B1 --> R3

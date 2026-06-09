@@ -1,0 +1,16 @@
+%% Primary IT visual: use the generated swimlane-style PNG next to this source.
+%% This Mermaid source preserves logical traceability, while the PNG provides the handoff-ready DFD notation.
+flowchart TB
+  API["Node.js API"] --> USERS[("users / sessions")]
+  API --> ASSIGN[("om_assignments")]
+  API --> FEEDBACK[("uat_feedback")]
+  API --> ATTACH[("attachments")]
+  API --> AUDIT[("audit_events")]
+  API -. target .-> REQ[("request_packages / request_items / demand_lines")]
+  API -. target .-> APPROVALS[("approvals / price_decisions")]
+  API -. target .-> QUOTES[("pas_quotes / exports / buyer_handoff_events")]
+  API --> ITEM[("item_master / material_identity")]
+  API --> FTV[("purchase_route / ftv / customs audit")]
+  ATTACH --> AUDIT
+  REQ --> APPROVALS --> QUOTES
+  QUOTES --> AUDIT

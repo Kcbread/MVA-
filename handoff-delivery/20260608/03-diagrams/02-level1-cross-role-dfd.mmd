@@ -1,0 +1,16 @@
+%% Primary IT visual: use the generated swimlane-style PNG next to this source.
+%% This Mermaid source preserves logical traceability, while the PNG provides the handoff-ready DFD notation.
+flowchart LR
+  R["Requester\ncreate demand + submit"] --> D["Dept DRI\nscoped review"]
+  D -->|approve| C["Cost Manager\nfinal authorization"]
+  D -->|reject + reason| RA["Requester Action Required"]
+  C -->|approve| L["OM Leader\nassignment"]
+  C -->|reject + reason| RA
+  L --> O["OM Purchasing\nPAS + quote + export"]
+  O -->|price exception| P["Dept DRI price review"]
+  P --> B["Budget Approver"]
+  B -->|approve| OX["OM Export Package"]
+  B -->|reject + reason| RA
+  O -->|auto cleared| OX
+  OX --> BH["Buyer Handoff\nPR/PO owner"]
+  RA --> R

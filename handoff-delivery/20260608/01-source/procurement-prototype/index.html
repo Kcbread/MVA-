@@ -1,0 +1,2210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FIH Equipment Management Handoff System</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./layout-contract.css?v=20260604-role-routing-v2" />
+    <link rel="stylesheet" href="./carryover-extension.css?v=20260604-role-routing-v2" />
+    <link rel="stylesheet" href="./styles.css?v=20260605-clean-code-v4" />
+  </head>
+  <body>
+    <main id="app">
+      <section class="screen login-screen active" data-screen="login">
+        <div class="brand-line"></div>
+        <div class="login-shell">
+          <div>
+            <p class="eyebrow">FIH Demand Handoff System</p>
+            <h1>Equipment Management Purchasing System</h1>
+            <p class="lead">A role-based prototype for Requester demand input, OM quotation, Dept DRI review, Budget Approver approval, and OM export package work.</p>
+          </div>
+          <form class="login-card" id="loginForm">
+            <div class="card-close">x</div>
+            <h2>Sign in</h2>
+            <p>FIH</p>
+            <label>
+              Employee ID / Account
+              <input id="loginAccountInput" type="text" value="V1524505" autocomplete="username" />
+            </label>
+            <label>
+              Password
+              <input type="password" value="123" autocomplete="current-password" />
+            </label>
+            <label>
+              Login role
+              <select id="roleSelect">
+                <option value="requester">Requester</option>
+                <option value="dri">Dept DRI</option>
+                <option value="omLeader">OM Leader (Mai)</option>
+                <option value="omMember">OM Purchasing (Giang / Linh)</option>
+                <option value="manager">Cost Manager</option>
+                <option value="projectDri">Budget Approver</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <label id="requesterPersonaField">
+              Requester profile
+              <select id="requesterPersonaSelect">
+                <option value="">Auto from Excel requester list</option>
+              </select>
+            </label>
+            <div class="login-row">
+              <label class="check"><input type="checkbox" /> Remember me</label>
+              <a href="#">Forgot password?</a>
+            </div>
+            <button class="primary wide" type="submit">Sign in</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="screen app-screen" data-screen="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">FIH Equipment Management Handoff System</p>
+            <h1 id="pageTitle">Requester Workspace</h1>
+          </div>
+          <div class="user-block" id="userBlock"></div>
+          <button class="ghost contact-popup-trigger" type="button" data-action="openContactPopup">Contact</button>
+          <label class="currency-switcher">
+            Currency
+            <select id="currencyDisplaySelect">
+              <option value="VND">VND</option>
+              <option value="USD">USD</option>
+            </select>
+          </label>
+          <button class="ghost" data-action="logout">Logout</button>
+        </header>
+
+        <nav class="tabs" aria-label="Main navigation">
+          <button class="tab active" data-view="department" data-roles="requester admin">Requester Workspace</button>
+          <button class="tab" data-view="manager" data-roles="manager admin">Cost Manager Dashboard</button>
+          <button class="tab" data-view="procurement" data-roles="procurement admin">MFG Coordination</button>
+          <button class="tab" data-view="om" data-roles="om omLeader omMember admin">OM Purchasing</button>
+          <button class="tab" data-view="uatFeedbackReview" data-roles="omLeader omMember admin">UAT Feedback</button>
+          <button class="tab" data-view="priceReview" data-roles="dri projectDri admin">Price Review</button>
+          <button class="tab" data-view="sourcing" data-roles="sourcing admin">Sourcing RFQ</button>
+          <button class="tab" data-view="buyer" data-roles="buyer admin">Buyer PR / PO</button>
+          <button class="tab" data-view="adminSetup" data-roles="admin">Admin Setup</button>
+        </nav>
+
+        <section class="view active" data-view="department">
+          <div class="page-toolbar compact-toolbar">
+            <label class="project-picker">
+              Project Type
+              <select id="projectTypeSelect">
+                <option value="G">G</option>
+                <option value="Non-G">Non-G</option>
+              </select>
+            </label>
+            <label class="project-picker">
+              Project
+              <select id="projectSelect">
+                <option value="P26">P26</option>
+                <option value="OR5">OR5</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="inner-tabs" aria-label="Requester workspace sections">
+            <button class="inner-tab active" data-dept-tab="request">Request Workspace</button>
+            <button class="inner-tab" data-dept-tab="warehouse">Warehouse Inventory</button>
+            <button class="inner-tab" data-dept-tab="needConfirmation">Action Required</button>
+            <button class="inner-tab" data-dept-tab="submissions">Request Status</button>
+          </div>
+
+          <section class="dept-panel active" data-dept-panel="request">
+            <div class="request-grid">
+              <section class="work-panel request-workspace-hero">
+                <div class="panel-title">
+                  <div>
+                    <h3>Request Workspace</h3>
+                    <p class="muted">Choose demand scope first, then select items and enter quantity by stage, station, or demand unit.</p>
+                  </div>
+                  <div class="row-actions">
+                    <button class="primary requester-only" data-action="openItemPicker">Add Demand Lines</button>
+                  </div>
+                </div>
+                <div class="request-workspace-steps">
+                  <div><strong>1. Choose scope</strong><span>MFG or Non-MFG / line / stage / station or unit</span></div>
+                <div><strong>2. Select items</strong><span>Choose source, add items or copy demand from a previous line, then review stock suggestions</span></div>
+                  <div><strong>3. Submit lines</strong><span>Send selected demand lines to Dept DRI review</span></div>
+                </div>
+              </section>
+
+              <section class="work-panel">
+                <div class="panel-title">
+                  <div>
+                    <h3>Draft Demand Lines</h3>
+                    <p class="muted">Demand lines are grouped by MFG / Non-MFG, stage, station or unit, item, and quantity.</p>
+                  </div>
+                </div>
+                <div class="table-wrap aligned-table-wrap table-shell form-table-shell">
+                  <table class="data-table table-fixed form-table request-table">
+                    <colgroup>
+                      <col class="request-col-select">
+                      <col class="request-col-item">
+                      <col class="request-col-spec">
+                      <col class="request-col-date">
+                      <col class="request-col-qty">
+                      <col class="request-col-demand-rows">
+                      <col class="request-col-breakdown">
+                      <col class="request-col-status">
+                      <col class="request-col-timeline">
+                      <col class="request-col-actions">
+                      <col class="request-col-detail">
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Select</th>
+                        <th>Demand Scope</th>
+                        <th>Item / Spec</th>
+                        <th>Need Date</th>
+                        <th>Qty</th>
+                        <th>Demand Rows</th>
+                        <th>Breakdown Status</th>
+                        <th>Status</th>
+                        <th>Timeline</th>
+                        <th>Actions</th>
+                        <th>Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody id="requestRows"></tbody>
+                  </table>
+                </div>
+                <div class="submit-note">
+                  Add at least one non-zero demand line before submitting to Dept DRI.
+                </div>
+                <div class="actions footer-actions">
+                  <button class="ghost" data-action="completeSelectedMaterials">Complete Item Info</button>
+                  <button class="primary" data-action="submitRequests">Submit package to Dept DRI</button>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="dept-panel" data-dept-panel="warehouse">
+            <section class="work-panel">
+              <div class="panel-title">
+                <div>
+                  <h3>Warehouse Inventory</h3>
+                  <p class="muted">Track stock in and stock-use candidates by item/spec. Dept DRI locks usage before it affects effective demand or cost.</p>
+                </div>
+                <span class="status-pill" id="warehouseMaintenanceScope">Current month</span>
+              </div>
+              <div class="page-toolbar compact-toolbar">
+                <label>
+                  Month
+                  <input id="warehouseMonthFilter" type="month" />
+                </label>
+                <label>
+                  Search Item / Spec
+                  <input id="warehouseSearch" type="search" placeholder="Search item name, product spec, project, stage, or station..." />
+                </label>
+              </div>
+              <section class="warehouse-stock-editor requester-only" aria-label="Requester warehouse stock input">
+                <div class="section-head-tight">
+                  <h4>Stock In</h4>
+                  <p class="muted">Requester records excess inventory by source project, line, stage, and station/unit. Matching demand will show an Inventory Available suggestion.</p>
+                </div>
+                <div class="warehouse-stock-grid">
+                  <label>
+                    Bought Item
+                    <select id="warehouseStockItem">
+                      <option value="">Select purchased item</option>
+                    </select>
+                  </label>
+                  <label>
+                    Spec
+                    <input id="warehouseStockSpec" type="text" placeholder="Spec follows selected item" readonly />
+                  </label>
+                  <label>
+                    Stock In Qty
+                    <input id="warehouseStockQty" type="number" min="0" step="1" placeholder="0" />
+                  </label>
+                  <label>
+                    Source Project
+                    <input id="warehouseStockSourceProject" type="text" placeholder="P26 / OR5 / ..." />
+                  </label>
+                  <label>
+                    Stage
+                    <select id="warehouseStockSourceStage">
+                      <option value="P1.0">P1.0</option>
+                      <option value="P1.1">P1.1</option>
+                      <option value="EVT">EVT</option>
+                      <option value="DVT">DVT</option>
+                      <option value="PVT">PVT</option>
+                      <option value="MP">MP</option>
+                    </select>
+                  </label>
+                  <label>
+                    Station / Unit
+                    <select id="warehouseStockSourceStation">
+                      <option value="CG">CG</option>
+                      <option value="BG">BG</option>
+                      <option value="FATP">FATP</option>
+                      <option value="Test">Test</option>
+                      <option value="Hybrid">Hybrid</option>
+                      <option value="Auto">Auto</option>
+                      <option value="ENG Pack">ENG Pack</option>
+                      <option value="Zombie">Zombie</option>
+                      <option value="Laser_pico">Laser_pico</option>
+                      <option value="Rework">Rework</option>
+                      <option value="Repair">Repair</option>
+                      <option value="WH">WH</option>
+                      <option value="FATP TE">FATP TE</option>
+                      <option value="FATP IQC">FATP IQC</option>
+                      <option value="FATP PQE">FATP PQE</option>
+                      <option value="Q-LAB">Q-LAB</option>
+                      <option value="REL">REL</option>
+                      <option value="ENG1">ENG1</option>
+                      <option value="ENG2">ENG2</option>
+                      <option value="ENG3">ENG3</option>
+                      <option value="IT">IT</option>
+                      <option value="FAC">FAC</option>
+                    </select>
+                  </label>
+                  <button class="primary" type="button" data-action="addWarehouseStockRecord">Stock In</button>
+                </div>
+              </section>
+              <div class="summary-grid" id="warehouseMaintenanceSummary"></div>
+              <div class="table-wrap aligned-table-wrap table-shell">
+                <table class="data-table table-fixed workflow-table warehouse-maintenance-table">
+                  <colgroup>
+                    <col class="warehouse-col-item" />
+                    <col class="warehouse-col-onhand" />
+                    <col class="warehouse-col-reserved" />
+                    <col class="warehouse-col-available" />
+                    <col class="warehouse-col-source" />
+                    <col class="warehouse-col-target" />
+                    <col class="warehouse-col-status" />
+                    <col class="warehouse-col-action" />
+                    <col class="warehouse-col-detail" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Item / Spec</th>
+                      <th>On Hand</th>
+                      <th>Reserved</th>
+                      <th>Available</th>
+                      <th>Top Source</th>
+                      <th>Potential Target</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="warehouseMaintenanceRows"></tbody>
+                </table>
+              </div>
+              <section class="warehouse-ledger-section">
+                <div class="section-head-tight">
+                  <h4>Inventory Transaction Ledger</h4>
+                  <p class="muted">Full stock-in and stock-use trace. Cross-project usage keeps source and target project / line / stage / station.</p>
+                </div>
+                <div class="table-wrap aligned-table-wrap table-shell">
+                  <table class="data-table table-fixed workflow-table warehouse-ledger-table">
+                    <colgroup>
+                      <col class="warehouse-ledger-col-type" />
+                      <col class="warehouse-ledger-col-source" />
+                      <col class="warehouse-ledger-col-target" />
+                      <col class="warehouse-ledger-col-item" />
+                      <col class="warehouse-ledger-col-qty" />
+                      <col class="warehouse-ledger-col-status" />
+                      <col class="warehouse-ledger-col-actor" />
+                      <col class="warehouse-ledger-col-time" />
+                      <col class="warehouse-ledger-col-reason" />
+                      <col class="warehouse-ledger-col-action" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Source</th>
+                        <th>Target</th>
+                        <th>Item / Spec</th>
+                        <th>Qty</th>
+                        <th>Status</th>
+                        <th>Actor</th>
+                        <th>Timestamp</th>
+                        <th>Reason</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="warehouseInventoryLedgerRows"></tbody>
+                  </table>
+                </div>
+              </section>
+            </section>
+          </section>
+
+          <section class="dept-panel" data-dept-panel="overview">
+            <div class="panel-title section-head-tight">
+              <div>
+                <h3>My Demand Overview</h3>
+                <p class="muted">Package-level view for your draft and submitted demand. Use it to check phase, station, demand unit, and quantity before or after submit.</p>
+              </div>
+              <span class="status-pill" id="userDemandPackageBadge">Current project</span>
+            </div>
+            <div class="summary-grid" id="userDemandOverviewSummary"></div>
+            <div class="table-wrap user-demand-overview-wrap">
+              <table class="data-table user-demand-overview-table">
+                <thead>
+                  <tr>
+                    <th>Package</th>
+                    <th>Item</th>
+                    <th>Status</th>
+                    <th>P1.0</th>
+                    <th>P1.1</th>
+                    <th>EVT</th>
+                    <th>DVT</th>
+                    <th>PVT</th>
+                    <th>MP</th>
+                    <th>Total Qty</th>
+                    <th>Action</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="userDemandOverviewRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="dept-panel utility-hidden" data-dept-panel="stage">
+            <div class="panel-title section-head-tight">
+              <div>
+                <h3>Demand Tracking</h3>
+              </div>
+              <span class="status-pill" id="deptStageBadge">Current phase</span>
+            </div>
+            <div class="page-toolbar compact-toolbar demand-input-toolbar">
+              <label>
+                Mode
+                <select id="deptDemandMode">
+                  <option value="mfg">MFG</option>
+                  <option value="nonMfg">Non-MFG</option>
+                </select>
+              </label>
+              <label>
+                Phase
+                <select id="deptDemandPhase"></select>
+              </label>
+              <label id="deptDemandDepartmentField">
+                Department
+                <select id="deptDemandDepartment"></select>
+              </label>
+            </div>
+            <div class="summary-grid" id="deptDemandOverview"></div>
+            <div id="deptDemandMatrix"></div>
+          </section>
+
+          <div id="itemPickerModal" class="modal-backdrop item-picker-modal" hidden>
+          <section class="modal-card item-picker-card" role="dialog" aria-modal="true" aria-labelledby="itemPickerTitle">
+            <div class="panel-title section-head-tight">
+              <div>
+                <h3 id="itemPickerTitle">Add Demand Lines</h3>
+                <p class="muted">Choose the target demand scope first, then add items from catalog, history, package, or carryover suggestions.</p>
+              </div>
+              <div class="row-actions">
+                <span class="record-count" id="naturalCount">0 results</span>
+                <button class="secondary requester-only" data-action="createNewItemSuggestion">Create New Item</button>
+                <button class="ghost" data-action="closeItemPicker">Close</button>
+              </div>
+            </div>
+            <div id="itemPickerDemandContext" class="item-picker-demand-context"></div>
+            <div class="source-mode-heading">
+              <strong>Choose Source</strong>
+              <span>Catalog, single-item reuse, or Copy Demand all add into the selected demand scope above.</span>
+            </div>
+            <div class="inner-tabs reuse-mode-tabs source-mode-tabs" aria-label="Demand source modes">
+              <button class="inner-tab active" data-reuse-mode-tab="catalog">Catalog</button>
+              <button class="inner-tab" data-reuse-mode-tab="reuse">Reuse Item</button>
+              <button class="inner-tab" data-reuse-mode-tab="package">Copy Demand</button>
+            </div>
+            <div class="item-picker-grid">
+              <section class="item-picker-section reuse-mode-panel active" data-reuse-mode-panel="catalog">
+                <div class="section-head-tight">
+                  <h4>Catalog</h4>
+                  <p class="muted">Search catalog items and add them to the selected demand scope. Enter quantity below.</p>
+                </div>
+                <div class="filter-bar">
+                  <input id="naturalQuery" type="search" placeholder="Search English item name, product spec, or Level 1 / 2 / 3..." />
+                  <select id="naturalLevel1"></select>
+                  <select id="naturalLevel2"></select>
+                  <select id="naturalLevel3"></select>
+                  <button class="primary" data-action="naturalSearch">Search</button>
+                  <button class="ghost" data-action="clearNaturalSearch">Clear</button>
+                </div>
+                <div class="table-wrap aligned-table-wrap table-shell item-picker-table-wrap">
+                  <table class="data-table table-fixed form-table search-table" data-layout-managed="manual">
+                    <colgroup>
+                      <col class="catalog-col-item" />
+                      <col class="catalog-col-spec" />
+                      <col class="catalog-col-source" />
+                      <col class="catalog-col-detail" />
+                      <col class="catalog-col-add" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Item Name</th>
+                        <th>Detail / Spec</th>
+                        <th>Source</th>
+                        <th>Detail</th>
+                        <th>Add</th>
+                      </tr>
+                    </thead>
+                    <tbody id="naturalRows"></tbody>
+                  </table>
+                </div>
+              </section>
+
+            <div class="reuse-mode-panel item-picker-section" data-reuse-mode-panel="reuse">
+            <div class="section-head-tight">
+              <h4>Reuse Item</h4>
+              <p class="muted">Reuse one approved item identity and spec in the selected demand scope. Quantity starts at 0; use Copy Demand when source quantities should be copied.</p>
+            </div>
+            <div class="filter-bar history-filter">
+              <input id="historyQuery" type="search" placeholder="Search item, detail/spec, source project, or category..." />
+              <span class="filter-inline-label">Source Project</span>
+              <select id="historySourceProject">
+                <option value="">All source projects</option>
+                <option value="P26">P26</option>
+                <option value="OR5">OR5</option>
+              </select>
+              <select id="historyLevel1"></select>
+              <select id="historyLevel2"></select>
+              <select id="historyLevel3"></select>
+              <button class="primary" data-action="historySearch">Search</button>
+              <button class="ghost" data-action="clearHistorySearch">Clear</button>
+            </div>
+            <div class="table-wrap aligned-table-wrap table-shell">
+              <table class="data-table table-fixed form-table history-table history-item-table" data-layout-managed="manual">
+                <colgroup>
+                  <col class="history-col-add" />
+                  <col class="history-col-source-project" />
+                  <col class="history-col-item" />
+                  <col class="history-col-spec" />
+                  <col class="history-col-qty-phase" />
+                  <col class="history-col-detail" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Add</th>
+                    <th>Source Project</th>
+                    <th>Item</th>
+                    <th>Spec</th>
+                    <th>Qty / Phase</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="historyRows"></tbody>
+              </table>
+            </div>
+            </div>
+            <div class="reuse-mode-panel item-picker-section" data-reuse-mode-panel="package">
+              <div class="section-head-tight">
+                <h4>Copy Demand Package</h4>
+                <p class="muted">Copy a completed reusable demand package into the selected scope. Source quantities are copied and retargeted to the current project / line / stage.</p>
+              </div>
+              <div class="filter-bar history-filter">
+                <span class="filter-inline-label">Source Project</span>
+                <select id="historyPackageSourceProject">
+                  <option value="">All source projects</option>
+                </select>
+                <span class="filter-inline-label">Source Stage</span>
+                <select id="historyPackageSourcePhase">
+                  <option value="">All phases</option>
+                  <option value="p10">P1.0</option>
+                  <option value="p11">P1.1</option>
+                  <option value="evt">EVT</option>
+                  <option value="dvt">DVT</option>
+                  <option value="pvt">PVT</option>
+                  <option value="mp">MP</option>
+                </select>
+                <span class="filter-inline-label">Source Demand</span>
+                <select id="historyPackageSourcePackage">
+                  <option value="">All packages</option>
+                </select>
+              </div>
+              <div class="history-package-commandbar">
+                <button class="primary" data-action="previewHistoryPackage">Preview</button>
+                <button class="secondary" data-action="importHistoryPackage" title="Copy demand package into selected scope">Copy Demand</button>
+                <span class="status-pill" id="historyPackagePreviewCount">0 items ready</span>
+              </div>
+              <div class="table-wrap aligned-table-wrap table-shell">
+                <table class="data-table table-fixed form-table history-table history-package-table" data-layout-managed="manual">
+                  <colgroup>
+                    <col class="history-package-col-item" />
+                    <col class="history-package-col-spec" />
+                    <col class="history-package-col-source" />
+                    <col class="history-package-col-qty" />
+                    <col class="history-package-col-phase" />
+                    <col class="history-package-col-detail" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Spec</th>
+                      <th>Source Demand</th>
+                      <th>Qty</th>
+                      <th>Phase Summary</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="historyPackageRows"></tbody>
+                </table>
+              </div>
+            </div>
+              <section class="item-picker-section selected-demand-lines-section" aria-label="Selected demand lines">
+                <div class="section-head-tight">
+                  <h4>Selected Demand Lines</h4>
+                  <p class="muted">Enter qty here. Demand Breakdown remains available for full detail edits.</p>
+                </div>
+                <div class="table-wrap aligned-table-wrap table-shell selected-demand-lines-wrap">
+                  <table class="data-table table-fixed form-table selected-demand-lines-table" data-layout-managed="manual">
+                    <colgroup>
+                      <col class="selected-demand-col-scope" />
+                      <col class="selected-demand-col-item" />
+                      <col class="selected-demand-col-qty" />
+                      <col class="selected-demand-col-date" />
+                      <col class="selected-demand-col-remark" />
+                      <col class="selected-demand-col-actions" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Scope</th>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Need Date</th>
+                        <th>Remark</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="itemPickerSelectedDemandLines"></tbody>
+                  </table>
+                </div>
+              </section>
+              <section id="itemPickerCarryoverSuggestions" class="carryover-suggestions-panel" aria-label="Carryover suggestions">
+                <div class="carryover-suggestions-empty">
+                  <strong>Potential Carryover</strong>
+                  <span>Add an item and qty first. Matching previous-line or warehouse evidence will appear here.</span>
+                </div>
+              </section>
+            </div>
+            <div class="modal-footer">
+              <span class="record-count history-target-context" id="itemPickerFooterContext">Target: current demand scope</span>
+              <button class="ghost" data-action="closeItemPicker">Done</button>
+            </div>
+          </section>
+          </div>
+
+          <section class="dept-panel" data-dept-panel="needConfirmation">
+            <div class="panel-title section-head-tight">
+              <div>
+                <h3>Action Required</h3>
+                <p class="muted">Confirm whether the quoted OM buy item is still needed. Source details are handled by OM Purchasing.</p>
+              </div>
+            </div>
+            <div class="summary-grid need-confirm-summary" id="needConfirmSummary"></div>
+            <div class="need-confirm-grid" id="needConfirmRows"></div>
+          </section>
+
+          <section class="dept-panel" data-dept-panel="submissions">
+            <div class="panel-title section-head-tight">
+              <div>
+                <h3>Request Status</h3>
+                <p class="muted">Dense package tracking for draft and submitted demand. Use timeline chips for the current stage, then open Detail for full history.</p>
+              </div>
+            </div>
+            <div class="table-wrap submissions-wrap">
+              <table class="data-table submissions-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Project</th>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Current Status</th>
+                    <th>Action Status</th>
+                    <th>Timeline</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="submissionRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" data-view="manager">
+          <div class="inner-tabs manager-tabs" aria-label="Manager dashboard sections">
+            <button class="inner-tab active" data-manager-tab="review">Submission Monitor</button>
+            <button class="inner-tab" data-manager-tab="analysis">Demand Analysis</button>
+            <button class="inner-tab" data-manager-tab="demand">Progress Tracking</button>
+            <button class="inner-tab" data-manager-tab="setup">Project Setup</button>
+          </div>
+
+          <section class="manager-panel active" data-manager-panel="review">
+            <div class="manager-filters page-toolbar manager-toolbar-shell">
+              <div class="toolbar-label">Review Scope</div>
+              <label>
+                Project
+                <select id="managerProjectFilter">
+                  <option value="">All projects</option>
+                  <option value="P26">P26</option>
+                  <option value="OR5">OR5</option>
+                </select>
+              </label>
+            </div>
+            <section class="work-panel">
+              <div class="panel-title">
+                <div>
+                  <h3>Requester Submission Monitor</h3>
+                </div>
+                <span class="record-count" id="managerCount">0 items</span>
+              </div>
+              <div id="managerQueue" class="queue-list"></div>
+            </section>
+
+            <section class="work-panel review-history-panel">
+              <div class="panel-title">
+                <div>
+                  <h3>Dept DRI Decision History</h3>
+                </div>
+              </div>
+              <div class="summary-grid" id="managerDashboardSummary"></div>
+              <div class="manager-filters page-toolbar manager-toolbar-shell">
+                <div class="toolbar-label">History Filters</div>
+                <label>
+                  Project
+                  <select id="managerDashboardProjectFilter">
+                    <option value="">All projects</option>
+                    <option value="P26">P26</option>
+                    <option value="OR5">OR5</option>
+                  </select>
+                </label>
+                <label>
+                  Decision Status
+                  <select id="managerDashboardStatusFilter">
+                    <option value="">All decisions</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </label>
+              </div>
+              <div class="table-wrap aligned-table-wrap">
+                <table class="data-table manager-dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Request ID</th>
+                      <th>Project</th>
+                      <th>Item</th>
+                      <th>Affected Phases</th>
+                      <th>Total Qty</th>
+                      <th>Dept DRI Decision</th>
+                      <th>Reason</th>
+                      <th>Decision Time</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="managerDashboardRows"></tbody>
+                </table>
+              </div>
+            </section>
+
+          </section>
+
+          <section class="manager-panel" data-manager-panel="analysis">
+            <div class="inner-tabs demand-analysis-tabs" aria-label="Demand analysis layers">
+              <button class="inner-tab active" data-demand-analysis-tab="costDashboard">Cost Dashboard</button>
+              <button class="inner-tab" data-demand-analysis-tab="quantity">Station Matrix</button>
+            </div>
+
+            <section class="demand-analysis-panel active" data-demand-analysis-panel="costDashboard">
+            <div class="manager-progress-toolbar">
+              <div class="toolbar-label">Demand Cost Scope</div>
+              <div class="manager-progress-controls demand-cost-controls">
+                <label>
+                  Project
+                  <select id="managerDemandCostProjectFilter">
+                    <option value="">All projects</option>
+                  </select>
+                </label>
+                <label>
+                  Phase
+                  <select id="managerDemandCostPhaseFilter">
+                    <option value="">All stages</option>
+                    <option value="p10">P1.0</option>
+                  </select>
+                </label>
+                <label>
+                  Line Count
+                  <input id="managerDemandCostLineCount" class="compact-input" type="number" min="1" step="1" value="1" />
+                </label>
+                <label>
+                  View Mode
+                  <select id="managerDemandCostViewMode">
+                    <option value="amount">Amount</option>
+                    <option value="qty">Qty</option>
+                  </select>
+                </label>
+              </div>
+              <div class="manager-risk-controls">
+                <button class="ghost" type="button" data-action="clearManagerDemandCostFilters">Clear Filters</button>
+              </div>
+            </div>
+            <section class="work-panel demand-cost-panel">
+              <div class="panel-title section-head-tight">
+                <div>
+                  <h3>Demand Cost Dashboard</h3>
+                  <p class="panel-subcopy">Excel Dashboard-style item x unit view. Use Station Matrix only when station-level detail is needed.</p>
+                </div>
+                <span class="status-pill info" id="managerDemandCostCurrencyMeta">VND view</span>
+              </div>
+              <div id="managerDemandCostUnitSummary" class="demand-cost-unit-summary"></div>
+              <div id="managerDemandCostCarryoverCompare" class="demand-cost-carryover-compare"></div>
+              <div id="managerDemandCostLineCompare" class="demand-cost-line-compare"></div>
+              <div class="table-wrap table-shell demand-cost-wrap">
+                <table class="data-table table-fixed dense-dashboard-table demand-cost-table" id="managerDemandCostTable">
+                  <colgroup id="managerDemandCostColgroup"></colgroup>
+                  <thead id="managerDemandCostHead"></thead>
+                  <tbody id="managerDemandCostRows"></tbody>
+                </table>
+              </div>
+              <div id="managerDemandCostCarryoverLedger" class="demand-cost-carryover-ledger"></div>
+            </section>
+            </section>
+
+            <section class="demand-analysis-panel" data-demand-analysis-panel="quantity">
+              <div class="manager-progress-toolbar manager-quantity-toolbar">
+                <div class="toolbar-label">Matrix Filters</div>
+                <div class="manager-progress-controls manager-quantity-controls">
+                  <label>
+                    Project
+                    <select id="managerQuantityProjectFilter">
+                      <option value="">All projects</option>
+                    </select>
+                  </label>
+                  <label>
+                    Item
+                    <select id="managerQuantityItemFilter">
+                      <option value="">All items</option>
+                    </select>
+                  </label>
+                  <label>
+                    Phase
+                    <select id="managerQuantityPhaseFilter">
+                      <option value="">All phases</option>
+                    </select>
+                  </label>
+                  <label>
+                    Station
+                    <select id="managerQuantityStationFilter">
+                      <option value="">All stations</option>
+                    </select>
+                  </label>
+                  <label>
+                    需求單位
+                    <select id="managerQuantityUnitFilter">
+                      <option value="">All demand units</option>
+                    </select>
+                  </label>
+                  <label>
+                    Sort by
+                    <select id="managerQuantitySortFilter">
+                      <option value="">Default</option>
+                      <option value="unitPriceDesc">Unit Price High-Low</option>
+                      <option value="unitPriceAsc">Unit Price Low-High</option>
+                      <option value="amountDesc">Amount High-Low</option>
+                      <option value="amountAsc">Amount Low-High</option>
+                      <option value="qtyDesc">Total Qty High-Low</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="manager-risk-controls" aria-label="Quantity matrix actions">
+                  <button class="ghost" type="button" data-action="clearManagerQuantityFilters">Clear Filters</button>
+                </div>
+              </div>
+              <div id="managerQuantityCarryoverLegend" class="quantity-carryover-legend">
+                Total Demand = original submitted demand. Actual Need = effective demand after applied carryover.
+              </div>
+              <div class="table-wrap manager-quantity-wrap">
+                <table class="data-table manager-quantity-table manager-quantity-wide-table" id="managerQuantityMatrixTable">
+                  <thead id="managerQuantityHead"></thead>
+                  <tbody id="managerQuantityRows"></tbody>
+                </table>
+              </div>
+              <div id="managerQuantityCarryoverLedger" class="demand-cost-carryover-ledger compact"></div>
+            </section>
+          </section>
+
+          <section class="manager-panel" data-manager-panel="demand">
+            <div class="manager-progress-toolbar">
+              <div class="toolbar-label">Scope Filters</div>
+              <div class="manager-progress-controls">
+                <label>
+                  Year Project
+                  <select id="managerProgressYearFilter">
+                    <option value="">All year projects</option>
+                  </select>
+                </label>
+                <label>
+                  Project
+                  <select id="managerProgressProjectFilter">
+                    <option value="">All projects</option>
+                  </select>
+                </label>
+                <label>
+                  Process
+                  <select id="managerProgressProcessFilter">
+                    <option value="">All process</option>
+                  </select>
+                </label>
+                <label>
+                  Stage
+                  <select id="managerProgressStageFilter">
+                    <option value="">All stage</option>
+                  </select>
+                </label>
+                <label>
+                  Department
+                  <select id="managerProgressDepartmentFilter">
+                    <option value="">All departments</option>
+                  </select>
+                </label>
+              </div>
+              <div class="manager-risk-controls" aria-label="Demand risk filters">
+                <label class="risk-toggle">
+                  <input id="managerProgressLateOnly" type="checkbox" />
+                  <span>Late only</span>
+                </label>
+                <label class="risk-toggle">
+                  <input id="managerProgressPendingOnly" type="checkbox" />
+                  <span>Pending only</span>
+                </label>
+                <button class="ghost" type="button" data-action="clearManagerProgressFilters">Clear Filters</button>
+              </div>
+            </div>
+            <div class="summary-grid" id="managerStageSummary"></div>
+            <div class="table-wrap manager-cost-wrap">
+              <table class="data-table manager-cost-table" id="managerDemandOverviewTable">
+                <thead>
+                  <tr>
+                    <th>Year Project</th>
+                    <th>Project</th>
+                    <th>Item</th>
+                    <th>Department</th>
+                    <th>Quantity</th>
+                    <th>Submitted / Received Date</th>
+                    <th>Pending Owner</th>
+                    <th>Current Stage</th>
+                    <th>Days Pending</th>
+                    <th>Quote Status</th>
+                    <th>Next Action</th>
+                    <th>Pending / Risk Reason</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="managerStageRows"></tbody>
+              </table>
+            </div>
+            <section class="work-panel manager-stage-detail-panel" id="managerStageDetailPanel" hidden>
+              <div class="panel-title section-head-tight">
+                <div>
+                  <h3 id="managerStageDetailTitle">Demand Detail</h3>
+                </div>
+                <button class="ghost" type="button" data-action="closeManagerStageDetail">Close</button>
+              </div>
+              <div class="table-wrap stage-demand-wrap">
+                <table class="data-table stage-demand-table" id="managerStageDetailTable">
+                  <thead>
+                    <tr>
+                      <th>Phase</th>
+                      <th>CG</th>
+                      <th>BG</th>
+                      <th>FATP</th>
+                      <th>Test</th>
+                      <th>Hybrid</th>
+                      <th>Auto</th>
+                      <th>ENG Pack</th>
+                      <th>Zombie</th>
+                      <th>Laser_pico</th>
+                      <th>Rework</th>
+                      <th>Repair</th>
+                      <th>WH</th>
+                      <th>Buffer</th>
+                      <th>Total Demand for EQ</th>
+                      <th>Stock</th>
+                      <th>Actual Need QTY</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody id="managerStageDetailRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="manager-panel" data-manager-panel="setup">
+            <section class="work-panel project-setup-panel">
+              <div class="panel-title section-head-tight">
+                <div>
+                  <h3>Set Up New Project</h3>
+                </div>
+              </div>
+              <div class="project-setup-grid">
+                <label>
+                  Project Type
+                  <select id="projectSetupType">
+                    <option value="G">G</option>
+                    <option value="Non-G">Non-G</option>
+                  </select>
+                </label>
+                <label>
+                  Project Code
+                  <input id="projectSetupCode" type="text" placeholder="Example: P99" />
+                </label>
+                <label>
+                  Current Phase
+                  <input id="projectSetupPhase" type="text" placeholder="Example: P1.0, EVT, DVT-2, MP Pilot" />
+                </label>
+                <button class="primary" data-action="saveAndOpenProject">Save & Open to Requester</button>
+              </div>
+              <div class="table-wrap compact-wrap">
+                <table class="data-table project-setup-table">
+                  <thead>
+                    <tr>
+                      <th>Type</th>
+                      <th>Project Code</th>
+                      <th>Current Phase</th>
+                      <th>Line Open Date</th>
+                      <th>Need By</th>
+                      <th>Next Buy Phase</th>
+                      <th>Requester Access</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="projectSetupRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section class="view" data-view="procurement">
+          <div class="inner-tabs handoff-tabs" aria-label="MFG demand coordination sections">
+            <button class="inner-tab active" data-handoff-tab="queue">Collection Status</button>
+            <button class="inner-tab" data-handoff-tab="rfqFollowUp">External Progress</button>
+            <button class="inner-tab" data-handoff-tab="history">Activity History</button>
+          </div>
+
+          <section class="handoff-panel active" data-handoff-panel="queue">
+            <div class="om-workbench-bar">
+              <div class="om-action-group om-context-group">
+                <label>
+                  Project
+                  <select id="handoffProjectFilter">
+                    <option value="">All projects</option>
+                    <option value="P26">P26</option>
+                    <option value="OR5">OR5</option>
+                  </select>
+                </label>
+                <span class="record-count" id="mfgPackageCount">0 rows</span>
+                <select id="handoffRouteFilter" class="utility-hidden" aria-hidden="true">
+                  <option value="">All routes</option>
+                  <option value="Sourcing - RFQ Required">Sourcing - RFQ Required</option>
+                  <option value="Sourcing - New Material">Sourcing - New Material</option>
+                </select>
+                <select id="handoffExportStatusFilter" class="utility-hidden" aria-hidden="true">
+                  <option value="">All handoff statuses</option>
+                  <option value="Ready for Handoff">Ready for Handoff</option>
+                  <option value="Sent to OM Purchasing">Sent to OM Purchasing</option>
+                </select>
+              </div>
+            </div>
+            <div class="summary-grid" id="mfgCollectionSummary"></div>
+            <div class="table-wrap">
+              <table class="data-table mfg-collection-table">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Phase</th>
+                    <th>Collection Form</th>
+                    <th>Progress</th>
+                    <th>Not Submitted</th>
+                    <th>Collection Status</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="mfgCollectionRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="handoff-panel" data-handoff-panel="rfqFollowUp">
+            <div class="om-workbench-bar">
+              <div class="om-action-group om-context-group">
+                <span class="record-count" id="mfgProgressCount">0 rows</span>
+                <span class="record-count" id="mfgProgressSelectedCount">0 selected</span>
+              </div>
+              <div class="om-action-group om-primary-actions">
+                <button class="secondary" data-action="mfgUpdateExternalProgress">Update External Progress</button>
+                <button class="danger" data-action="mfgRejectToDri">Reject to DRI</button>
+              </div>
+            </div>
+            <div class="summary-grid" id="rfqFollowUpSummary"></div>
+            <div class="table-wrap rfq-followup-wrap">
+              <table class="data-table rfq-followup-table">
+                <thead>
+                  <tr>
+                    <th>Select</th>
+                    <th>Request ID</th>
+                    <th>Project</th>
+                    <th>Item</th>
+                    <th>External Status</th>
+                    <th>Evidence</th>
+                    <th>External Request No.</th>
+                    <th>PR No.</th>
+                    <th>PO No.</th>
+                    <th>Last Update</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="rfqFollowUpRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="handoff-panel" data-handoff-panel="history">
+            <div class="table-wrap handoff-history-wrap">
+              <table class="data-table handoff-history-table">
+                <thead>
+                  <tr>
+                    <th>Request ID</th>
+                    <th>Project</th>
+                    <th>Item</th>
+                    <th>Action</th>
+                    <th>Route</th>
+                    <th>Cost Type / Target</th>
+                    <th>Actor</th>
+                    <th>Note</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody id="handoffHistoryRows"></tbody>
+              </table>
+            </div>
+            <div class="table-wrap handoff-history-wrap">
+              <table class="data-table dispatch-history-table">
+                <thead>
+                  <tr>
+                    <th>Request ID</th>
+                    <th>Project</th>
+                    <th>Item</th>
+                    <th>Sourcing Owner</th>
+                    <th>Action</th>
+                    <th>Actor</th>
+                    <th>Note</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody id="dispatchHistoryRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" data-view="sourcing">
+          <div class="page-toolbar compact-toolbar">
+            <label class="project-picker">
+              Sourcing Owner
+              <select id="sourcingOwnerFilter"></select>
+            </label>
+            <label class="project-picker">
+              Status
+              <select id="sourcingStatusFilter">
+                <option value="">All RFQ statuses</option>
+                <option value="Draft">Draft</option>
+                <option value="Dispatched">Dispatched</option>
+                <option value="Waiting Quote">Waiting Quote</option>
+                <option value="Quote Received">Quote Received</option>
+                <option value="Need Clarification">Need Clarification</option>
+                <option value="Overdue">Overdue</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </label>
+          </div>
+          <div class="summary-grid" id="sourcingSummary"></div>
+          <div class="table-wrap sourcing-table-wrap">
+            <table class="data-table sourcing-table">
+              <thead>
+                <tr>
+                  <th>Request ID</th>
+                  <th>Project</th>
+                  <th>Item</th>
+                  <th>Sourcing Owner</th>
+                  <th>Material No.</th>
+                  <th>Material DB Status</th>
+                  <th>Dispatch Date</th>
+                  <th>Required Reply Date</th>
+                  <th>Days Since Sent</th>
+                  <th>RFQ Status</th>
+                  <th>Vendor Name</th>
+                  <th>Vendor Code</th>
+                  <th>Initial Price</th>
+                  <th>Negotiated Price</th>
+                  <th>Reduction</th>
+                  <th>Final Amount</th>
+                  <th>Quote Screenshot</th>
+                  <th>Quote Result</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody id="sourcingRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" data-view="om">
+          <div class="uat-feedback-toolbar" aria-label="OM UAT feedback utility">
+            <div>
+              <strong>OM UAT Feedback</strong>
+              <span id="omFeedbackScope">Page feedback follows the active OM tab and filters.</span>
+            </div>
+            <div class="uat-feedback-actions">
+              <button class="mini return" type="button" data-action="openPageFeedback" title="Submit page-level feedback for OM internal testing">Feedback</button>
+              <button class="mini ghost" type="button" data-action="openUatFeedbackReview" title="View your submitted feedback status">My Feedback</button>
+            </div>
+          </div>
+          <div class="inner-tabs om-tabs" aria-label="OM purchasing sections">
+            <button class="inner-tab active" data-om-tab="submission">Submission Dashboard</button>
+            <button class="inner-tab" data-om-tab="pasRequest">PAS Demand No</button>
+            <button class="inner-tab" data-om-tab="quoteConfirm">PAS Quote Result</button>
+            <button class="inner-tab" data-om-tab="quoteExpiry">Quote Expiry</button>
+            <button class="inner-tab" data-om-tab="finalExport">Export Package</button>
+          </div>
+
+          <section class="om-panel active" data-om-panel="submission">
+            <section class="om-rate-utility" aria-label="Exchange rate utility">
+              <strong>USD/VND Rate</strong>
+              <div class="om-rate-grid">
+                <label>
+                  Month
+                  <input id="omExchangeRateMonth" type="month" />
+                </label>
+                <label>
+                  USD to VND
+                  <input id="omExchangeRateValue" type="number" min="1" step="1" />
+                </label>
+                <button class="mini approve om-rate-save" type="button" data-action="saveOmExchangeRate">Save Rate</button>
+              </div>
+              <span class="status-pill info" id="omRateStatus">Fallback Rate</span>
+            </section>
+            <div class="manager-progress-toolbar om-submission-toolbar">
+              <div class="toolbar-label">Submission Status Scope</div>
+              <div class="manager-progress-controls">
+                <label>
+                  Year Project
+                  <select id="omSubmissionYearFilter">
+                    <option value="">All year projects</option>
+                  </select>
+                </label>
+                <label>
+                  Project
+                  <select id="omSubmissionProjectFilter">
+                    <option value="">All projects</option>
+                  </select>
+                </label>
+                <label>
+                  Process
+                  <select id="omSubmissionProcessFilter">
+                    <option value="">All process</option>
+                  </select>
+                </label>
+                <label>
+                  Stage
+                  <select id="omSubmissionStageFilter">
+                    <option value="">All stage</option>
+                  </select>
+                </label>
+                <label>
+                  Department
+                  <select id="omSubmissionDepartmentFilter">
+                    <option value="">All departments</option>
+                  </select>
+                </label>
+              </div>
+              <div class="manager-risk-controls" aria-label="OM submission risk filters">
+                <label class="risk-toggle">
+                  <input id="omSubmissionLateOnly" type="checkbox" />
+                  <span>Late only</span>
+                </label>
+                <label class="risk-toggle">
+                  <input id="omSubmissionPendingOnly" type="checkbox" />
+                  <span>Pending only</span>
+                </label>
+                <button class="ghost" type="button" data-action="clearOmSubmissionFilters">Clear Filters</button>
+              </div>
+            </div>
+            <div class="summary-grid" id="omSubmissionSummary"></div>
+            <section class="work-panel om-expiry-monitor-panel">
+              <div class="panel-title section-head-tight">
+                <div>
+                  <h3>Quote Expiry Monitor</h3>
+                  <p class="panel-subcopy">Quote validity is entered in PAS Quote Result. This monitor highlights expiring or expired bidding results.</p>
+                </div>
+              </div>
+              <div class="table-wrap om-expiry-monitor-wrap">
+                <table class="data-table om-expiry-monitor-table">
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Item</th>
+                      <th>PAS Demand No</th>
+                      <th>PAS Material No</th>
+                      <th>Valid Until</th>
+                      <th>Expiry Status</th>
+                      <th>Pending Action</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="omSubmissionExpiryRows"></tbody>
+                </table>
+              </div>
+            </section>
+            <div class="table-wrap manager-cost-wrap om-table-wrap om-submission-wrap">
+              <table class="data-table manager-cost-table om-submission-workbench-table" id="omSubmissionTable">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Submitted / Received Date</th>
+                    <th>Pending Owner</th>
+                    <th>Current Stage</th>
+                    <th>Days Pending</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="omSubmissionRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="om-panel" data-om-panel="pasRequest">
+            <div class="om-workbench-bar">
+              <div class="om-action-group om-context-group">
+                <label>
+                  Project Package
+                  <select id="omDemandProjectFilter"></select>
+                </label>
+                <label>
+                  CPD-IEP Owner
+                  <select id="omOwnerFilter"></select>
+                </label>
+                <span class="record-count" id="omPasRequestCount">0 rows</span>
+              </div>
+              <div class="om-action-group om-primary-actions">
+                <div class="om-toolbar-hint" id="omPasRequestHint"></div>
+              </div>
+            </div>
+            <div class="summary-grid" id="omPasRequestSummary"></div>
+            <div class="table-wrap om-table-wrap">
+              <table class="data-table om-demand-table om-pas-demand-table">
+                <colgroup>
+                  <col class="om-pas-col-project" />
+                  <col class="om-pas-col-phase" />
+                  <col class="om-pas-col-item" />
+                  <col class="om-pas-col-qty" />
+                  <col class="om-pas-col-demand" />
+                  <col class="om-pas-col-owner" />
+                  <col class="om-pas-col-assignee" />
+                  <col class="om-pas-col-status" />
+                  <col class="om-pas-col-action" />
+                  <col class="om-pas-col-contact" />
+                  <col class="om-pas-col-detail" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Phase</th>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>PAS Demand No</th>
+                    <th>CPD-IEP Owner</th>
+                    <th>Assigned To</th>
+                    <th>PAS Result Status</th>
+                    <th>Next Step</th>
+                    <th>Contact</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="omPasRequestRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="om-panel" data-om-panel="quoteConfirm">
+            <div class="om-workbench-bar">
+              <div class="om-action-group om-context-group">
+                <span class="toolbar-label">PAS Quote Result</span>
+                <label>
+                  Project Package
+                  <select id="omProjectFilter"></select>
+                </label>
+                <span class="record-count" id="omWorkbenchCount">0 rows</span>
+              </div>
+              <div class="om-action-group om-primary-actions">
+                <div class="om-toolbar-hint" id="omQuoteConfirmHint"></div>
+              </div>
+            </div>
+            <div class="summary-grid" id="omSummary"></div>
+            <div class="table-wrap om-table-wrap om-quote-result-wrap">
+              <table class="data-table om-quote-result-table form-table" data-layout-managed="manual">
+                <colgroup>
+                  <col class="om-quote-col-project" />
+                  <col class="om-quote-col-phase" />
+                  <col class="om-quote-col-item" />
+                  <col class="om-quote-col-qty" />
+                  <col class="om-quote-col-demand" />
+                  <col class="om-quote-col-material" />
+                  <col class="om-quote-col-vendor" />
+                  <col class="om-quote-col-vendor-code" />
+                  <col class="om-quote-col-price" />
+                  <col class="om-quote-col-currency" />
+                  <col class="om-quote-col-date" />
+                  <col class="om-quote-col-date" />
+                  <col class="om-quote-col-files" />
+                  <col class="om-quote-col-status" />
+                  <col class="om-quote-col-assignee" />
+                  <col class="om-quote-col-actions" />
+                  <col class="om-quote-col-detail" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Phase</th>
+                    <th>Item / Spec</th>
+                    <th>Qty</th>
+                    <th>PAS Demand No</th>
+                    <th>PAS Material No</th>
+                    <th>Vendor</th>
+                    <th>Vendor Code</th>
+                    <th>Unit Price</th>
+                    <th>Currency</th>
+                    <th>Quote Date</th>
+                    <th>Valid Until</th>
+                    <th>Files</th>
+                    <th>Completion / Missing</th>
+                    <th>Assigned To</th>
+                    <th>Actions</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="omWorkbenchRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="om-panel" data-om-panel="quoteExpiry">
+            <div class="om-workbench-bar">
+              <div class="om-action-group om-context-group">
+                <span class="toolbar-label">Quote Expiry</span>
+                <label>
+                  Project
+                  <select id="omQuoteExpiryProjectFilter"></select>
+                </label>
+                <label>
+                  Expiry Status
+                  <select id="omQuoteExpiryStatusFilter">
+                    <option value="">All quote status</option>
+                    <option value="expiring">Expiring Soon</option>
+                    <option value="expired">Expired / Requote Required</option>
+                    <option value="missing">Missing Valid Until</option>
+                    <option value="valid">Valid</option>
+                  </select>
+                </label>
+                <label>
+                  Assigned To
+                  <select id="omQuoteExpiryAssigneeFilter">
+                    <option value="">All assignees</option>
+                  </select>
+                </label>
+                <span class="record-count" id="omQuoteExpiryCount">0 rows</span>
+              </div>
+              <div class="om-action-group om-primary-actions">
+                <div class="om-toolbar-hint" id="omQuoteExpiryHint"></div>
+              </div>
+            </div>
+            <div class="summary-grid" id="omQuoteExpirySummary"></div>
+            <div class="table-wrap om-table-wrap om-quote-expiry-wrap">
+              <table class="data-table workflow-table om-quote-expiry-table">
+                <colgroup>
+                  <col class="om-expiry-col-project" />
+                  <col class="om-expiry-col-item" />
+                  <col class="om-expiry-col-demand" />
+                  <col class="om-expiry-col-material" />
+                  <col class="om-expiry-col-date" />
+                  <col class="om-expiry-col-date" />
+                  <col class="om-expiry-col-days" />
+                  <col class="om-expiry-col-status" />
+                  <col class="om-expiry-col-assignee" />
+                  <col class="om-expiry-col-action" />
+                  <col class="om-expiry-col-detail" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Item / Spec</th>
+                    <th>PAS Demand No</th>
+                    <th>PAS Material No</th>
+                    <th>Quote Date</th>
+                    <th>Quote Valid Until</th>
+                    <th>Days Left</th>
+                    <th>Expiry Status</th>
+                    <th>Assigned To</th>
+                    <th>Next Action</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="omQuoteExpiryRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="om-panel" data-om-panel="finalExport">
+            <div class="om-workbench-bar">
+              <div class="om-action-group om-context-group">
+                <span class="toolbar-label">Export Package</span>
+                <label>
+                  Project Package
+                  <select id="omFinalExportProjectFilter"></select>
+                </label>
+                <span class="record-count" id="omFinalExportCount">0 rows</span>
+              </div>
+              <div class="om-action-group om-primary-actions">
+                <div class="om-toolbar-hint" id="omFinalExportHint"></div>
+              </div>
+            </div>
+            <div class="summary-grid" id="omFinalExportSummary"></div>
+            <div class="table-wrap om-table-wrap">
+              <table class="data-table workflow-table om-final-export-table">
+                <colgroup>
+                  <col class="om-export-col-project" />
+                  <col class="om-export-col-phase" />
+                  <col class="om-export-col-item" />
+                  <col class="om-export-col-qty" />
+                  <col class="om-export-col-assignee" />
+                  <col class="om-export-col-package" />
+                  <col class="om-export-col-pas" />
+                  <col class="om-export-col-attachments" />
+                  <col class="om-export-col-decision" />
+                  <col class="om-export-col-target" />
+                  <col class="om-export-col-status" />
+                  <col class="om-export-col-date" />
+                  <col class="om-export-col-actions" />
+                  <col class="om-export-col-contact" />
+                  <col class="om-export-col-detail" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Phase</th>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Assigned To</th>
+                    <th>Package Code</th>
+                    <th>PAS Context</th>
+                    <th>Quote Attachments</th>
+                    <th>Requester Decision</th>
+                    <th>Cost Type / Target</th>
+                    <th>Export Status</th>
+                    <th>Exported At</th>
+                    <th>Actions</th>
+                    <th>Contact</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="omFinalExportRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+        </section>
+
+        <section class="view" data-view="priceReview">
+          <div class="inner-tabs price-review-tabs" aria-label="Price review sections">
+            <button class="inner-tab active" data-price-review-tab="pending">Pending Price Review</button>
+            <button class="inner-tab" data-price-review-tab="history">Review History</button>
+          </div>
+
+          <section class="price-review-panel active" data-price-review-panel="pending">
+            <section class="work-panel">
+              <div class="panel-title">
+                <div>
+                  <h3>Pending Price Review</h3>
+                  <p class="muted">Only quotes above threshold, missing history price, or Temporary Budget Requests arrive here.</p>
+                </div>
+                <span class="record-count" id="priceReviewPendingCount">0 rows</span>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table price-review-table">
+                  <thead>
+                    <tr>
+                      <th>Request ID</th>
+                      <th>Project</th>
+                      <th>Item</th>
+                      <th>Need Date</th>
+                      <th>Category</th>
+                      <th>History Price</th>
+                      <th>Quote Price</th>
+                      <th>Variance</th>
+                      <th>Pending Owner</th>
+                      <th>Decision</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="priceReviewPendingRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="price-review-panel" data-price-review-panel="history">
+            <section class="work-panel">
+              <div class="panel-title">
+                <div>
+                  <h3>Review History</h3>
+                  <p class="muted">Audit trail for Dept DRI and Budget Approver price decisions.</p>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table price-review-table">
+                  <thead>
+                    <tr>
+                      <th>Request ID</th>
+                      <th>Project</th>
+                      <th>Item</th>
+                      <th>Decision</th>
+                      <th>Dept DRI</th>
+                      <th>Budget Approver</th>
+                      <th>Reason</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="priceReviewHistoryRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section class="view" data-view="uatFeedbackReview">
+          <section class="work-panel">
+            <div class="panel-title">
+              <div>
+                <h3 id="uatFeedbackReviewTitle">UAT Feedback Review</h3>
+                <p class="muted" id="uatFeedbackReviewHelper">Admin and OM Leader triage page and row feedback from OM internal testing. This is a utility page, not an OM workflow tab.</p>
+              </div>
+              <button class="ghost" type="button" data-action="refreshUatFeedback">Refresh</button>
+            </div>
+            <div class="summary-grid" id="uatFeedbackSummary"></div>
+            <div class="table-wrap">
+              <table class="data-table workflow-table uat-feedback-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Scope</th>
+                    <th>Reporter</th>
+                    <th>Feedback</th>
+                    <th>Status</th>
+                    <th>Owner</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="uatFeedbackRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" data-view="adminSetup">
+          <section class="work-panel">
+            <div class="panel-title">
+              <div>
+                <h3>Access & Approval Setup</h3>
+                <p class="muted">Prototype setup for user roles, price threshold rules, and DRI approval routing.</p>
+              </div>
+              <span class="status-pill" id="adminSetupUpdatedAt">Prototype state</span>
+            </div>
+            <div class="admin-setup-grid">
+              <section class="admin-setup-card">
+                <h4>Price Threshold Rules</h4>
+                <div class="form-grid two">
+                  <label>
+                    History Price Delta Threshold (USD)
+                    <input id="adminHistoryPriceDeltaThreshold" type="number" min="0" step="0.01" />
+                  </label>
+                  <div class="muted setup-helper">Quote price minus reusable history price. Values above this USD delta require Dept DRI → Budget Approver.</div>
+                </div>
+                <label>
+                  Approval Chain
+                  <input id="adminApprovalChain" type="text" value="Dept DRI -> Budget Approver" />
+                </label>
+                <button class="primary" type="button" data-action="saveAdminApprovalSetup">Save Setup</button>
+              </section>
+              <section class="admin-setup-card">
+                <h4>Project / Unit Approver Mapping</h4>
+                <div class="table-wrap">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Project / Unit</th>
+                        <th>Dept DRI</th>
+                        <th>Budget Approver</th>
+                      </tr>
+                    </thead>
+                    <tbody id="adminApproverRows"></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </section>
+          <section class="work-panel">
+            <div class="panel-title">
+              <div>
+                <h3>User Role Assignment</h3>
+                <p class="muted">First prototype stores updates in local page state; IT can map this to the real identity database.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table admin-user-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Department</th>
+                    <th>Role</th>
+                  </tr>
+                </thead>
+                <tbody id="adminUserRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" data-view="buyer">
+          <div class="page-toolbar compact-toolbar">
+            <label class="project-picker">
+              Project
+              <select id="buyerProjectFilter"></select>
+            </label>
+            <label class="project-picker">
+              PR / PO Status
+              <select id="buyerStatusFilter">
+                <option value="">All statuses</option>
+                <option value="Buyer Received">Buyer Received</option>
+                <option value="PR Created">PR Created</option>
+                <option value="PO Issued">PO Issued</option>
+                <option value="Completed">Completed</option>
+                <option value="Blocked">Blocked</option>
+              </select>
+            </label>
+          </div>
+          <div class="summary-grid" id="buyerSummary"></div>
+          <div class="table-wrap buyer-table-wrap">
+            <table class="data-table buyer-table">
+              <thead>
+                <tr>
+                  <th>Request ID</th>
+                  <th>Project</th>
+                  <th>Item</th>
+                  <th>Tracking Material</th>
+                  <th>Export Package</th>
+                  <th>Buyer Status</th>
+                  <th>External System</th>
+                  <th>External Request No.</th>
+                  <th>PR No.</th>
+                  <th>PO No.</th>
+                  <th>External Status</th>
+                  <th>Evidence</th>
+                  <th>Buyer Note</th>
+                  <th>Received At</th>
+                  <th>Last Update</th>
+                  <th>Update</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody id="buyerRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+      </section>
+      <div class="modal-backdrop" id="contactPopupModal" hidden>
+        <section class="modal-card contact-popup-card" role="dialog" aria-modal="true" aria-labelledby="contactPopupTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="contactPopupTitle">Contact</h3>
+              <p class="modal-helper">Copy role and DRI contact text for quick follow-up.</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeContactPopup">Close</button>
+          </div>
+          <div id="contactPopupContent" class="contact-popup-content"></div>
+          <div class="footer-actions modal-exit-row">
+            <button class="ghost" type="button" data-action="closeContactPopup">Exit</button>
+            <button class="primary" type="button" data-action="copyContactPopup">Copy Contact Text</button>
+          </div>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="uatFeedbackModal" hidden>
+        <section class="modal-card uat-feedback-card" role="dialog" aria-modal="true" aria-labelledby="uatFeedbackTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="uatFeedbackTitle">Submit UAT Feedback</h3>
+              <p class="modal-helper" id="uatFeedbackSubtitle">Page feedback for OM internal test.</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeUatFeedbackModal">Close</button>
+          </div>
+          <form id="uatFeedbackForm" class="uat-feedback-form">
+            <div class="form-grid two">
+              <label>
+                Category
+                <select id="uatFeedbackCategory">
+                  <option value="ui">UI / Layout</option>
+                  <option value="data">Data / Status</option>
+                  <option value="workflow">Workflow</option>
+                  <option value="access">Access / Role</option>
+                  <option value="general">General</option>
+                </select>
+              </label>
+              <label>
+                Severity
+                <select id="uatFeedbackSeverity">
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Feedback
+              <textarea id="uatFeedbackText" rows="5" placeholder="What happened? What did you expect?"></textarea>
+            </label>
+            <label>
+              Screenshot / image
+              <input id="uatFeedbackScreenshot" type="file" accept="image/*" />
+            </label>
+            <label>
+              Evidence note
+              <input id="uatFeedbackEvidence" type="text" placeholder="Screenshot filename, browser note, or short evidence memo" />
+            </label>
+            <div class="uat-feedback-meta" id="uatFeedbackMetadata"></div>
+            <div class="footer-actions modal-exit-row">
+              <button class="ghost" type="button" data-action="closeUatFeedbackModal">Cancel</button>
+              <button class="primary" type="submit">Submit Feedback</button>
+            </div>
+          </form>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="managerDetailModal" hidden>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="managerDetailTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="managerDetailTitle">Request detail</h3>
+              <span id="managerDetailStatus" class="status-pill draft">No request</span>
+            </div>
+            <button class="ghost" type="button" data-action="closeManagerDetail">Close</button>
+          </div>
+          <div id="managerDetail" class="detail-stack"></div>
+          <div class="footer-actions modal-exit-row">
+            <button class="ghost" type="button" data-action="closeManagerDetail">Done</button>
+          </div>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="managerTrackModal" hidden>
+        <section class="modal-card manager-track-card" role="dialog" aria-modal="true" aria-labelledby="managerTrackTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="managerTrackTitle">Item Phase Matrix</h3>
+              <p id="managerTrackSubtitle" class="modal-helper">Phase x station matrix</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeManagerTrack">Close</button>
+          </div>
+          <div id="managerTrackBody" class="detail-stack"></div>
+          <div id="managerTrackSummary" class="summary-grid"></div>
+          <div class="footer-actions modal-exit-row">
+            <button class="ghost" type="button" data-action="closeManagerTrack">Done</button>
+          </div>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="itemDetailModal" hidden>
+        <section class="modal-card item-detail-card" role="dialog" aria-modal="true" aria-labelledby="itemDetailTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="itemDetailTitle">Item detail</h3>
+              <span id="itemDetailBadge" class="status-pill">Existing Item</span>
+            </div>
+            <button class="ghost" type="button" data-action="closeItemDetail">Close</button>
+          </div>
+          <div id="itemDetailBody" class="item-detail-layout"></div>
+          <div class="footer-actions modal-exit-row">
+            <button class="ghost" type="button" data-action="closeItemDetail">Done</button>
+          </div>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="demandEditorModal" hidden>
+        <section class="modal-card demand-editor-card" role="dialog" aria-modal="true" aria-labelledby="demandEditorTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="demandEditorTitle">Demand Breakdown</h3>
+              <p id="demandEditorContext" class="modal-helper">Edit phase, station, demand unit, and quantity for this item.</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeDemandEditor">Close</button>
+          </div>
+          <div id="demandEditorSummary" class="summary-grid demand-editor-summary"></div>
+          <div id="demandEditorMfgGuide" class="mfg-demand-guide"></div>
+          <div class="table-wrap aligned-table-wrap demand-editor-wrap">
+            <table class="data-table demand-editor-table">
+              <thead>
+                <tr>
+                  <th>Demand Type</th>
+                  <th>Phase</th>
+                  <th>Station / Unit</th>
+                  <th>Qty</th>
+                  <th>Request Line</th>
+                  <th>Carryover</th>
+                  <th>Remark</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="demandEditorRows"></tbody>
+            </table>
+          </div>
+          <div class="actions footer-actions">
+            <button class="primary" type="button" data-action="addDemandEditorRow">Add Demand Row</button>
+            <button class="ghost" type="button" data-action="closeDemandEditor">Done</button>
+          </div>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="materialEntryModal" hidden>
+        <section class="modal-card material-entry-card" role="dialog" aria-modal="true" aria-labelledby="materialEntryTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="materialEntryTitle">Complete Material Information</h3>
+              <span id="materialEntryMode" class="status-pill">New Material</span>
+              <p id="materialEntryHelper" class="modal-helper">Complete the standard material information before adding this row to Request.</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeMaterialEntry">Close</button>
+          </div>
+          <form id="materialEntryForm" class="decision-form material-entry-form">
+            <div class="material-entry-source" id="materialEntrySource"></div>
+            <div class="form-grid three">
+              <label>
+                LV1
+                <select id="materialEntryLevel1"></select>
+              </label>
+              <label>
+                LV2
+                <select id="materialEntryLevel2"></select>
+              </label>
+              <label>
+                LV3
+                <select id="materialEntryLevel3"></select>
+              </label>
+            </div>
+            <label>
+              Standard Part Name CN
+              <input id="materialEntryStandardNameCn" type="search" placeholder="Select LV123, then search within standard names" />
+            </label>
+            <div class="material-standard-search">
+              <div class="material-standard-head">
+                <strong>Matching standard names</strong>
+                <span id="materialEntryStandardCount" class="record-count">Select LV123 first</span>
+              </div>
+              <div id="materialEntryStandardResults" class="material-standard-results"></div>
+              <div id="materialEntryStandardMore" class="material-standard-more" hidden>
+                <span id="materialEntryStandardMoreText"></span>
+                <button class="ghost mini" type="button" data-action="openMaterialStandardPicker">Open all results</button>
+              </div>
+              <div id="materialEntryStandardException" class="material-entry-exception" hidden>
+                <p id="materialEntryStandardEmpty" class="modal-helper"></p>
+                <button class="text-button" type="button" data-action="toggleMaterialStandardName">Propose a new standard name</button>
+              </div>
+              <p id="materialEntryStandardHint" class="modal-helper" hidden>The Standard Part Name CN field above is now a proposed name for traceability.</p>
+            </div>
+            <div class="form-grid two">
+              <label>
+                Part Name EN
+                <input id="materialEntryStandardNameEn" type="text" placeholder="English standard name" />
+              </label>
+              <label>
+                Part Name VN
+                <input id="materialEntryStandardNameVn" type="text" placeholder="Vietnamese standard name" />
+              </label>
+            </div>
+            <div class="form-grid two">
+              <label>
+                Detail
+                <input id="materialEntryDetail" type="text" placeholder="Functional detail" />
+              </label>
+              <label>
+                Spec
+                <input id="materialEntrySpec" type="text" placeholder="Technical specification" />
+              </label>
+            </div>
+            <div class="form-grid two">
+              <label>
+                Estimated Unit Price (VND)
+                <input id="materialEntryEstimatedUnitPrice" type="number" min="0" step="1" inputmode="numeric" placeholder="Optional budget estimate" />
+              </label>
+              <label>
+                Estimated Amount (VND)
+                <input id="materialEntryEstimatedAmount" type="number" min="0" step="1" inputmode="numeric" placeholder="Optional run-ahead budget" />
+              </label>
+            </div>
+            <label>
+              Budget Remark
+              <input id="materialEntryBudgetRemark" type="text" placeholder="Optional note for Manager budget review" />
+            </label>
+            <label>
+              Reason / Use Case
+              <textarea id="materialEntryUseCase" rows="3" placeholder="Why is this item needed?"></textarea>
+            </label>
+            <div class="footer-actions">
+              <button class="ghost" type="button" data-action="closeMaterialEntry">Cancel</button>
+              <button class="primary" type="submit">Add to Request</button>
+            </div>
+          </form>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="standardNamePickerModal" hidden>
+        <section class="modal-card standard-picker-card" role="dialog" aria-modal="true" aria-labelledby="standardNamePickerTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="standardNamePickerTitle">Select Standard Part Name</h3>
+              <p id="standardNamePickerContext" class="modal-helper">Search within the selected LV123 category.</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeMaterialStandardPicker">Close</button>
+          </div>
+          <label>
+            Search standard name
+            <input id="standardNamePickerQuery" type="search" placeholder="Search CN, EN, VN, or legacy alias" />
+          </label>
+          <div class="material-standard-head standard-picker-head">
+            <strong>Scoped matches</strong>
+            <span id="standardNamePickerCount" class="record-count">0 matches</span>
+          </div>
+          <div id="standardNamePickerResults" class="standard-picker-results"></div>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="materialBatchModal" hidden>
+        <section class="modal-card material-batch-card" role="dialog" aria-modal="true" aria-labelledby="materialBatchTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="materialBatchTitle">Standardize Selected Items</h3>
+              <p class="modal-helper">Complete only the legacy items you are ready to add. Unfinished rows stay out of Request.</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeMaterialBatch">Close</button>
+          </div>
+          <div class="material-batch-layout">
+            <aside class="material-batch-queue">
+              <div class="material-standard-head">
+                <strong>Selected items</strong>
+                <span id="materialBatchCount" class="record-count">0 items</span>
+              </div>
+              <div id="materialBatchList" class="material-batch-list"></div>
+            </aside>
+            <form id="materialBatchForm" class="decision-form material-batch-form">
+              <div id="materialBatchSource" class="material-entry-source"></div>
+              <div class="form-grid three">
+                <label>LV1<select id="materialBatchLevel1"></select></label>
+                <label>LV2<select id="materialBatchLevel2"></select></label>
+                <label>LV3<select id="materialBatchLevel3"></select></label>
+              </div>
+              <label>
+                Standard Part Name CN
+                <input id="materialBatchStandardNameCn" type="search" placeholder="Select LV123, then search within standard names" />
+              </label>
+              <div class="material-standard-search">
+                <div class="material-standard-head">
+                  <strong>Matching standard names</strong>
+                  <span id="materialBatchStandardCount" class="record-count">Select LV123 first</span>
+                </div>
+                <div id="materialBatchStandardResults" class="material-standard-results"></div>
+                <div id="materialBatchStandardMore" class="material-standard-more" hidden>
+                  <span id="materialBatchStandardMoreText"></span>
+                  <button class="ghost mini" type="button" data-action="openBatchStandardPicker">Open all results</button>
+                </div>
+                <div id="materialBatchStandardException" class="material-entry-exception" hidden>
+                  <p id="materialBatchStandardEmpty" class="modal-helper"></p>
+                  <button class="text-button" type="button" data-action="toggleBatchStandardName">Propose a new standard name</button>
+                </div>
+                <p id="materialBatchStandardHint" class="modal-helper" hidden>The Standard Part Name CN field above is now a proposed name for traceability.</p>
+              </div>
+              <div class="form-grid two">
+                <label>Part Name EN<input id="materialBatchStandardNameEn" type="text" placeholder="English standard name" /></label>
+                <label>Part Name VN<input id="materialBatchStandardNameVn" type="text" placeholder="Vietnamese standard name" /></label>
+              </div>
+              <div class="form-grid two">
+                <label>Detail<input id="materialBatchDetail" type="text" placeholder="Functional detail" /></label>
+                <label>Spec<input id="materialBatchSpec" type="text" placeholder="Technical specification" /></label>
+              </div>
+              <label>Reason / Use Case<textarea id="materialBatchUseCase" rows="3" placeholder="Why is this item needed?"></textarea></label>
+            </form>
+          </div>
+          <div class="footer-actions material-batch-actions">
+            <button class="ghost" type="button" data-action="closeMaterialBatch">Cancel</button>
+            <button class="primary" type="button" data-action="addCompletedBatchMaterials">Add Completed Items to Request</button>
+          </div>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="omExternalResultModal" hidden>
+        <section class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="omExternalResultTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="omExternalResultTitle">Update External Progress</h3>
+              <span id="omExternalResultScope" class="status-pill received-handoff">No rows selected</span>
+              <p class="modal-helper">Use this to record external system status with screenshot, pasted result, email, PDF, Excel, or zip evidence.</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeOmExternalResult">Close</button>
+          </div>
+          <form class="decision-form" id="omExternalResultForm">
+            <label>
+              Progress status
+              <select id="modalOmExternalResult">
+                <option value="">Select result</option>
+                <option value="Package Preparing">Package Preparing</option>
+                <option value="Package Ready">Package Ready</option>
+                <option value="Submitted to External System">Submitted to External System</option>
+                <option value="External Review">External Review</option>
+                <option value="External Accepted">External Accepted</option>
+                <option value="Blocked">Blocked</option>
+                <option value="Rejected to DRI">Rejected to DRI</option>
+                <option value="PR Created">PR Created</option>
+                <option value="PO Issued">PO Issued</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label>
+              External System
+              <input id="modalExternalSystem" type="text" placeholder="Paste or type external system name" />
+            </label>
+            <label>
+              External Request No.
+              <input id="modalExternalRequestNo" type="text" placeholder="AIDB / PR request / external case no." />
+            </label>
+            <div class="form-grid two">
+              <label>
+                PR No.
+                <input id="modalExternalPrNo" type="text" placeholder="Required for PR Created" />
+              </label>
+              <label>
+                PO No.
+                <input id="modalExternalPoNo" type="text" placeholder="Required for PO Issued" />
+              </label>
+            </div>
+            <label>
+              Factory Material No.
+              <input id="modalExternalFactoryMaterialNo" type="text" placeholder="Filled after PO when PUR/Buyer has factory tracking no." />
+            </label>
+            <label>
+              Evidence Type
+              <select id="modalExternalEvidenceType">
+                <option value="">Select evidence type</option>
+                <option value="Screenshot">Screenshot</option>
+                <option value="Pasted Result">Pasted Result</option>
+                <option value="Email Evidence">Email Evidence</option>
+                <option value="PDF">PDF</option>
+                <option value="Excel">Excel</option>
+                <option value="ZIP / MSG Package">ZIP / MSG Package</option>
+              </select>
+            </label>
+            <label>
+              Paste External Result
+              <textarea id="modalExternalPastedResult" rows="4" placeholder="Paste external system result, rejection reason, email body, or PR/PO confirmation text."></textarea>
+            </label>
+            <div class="form-grid two">
+              <label>
+                Upload Screenshot
+                <input id="modalExternalScreenshot" type="file" accept="image/*" />
+              </label>
+              <label>
+                Upload Evidence File
+                <input id="modalExternalEvidenceFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.zip,.msg,.eml,image/*" />
+              </label>
+            </div>
+            <label>
+              Reason / external note
+              <textarea id="modalOmExternalReason" rows="4" placeholder="Required for rejected results."></textarea>
+            </label>
+            <div class="footer-actions">
+              <button class="ghost" type="button" data-action="closeOmExternalResult">Cancel</button>
+              <button class="primary" type="submit">Save Progress Event</button>
+            </div>
+          </form>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="rfqEmailDraftModal" hidden>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="rfqEmailDraftTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="rfqEmailDraftTitle">RFQ Email Draft</h3>
+              <span id="rfqEmailDraftScope" class="status-pill received-handoff">No rows selected</span>
+            </div>
+            <button class="ghost" type="button" data-action="closeRfqEmailDraft">Close</button>
+          </div>
+          <div class="decision-form">
+            <label>
+              To
+              <input id="rfqEmailTo" type="text" readonly />
+            </label>
+            <label>
+              Subject
+              <input id="rfqEmailSubject" type="text" readonly />
+            </label>
+            <label>
+              Body
+              <textarea id="rfqEmailBody" rows="10" readonly></textarea>
+            </label>
+            <div class="footer-actions">
+              <button class="ghost" type="button" data-action="closeRfqEmailDraft">Cancel</button>
+              <button class="primary" type="button" data-action="copyRfqEmailDraft">Copy Email Draft</button>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+      <div class="modal-backdrop confirm-backdrop" id="confirmModal" hidden>
+        <section class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="confirmTitle">Confirm action</h3>
+              <p id="confirmMessage" class="confirm-message">This action requires confirmation.</p>
+            </div>
+          </div>
+          <div class="actions confirm-actions">
+            <button class="ghost" type="button" data-action="cancelConfirm">Cancel</button>
+            <button class="primary" type="button" id="confirmActionButton" data-action="confirmAction">Confirm</button>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script src="./real-data-seeds.js?v=20260604-role-routing-v2"></script>
+    <script src="./requester-responsibility-data.js?v=20260604-requester-login"></script>
+    <script src="./app-modules/shared-formatters.js?v=20260605-clean-code-v1"></script>
+    <script src="./app-modules/role-guards.js?v=20260605-clean-code-v1"></script>
+    <script src="./app-modules/quote-validity.js?v=20260604-role-routing-v2"></script>
+    <script src="./app-modules/demand-cost-dashboard.js?v=20260604-role-routing-v2"></script>
+    <script src="./app-modules/price-decision.js?v=20260605-usd-delta-v1"></script>
+    <script src="./app-modules/lead-time.js?v=20260605-usd-delta-v1"></script>
+    <script src="./app-modules/workflow-status.js?v=20260606-workflow-status-v1"></script>
+    <script src="./app-modules/workflow-status-table.js?v=20260606-workflow-status-v1"></script>
+    <script src="./app.js?v=20260605-clean-code-v4"></script>
+    <script src="./user-a-flow.js?v=20260604-role-routing-v2"></script>
+  <script src="carryover-extension.js?v=20260604-role-routing-v2"></script>
+  <script src="layout-contract.js?v=20260604-role-routing-v2"></script>
+</body>
+</html>

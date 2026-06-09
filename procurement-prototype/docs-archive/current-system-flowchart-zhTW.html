@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>現行採購需求系統流程圖</title>
+  <style>
+    :root {
+      --bg: #f3f6f8;
+      --paper: #ffffff;
+      --ink: #1f2b35;
+      --muted: #63717c;
+      --line: #cfd9e2;
+      --blue: #1f6fb2;
+      --blue-soft: #e6f1fb;
+      --green: #197b55;
+      --green-soft: #e4f5ed;
+      --amber: #a56200;
+      --amber-soft: #fff1d8;
+      --red: #b13f3f;
+      --red-soft: #fde8e8;
+      --purple: #6654b8;
+      --purple-soft: #eeeafb;
+      --gray-soft: #eef3f6;
+      --shadow: 0 16px 40px rgba(28, 43, 55, 0.10);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: linear-gradient(135deg, #edf3f7 0%, #f8fafb 52%, #eef5f1 100%);
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif;
+      line-height: 1.48;
+    }
+
+    .page {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 32px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 22px;
+      padding: 28px 30px;
+      background: var(--paper);
+      border: 1px solid #dfe6ec;
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 52px);
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+      max-width: 860px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 8px 14px;
+      color: var(--muted);
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .notice {
+      margin-bottom: 22px;
+      padding: 14px 18px;
+      color: #6a4817;
+      background: var(--amber-soft);
+      border: 1px solid #f0c97a;
+      border-radius: 14px;
+      font-weight: 800;
+    }
+
+    .section {
+      margin-top: 22px;
+      padding: 24px;
+      background: var(--paper);
+      border: 1px solid #dfe6ec;
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: -0.02em;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .flow-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.15fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .lane {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fbfcfd;
+    }
+
+    .lane h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .lane-label {
+      display: inline-flex;
+      width: fit-content;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .user .lane-label { color: var(--blue); background: var(--blue-soft); }
+    .manager .lane-label { color: var(--amber); background: var(--amber-soft); }
+    .routing .lane-label { color: var(--purple); background: var(--purple-soft); }
+    .coordinator .lane-label { color: var(--green); background: var(--green-soft); }
+    .om .lane-label { color: var(--red); background: var(--red-soft); }
+    .audit .lane-label { color: #4b5963; background: var(--gray-soft); }
+
+    .step {
+      position: relative;
+      min-height: 92px;
+      padding: 14px 14px 14px 16px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-left: 6px solid #b9c6d0;
+      border-radius: 14px;
+    }
+
+    .user .step { border-left-color: var(--blue); }
+    .manager .step { border-left-color: var(--amber); }
+    .routing .step { border-left-color: var(--purple); }
+    .coordinator .step { border-left-color: var(--green); }
+    .om .step { border-left-color: var(--red); }
+    .audit .step { border-left-color: #74828d; }
+
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+
+    .step span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      min-height: 32px;
+      color: var(--muted);
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .routing-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .route-card {
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .route-card h3 {
+      margin: 0 0 8px;
+      font-size: 21px;
+    }
+
+    .route-card p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .route-card ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .route-card li {
+      margin: 7px 0;
+      color: #33424d;
+      font-size: 14px;
+    }
+
+    .route-card.om-route {
+      border-top: 8px solid var(--red);
+      background: linear-gradient(180deg, #fff 0%, #fff8f8 100%);
+    }
+
+    .route-card.coordinator-route {
+      border-top: 8px solid var(--green);
+      background: linear-gradient(180deg, #fff 0%, #f6fff9 100%);
+    }
+
+    .comparison {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 14px;
+    }
+
+    .comparison th,
+    .comparison td {
+      padding: 14px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    .comparison th {
+      color: #1c2c37;
+      background: #edf3f7;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .comparison td:first-child {
+      width: 210px;
+      font-weight: 900;
+    }
+
+    .output-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(180px, 1fr));
+      gap: 14px;
+    }
+
+    .output-card {
+      min-height: 150px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+    }
+
+    .output-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      margin-bottom: 10px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .output-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .footer {
+      margin: 22px 0 0;
+      color: var(--muted);
+      text-align: center;
+      font-size: 12px;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+      .page {
+        max-width: none;
+        padding: 14px;
+      }
+      header,
+      .section {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      header,
+      .flow-grid,
+      .routing-split,
+      .output-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <p class="eyebrow">FIH Equipment Management Handoff System</p>
+        <h1>現行採購需求系統流程圖</h1>
+        <p class="subtitle">本圖說明目前 prototype 已實作的流程：User A / DRI 提出需求，MFG Coordinator 追蹤 MFG line / phase 是否收集齊，Manager B 審批；IT / OM Buy scope 由 OM Purchasing 先做 PAS Review，PAS 完成後才進 OM 採買 package。</p>
+      </div>
+      <span class="badge">現行系統版 · PAS Gate 已納入</span>
+    </header>
+
+    <div class="notice">提醒：IT / 資訊網絡 / OM Buy scope 為 PAS 必經流程；BC 預算流程仍屬後續串接規劃。</div>
+
+    <section class="section">
+      <div class="section-head">
+              <h2>一、現行主流程</h2>
+        <span class="hint">從 MFG 收集、Manager 審批到 OM / Sourcing / Buyer 閉環</span>
+      </div>
+
+      <div class="flow-grid">
+        <article class="lane user">
+          <span class="lane-label">User A</span>
+          <h3>Department Item Request</h3>
+          <div class="step"><strong>Natural Search / History / Create New Item</strong><span>搜尋既有品項、複製歷史品項，或建立新品項需求。</span></div>
+          <div class="arrow">↓</div>
+          <div class="step"><strong>Request Draft</strong><span>填入 P1.0 / P1.1 / EVT / DVT / PVT / MP 各階段數量。</span></div>
+          <div class="arrow">↓</div>
+          <div class="step"><strong>Submit to Manager B</strong><span>提交給 Manager B 審核；User A 後續在 My Submissions 追蹤狀態。</span></div>
+        </article>
+
+        <article class="lane manager">
+          <span class="lane-label">Manager B</span>
+          <h3>Manager Approval</h3>
+          <div class="step"><strong>Review Queue</strong><span>檢查需求、數量、OM Buy Scope、PAS Status、下一步分流。</span></div>
+          <div class="arrow">↓</div>
+          <div class="step"><strong>Demand Tracking / Project Cost View</strong><span>查看殘留、需求風險、成本可信度，作為審批依據。</span></div>
+          <div class="arrow">↓</div>
+          <div class="step"><strong>Approve / Return / Reject</strong><span>Return / Reject 必填原因；Approved 後進入系統自動 routing。</span></div>
+        </article>
+
+        <article class="lane routing">
+          <span class="lane-label">System Routing</span>
+          <h3>Manager Approved 後自動分流</h3>
+          <div class="step"><strong>PAS Required - OM Buy Scope</strong><span>PC、IPC、Laptop、Monitor、Keyboard、Mouse 等 IT / OM 品項先進 PAS Review。</span></div>
+          <div class="step"><strong>PAS Approved - Send to OM</strong><span>PAS 回覆 project code / budget amount 後，才進 OM Demand Collection。</span></div>
+          <div class="step"><strong>MFG / Non-IT / Sourcing Needed</strong><span>MFG 或需要供應商詢價的品項，進 Sourcing / Buyer 後段流程。</span></div>
+        </article>
+      </div>
+
+      <div class="routing-split">
+        <article class="route-card om-route">
+          <h3>OM Purchasing 路徑</h3>
+          <p>處理 PAS approved 後的 OM Buy scope / IT recurring bucket，包含可先用 bucket 收集需求的 PC、IPC(A) 等品項。</p>
+          <ul>
+            <li>接收 PAS approved / budget-code-issued demand。</li>
+            <li>在 Demand Collection 彙整需求。</li>
+            <li>確認 final spec / model。</li>
+            <li>內建 IT / OM Buy sourcing 工作，維護 vendor、price、quote date、quote expiry。</li>
+            <li>上傳 Quote PDF，輸出 OM Excel / PDF package。</li>
+            <li>package 送出或外部接受後，進入 Buyer 外部 PR / PO 追蹤；系統不自行判斷 CFA / ECS。</li>
+          </ul>
+        </article>
+
+        <article class="route-card coordinator-route">
+          <h3>MFG Coordinator 路徑</h3>
+          <p>負責 MFG 各 line / phase 需求收集完整性，確認 Mainline / Packing / Supporting / Demand Calculation 是否收齊後，形成 package 給 Manager B。</p>
+          <ul>
+            <li>追蹤 MFG collection completeness。</li>
+            <li>缺資料時退回 line / area owner 補資料。</li>
+            <li>資料收齊後形成 MFG Demand Package。</li>
+            <li>必要時配合 RFQ / Sourcing 後段流程。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>二、OM / Coordinator / Sourcing / Buyer 的差異</h2>
+        <span class="hint">避免角色責任混在一起</span>
+      </div>
+      <table class="comparison">
+        <thead>
+          <tr>
+            <th>角色</th>
+            <th>主要責任</th>
+            <th>典型品項 / 情境</th>
+            <th>目前輸出</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>OM Purchasing</td>
+            <td>收集 OM-scope 需求、確認 final spec/model、內建 OM sourcing 工作、維護報價、上傳 Quote PDF、輸出正式 package。</td>
+            <td>PC、IPC、Laptop、Monitor、Keyboard、Mouse、Barcode、Printer、Network Switch、Software。PC / IPC(A) 可先作為需求 bucket。</td>
+            <td>OM Purchasing Excel `.xlsx`、Quote PDF package `.pdf`、外部進度與 evidence，送 Buyer 追蹤 PR / PO。</td>
+          </tr>
+          <tr>
+            <td>MFG Coordinator</td>
+            <td>追蹤 MFG line / phase 需求收集完整性，形成 package 給 Manager B。</td>
+            <td>MFG Mainline、Packing、Supporting、Demand Calculation 收集狀態。</td>
+            <td>MFG Demand Package、collection status、missing data follow-up。</td>
+          </tr>
+          <tr>
+            <td>Sourcing</td>
+            <td>接收 RFQ 任務，向供應商詢價並回填 quote result、vendor、price、Quote PDF。</td>
+            <td>MFG / 非 IT 品項，需要供應商報價。</td>
+            <td>Quote result、vendor / price、Quote PDF、Sourcing RFQ 狀態。</td>
+          </tr>
+          <tr>
+            <td>Buyer</td>
+            <td>追蹤外部系統結果、外部單號、PR No.、PO No. 與佐證附件。</td>
+            <td>OM package 送出 / 外部接受，或 MFG / Sourcing 完成後的 package。</td>
+            <td>External Request No.、PR No.、PO No.、Evidence、Completed。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>三、目前系統會輸出的檔案格式</h2>
+        <span class="hint">給老闆快速理解交付物</span>
+      </div>
+      <div class="output-grid">
+        <article class="output-card">
+          <span class="pill">.xlsx</span>
+          <strong>RFQ Excel</strong>
+          <p>Owner：MFG / Sourcing flow。依 Sourcing Owner 分檔，輸出給 Sourcing 進行詢價。</p>
+        </article>
+        <article class="output-card">
+          <span class="pill">Email Draft</span>
+          <strong>RFQ Email Draft</strong>
+          <p>Owner：MFG / Sourcing flow。產生可複製的 email subject/body，不直接寄信。</p>
+        </article>
+        <article class="output-card">
+          <span class="pill">.xlsx</span>
+          <strong>OM Purchasing Excel Package</strong>
+          <p>Owner：OM Purchasing。包含 `Project budget-summary table` 與 `{Project}-OM-Purchasing-Detail` 兩個 sheet。</p>
+        </article>
+        <article class="output-card">
+          <span class="pill">.pdf</span>
+          <strong>Quote PDF Package</strong>
+          <p>Owner：OM Purchasing / Sourcing。作為報價證據；外部進度與 Buyer PR / PO 需另外留存 evidence。</p>
+        </article>
+        <article class="output-card">
+          <span class="pill">Audit Trail</span>
+          <strong>Activity / History Records</strong>
+          <p>Owner：System。記錄 RFQ dispatch、Sourcing reply、PDF upload、Excel/PDF export、external progress evidence、Buyer PR / PO、revision history。</p>
+        </article>
+      </div>
+    </section>
+
+    <p class="footer">Current implemented prototype flowchart · Generated for management reporting</p>
+  </main>
+</body>
+</html>

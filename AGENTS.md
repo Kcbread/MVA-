@@ -1,0 +1,67 @@
+# Codex Project Rules
+
+This workspace is the source for the MVA procurement system prototype, database setup notes, IT handoff materials, and PM context compression work.
+
+## First Read Order
+
+When starting work in this workspace, read only what is needed, in this order:
+
+1. `README.md` for workspace entry points.
+2. `procurement-prototype/_context/README.zh-TW.md` for current role, flow, module, and API context.
+3. The specific role file under `procurement-prototype/_context/roles/` for the role being changed.
+4. `procurement-prototype/PROJECT_DECISIONS.md` only when `_context/` is missing a required locked decision.
+5. `procurement-prototype/IMPLEMENTATION_LOG.md` and `project-progress/PROJECT_PROGRESS.md` for recent progress, if the task depends on history.
+6. `procurement-prototype/_doc/testing-standard-op.zh-TW.md` before changing tests or verification flow.
+7. `procurement-prototype/_doc/ui-quality-review.zh-TW.md` before UI changes.
+
+Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old Kuso files, or `_doc/v*.md` unless the user asks for handoff documentation or the current docs are missing a required decision.
+
+## Core Operating Rules
+
+- Keep the main thread focused on decisions, tradeoffs, implementation summary, and verification results.
+- Default to Traditional Chinese for user-facing responses unless the user requests another language.
+- Use compact handoffs when context gets long: `Findings / Decision / Risk / Next`.
+- Treat `procurement-prototype/_context/` as the first onboarding source for role, flow, module, and API context.
+- Treat `procurement-prototype/PROJECT_DECISIONS.md` as the full locked-decision source when `_context/` is insufficient.
+- Do not let UI changes redefine business ownership. Lock who creates, approves, views, and edits before implementation.
+- Do not update IT handoff packages unless business flow, canonical data, role ownership, or external handoff requirements changed.
+- Prefer existing prototype patterns over adding new architecture.
+
+## MCP, Skills, And Agents
+
+- Use skills before improvising:
+  - `internal-system-delivery-workflow` for general internal-system requirements, frontend/backend/QA planning, IT handoff, MCP/agent coordination, and long-context delivery memory.
+  - `procurement-agent-workflow` for large, cross-role, data-flow sensitive work.
+  - `procurement-testing-standard-op` before running or changing the standard test flow.
+  - `procurement-ui-quality-review` for procurement UI review or UI changes.
+  - `frontend-layout-stability` for modal, table, dashboard, and responsive layout work.
+- General internal-system collaboration rules come from `internal-system-delivery-workflow`; this repo's procurement-specific truth still comes from `procurement-prototype/PROJECT_DECISIONS.md` and the procurement skills.
+- For new thread or subagent startup, prefer `procurement-prototype/_context/README.zh-TW.md` plus the relevant role file before reading long history.
+- Use MCP/thread tools for PM memory only when the user asks to coordinate threads, create automations, or inspect another Codex thread.
+- Use subagents for bounded work only: read-only research, spec/story shaping, implementation slices, verification, or validation.
+- Do not delegate product decisions to subagents. Bring unresolved ownership or policy questions back to the main thread.
+- If subagent capacity is unavailable, continue in the main thread and state that the agent limit was hit.
+
+## Procurement Prototype Heuristics
+
+- Roles matter more than screens. Confirm role ownership before changing tabs, tables, or actions.
+- Canonical data must be explicit: quantity, phase, station/unit, currency, price, carryover status, and approval status.
+- Warehouse-style data is evidence unless a ledger or workflow rule says it affects cost.
+- Cost Owner views must distinguish calculated value from approval status.
+- Requester-facing UI must hide vendor, supplier, PAS material number, factory material number, and OM ownership unless a decision says otherwise.
+- Dense tables are acceptable for Manager B, but numeric meaning must remain readable through detail, titles, or drilldowns.
+- Avoid adding a new tab when the task is better modeled as a contextual suggestion, row action, queue, or detail panel.
+
+## Verification Expectations
+
+- Run `./test.sh` from `procurement-prototype` for material prototype changes.
+- For narrow syntax-only changes, at least run the relevant syntax or unit check and explain why the full suite was not needed.
+- UI work should include rendered verification when feasible, especially for modals, tables, overflow, and role-specific screens.
+- If a test fails because expectations are stale, update the test only after confirming the new business rule is intentional.
+
+## PM Memory And Context Compression
+
+- Use `Master PM Handoff` as the stable baseline when available.
+- Daily summaries should be delta-based: yesterday's changes, newly locked decisions, current status, risks, and next actions.
+- A handoff is useful only if a future thread can continue from it without rereading the old conversation.
+- Prefer one readable canonical handoff over many partial summaries.

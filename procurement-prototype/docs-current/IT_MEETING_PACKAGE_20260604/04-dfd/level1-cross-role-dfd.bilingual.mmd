@@ -1,0 +1,41 @@
+flowchart LR
+  subgraph R["Requester / 需求端"]
+    R1["Request Workspace<br/>Add / Reuse / Need Date"]
+    R2["Edit Demand Rows<br/>MFG station or Non-MFG unit"]
+    R3["Submit Package"]
+    R4["Revise / Resubmit<br/>after rejection or amendment"]
+  end
+
+  subgraph M["Manager B"]
+    M1["Pending Approval"]
+    M2{"Approve?"}
+    M3["Demand Analysis<br/>Cost Dashboard -> Station Matrix"]
+  end
+
+  subgraph O["OM Purchasing"]
+    O1["Submission Dashboard<br/>Pending Owner / Days"]
+    O2["PAS Demand No"]
+    O3["PAS Quote Result<br/>Quote + Validity + Files"]
+    O4{"Price Decision"}
+    O5["Export Package<br/>Expense->ECS / Capex->CFA"]
+  end
+
+  subgraph P["Dept DRI / Budget Approver"]
+    P1["Dept DRI Review"]
+    P2["Budget Approver Review"]
+  end
+
+  DB[("MySQL data stores<br/>requests / demand_lines / approvals / pas_quotes / exports")]
+  AUDIT[("audit_events")]
+
+  R1 --> R2 --> R3 --> DB --> M1 --> M2
+  M2 -->|"Approve"| M3 --> O1
+  M2 -->|"Reject + reason"| R4 --> R3
+  O1 --> O2 --> O3 --> O4
+  O4 -->|"Auto cleared"| O5
+  O4 -->|"Escalation required"| P1 --> P2 --> O5
+  P1 -->|"Reject + reason"| R4
+  P2 -->|"Reject + reason"| R4
+  O3 -->|"Reject to requester / Dept DRI"| R4
+  O5 --> DB
+  DB --> AUDIT

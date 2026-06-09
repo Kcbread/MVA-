@@ -1,0 +1,8 @@
+flowchart TB
+  Browser["LAN browsers"] --> Port["Mac mini :8080"]
+  Port --> App["mva-procurement-app\nNode 24"]
+  App --> DB["mva-procurement-mysql\nMySQL"]
+  App --> Uploads[("mva_uploads")]
+  DB --> DBVol[("mva_mysql_data")]
+  App --> Health["/api/health"]
+  App -. optional .-> ExtDB["External MySQL\nhost.docker.internal"]

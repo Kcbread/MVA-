@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <title>MVA 採購需求收集與資料庫定義 - 開發進度</title>
+    <style>
+      :root {
+        --bg: #062f52;
+        --bg2: #0a426f;
+        --panel: rgba(10, 48, 82, 0.88);
+        --panel2: rgba(18, 68, 108, 0.82);
+        --line: rgba(180, 210, 232, 0.5);
+        --text: #f5fbff;
+        --muted: #c8d9e8;
+        --cyan: #21d7e8;
+        --green: #2fce70;
+        --blue: #39a3dc;
+        --orange: #e6a640;
+        --red: #ef6464;
+        --gray: #8fa3ad;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif;
+      }
+
+      .canvas {
+        width: 1920px;
+        height: 1080px;
+        padding: 28px 46px 22px;
+        background:
+          radial-gradient(circle at 77% 88%, rgba(36, 130, 191, 0.42) 0 2px, transparent 3px) 0 0 / 24px 24px,
+          linear-gradient(135deg, #052642 0%, #073c66 54%, #042642 100%);
+        position: relative;
+      }
+
+      .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 30px;
+        margin-bottom: 16px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 56px;
+        line-height: 1.05;
+        letter-spacing: -1px;
+        color: #ffffff;
+      }
+
+      .subtitle {
+        margin-top: 10px;
+        font-size: 22px;
+        color: #d7e9f8;
+        font-weight: 700;
+      }
+
+      .logo {
+        font-size: 56px;
+        line-height: 1;
+        font-weight: 900;
+        letter-spacing: 10px;
+        color: #fff;
+      }
+
+      .main {
+        display: grid;
+        grid-template-columns: 430px 1fr 500px;
+        gap: 22px;
+        height: 680px;
+      }
+
+      .section {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 18px;
+        padding: 20px;
+        box-shadow: 0 18px 42px rgba(0, 14, 30, 0.25);
+      }
+
+      .section h2 {
+        margin: 0 0 16px;
+        color: var(--cyan);
+        font-size: 28px;
+        line-height: 1.1;
+      }
+
+      .value-list {
+        display: grid;
+        gap: 14px;
+      }
+
+      .value {
+        border: 1px solid rgba(200, 226, 244, 0.38);
+        border-left: 8px solid var(--cyan);
+        border-radius: 14px;
+        padding: 15px 16px;
+        background: rgba(255, 255, 255, 0.075);
+        min-height: 90px;
+      }
+
+      .value strong {
+        display: block;
+        font-size: 21px;
+        margin-bottom: 7px;
+        color: #fff;
+      }
+
+      .value span {
+        display: block;
+        font-size: 17px;
+        line-height: 1.42;
+        color: var(--muted);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      .flow-card {
+        min-height: 206px;
+        border: 1px solid rgba(200, 226, 244, 0.38);
+        border-top: 8px solid var(--blue);
+        border-radius: 15px;
+        padding: 14px 13px;
+        background: rgba(255, 255, 255, 0.075);
+        position: relative;
+      }
+
+      .flow-card::after {
+        content: "";
+        position: absolute;
+        top: 88px;
+        right: -13px;
+        width: 14px;
+        height: 3px;
+        background: rgba(191, 218, 238, 0.72);
+      }
+
+      .flow-card:last-child::after { display: none; }
+
+      .flow-card h3 {
+        margin: 0 0 10px;
+        font-size: 21px;
+        color: #fff;
+        line-height: 1.18;
+      }
+
+      .flow-card p {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.38;
+        color: var(--muted);
+      }
+
+      .flow-card.green { border-top-color: var(--green); }
+      .flow-card.orange { border-top-color: var(--orange); }
+      .flow-card.cyan { border-top-color: var(--cyan); }
+      .flow-card.red { border-top-color: var(--red); }
+
+      .outputs {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+
+      .output {
+        min-height: 90px;
+        border: 1px solid rgba(200, 226, 244, 0.34);
+        border-radius: 14px;
+        padding: 13px;
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .output strong {
+        display: block;
+        font-size: 18px;
+        color: #fff;
+        margin-bottom: 6px;
+      }
+
+      .output span {
+        display: block;
+        font-size: 15px;
+        color: var(--muted);
+        line-height: 1.32;
+      }
+
+      .progress-list {
+        display: grid;
+        gap: 13px;
+      }
+
+      .status {
+        border: 1px solid rgba(200, 226, 244, 0.38);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.075);
+        padding: 12px 14px;
+      }
+
+      .status .label {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 999px;
+        margin-bottom: 9px;
+        font-size: 16px;
+        font-weight: 800;
+        color: #062f52;
+      }
+
+      .status.done .label { background: #9fb2bc; color: #fff; }
+      .status.doing .label { background: var(--green); color: #052d1a; }
+      .status.next .label { background: var(--blue); color: #fff; }
+
+      .status h3 {
+        margin: 0 0 6px;
+        font-size: 20px;
+      }
+
+      .status p {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.35;
+        color: var(--muted);
+      }
+
+      .metrics {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .metric {
+        border: 1px solid rgba(200, 226, 244, 0.34);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.07);
+        padding: 13px;
+        min-height: 72px;
+      }
+
+      .metric strong {
+        display: block;
+        color: #fff;
+        font-size: 23px;
+        line-height: 1;
+        margin-bottom: 8px;
+      }
+
+      .metric span {
+        display: block;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.28;
+      }
+
+      .bottom {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: 1fr 470px;
+        gap: 22px;
+        height: 168px;
+      }
+
+      .timeline {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel2);
+        padding: 16px 18px;
+      }
+
+      .timeline h2,
+      .phase h2 {
+        margin: 0 0 10px;
+        font-size: 23px;
+        color: var(--cyan);
+      }
+
+      .months {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        border: 1px solid rgba(200, 226, 244, 0.45);
+      }
+
+      .month {
+        min-height: 78px;
+        border-right: 1px solid rgba(200, 226, 244, 0.34);
+        padding: 10px;
+        position: relative;
+      }
+
+      .month:last-child { border-right: 0; }
+
+      .month strong {
+        display: block;
+        color: #fff;
+        font-size: 19px;
+        margin-bottom: 9px;
+      }
+
+      .bar {
+        height: 28px;
+        border-radius: 8px;
+        padding: 5px 9px;
+        font-size: 15px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .bar.green { background: var(--green); color: #052d1a; }
+      .bar.blue { background: var(--blue); color: #fff; }
+      .bar.gray { background: #546b78; color: #fff; }
+
+      .phase {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel2);
+        padding: 16px 18px;
+      }
+
+      .progress-bar {
+        height: 34px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+        border: 1px solid rgba(200, 226, 244, 0.3);
+      }
+
+      .progress-fill {
+        width: 23%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--green);
+        color: #052d1a;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .phase p {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.3;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="canvas">
+      <section class="top">
+        <div>
+          <h1>MVA 採購需求收集與資料庫定義 - 開發進度</h1>
+          <div class="subtitle">從分散式 Email / Excel 作業，升級為可追蹤、可稽核、可量化的採購需求協同平台</div>
+        </div>
+        <div class="logo">FIH</div>
+      </section>
+
+      <section class="main">
+        <aside class="section">
+          <h2>專案價值</h2>
+          <div class="value-list">
+            <div class="value">
+              <strong>資料庫清洗與需求標準化</strong>
+              <span>把分散的品項、規格、數量與附件整理成可追蹤的資料結構，降低後續統計與查找成本。</span>
+            </div>
+            <div class="value">
+              <strong>跨部門需求收斂與審批可視化</strong>
+              <span>User A、Manager、OM、MFG、Buyer 的責任節點清楚化，減少 email 來回確認。</span>
+            </div>
+            <div class="value">
+              <strong>附件與外部結果可追溯</strong>
+              <span>把報價單、Excel、截圖、外部系統回覆、PR / PO 狀態留在同一條 timeline。</span>
+            </div>
+            <div class="value">
+              <strong>支援成本治理與議價能力提升</strong>
+              <span>建立後續採購分析基礎，讓需求、採購紀錄與議價資訊可以被長期累積。</span>
+            </div>
+          </div>
+        </aside>
+
+        <section class="section">
+          <h2>目前系統流程</h2>
+          <div class="flow">
+            <div class="flow-card cyan">
+              <h3>User A / DRI<br />需求提出</h3>
+              <p>透過 Request、History、Create New Item 建立需求，Demand Tracking 僅作檢視。</p>
+            </div>
+            <div class="flow-card green">
+              <h3>Manager B<br />審批決策</h3>
+              <p>直接 Approve / Return / Reject，並透過 Project Setup 管理項目開放狀態。</p>
+            </div>
+            <div class="flow-card orange">
+              <h3>OM Purchasing<br />IT / OM Buy</h3>
+              <p>負責 PAS 資訊、需求彙整、報價資料、Quote PDF 與 OM Excel package。</p>
+            </div>
+            <div class="flow-card blue">
+              <h3>MFG Coordinator<br />資料包收斂</h3>
+              <p>檢查 line / phase 資訊是否收齊，整理 MFG package 與 RFQ 輸出。</p>
+            </div>
+            <div class="flow-card red">
+              <h3>Buyer / 外部系統<br />PR / PO 追蹤</h3>
+              <p>記錄外部系統結果、PR No.、PO No.、退件原因與佐證附件。</p>
+            </div>
+          </div>
+
+          <div class="outputs">
+            <div class="output">
+              <strong>OM Excel Package</strong>
+              <span>正式輸出給外部系統的 OM 採購資料包。</span>
+            </div>
+            <div class="output">
+              <strong>Quote PDF</strong>
+              <span>報價單佐證，與 Excel package 一起追蹤。</span>
+            </div>
+            <div class="output">
+              <strong>MFG RFQ Excel</strong>
+              <span>MFG 詢價 / 資料包輸出格式模擬。</span>
+            </div>
+            <div class="output">
+              <strong>Evidence Timeline</strong>
+              <span>截圖、貼上結果、email、PDF、Excel、zip 佐證。</span>
+            </div>
+          </div>
+        </section>
+
+        <aside class="section">
+          <h2>目前開發進度</h2>
+          <div class="progress-list">
+            <div class="status done">
+              <span class="label">已完成</span>
+              <h3>核心流程與角色邊界定義</h3>
+              <p>需求入口、Manager Approval、Project Setup、Demand Tracking read-only、OM / MFG 角色拆分。</p>
+            </div>
+            <div class="status doing">
+              <span class="label">進行中</span>
+              <h3>資料清洗與頁面模擬</h3>
+              <p>OM / MFG package UX 收斂、輸出格式模擬、External Progress + Evidence 追蹤。</p>
+            </div>
+            <div class="status next">
+              <span class="label">下一步</span>
+              <h3>外部系統結果回填標準化</h3>
+              <p>CFA / ECS / PAS / PR / PO 的結果、截圖、附件與退件 revision 需要形成統一規則。</p>
+            </div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric">
+              <strong>5</strong>
+              <span>主要角色流程已拆分：User A、Manager、OM、MFG、Buyer。</span>
+            </div>
+            <div class="metric">
+              <strong>4+</strong>
+              <span>輸出與佐證類型：Excel、PDF、Email draft、Screenshot / Evidence。</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="bottom">
+        <div class="timeline">
+          <h2>2026 時程與里程碑</h2>
+          <div class="months">
+            <div class="month">
+              <strong>5月</strong>
+              <div class="bar green">資料清洗</div>
+            </div>
+            <div class="month">
+              <strong>6月</strong>
+              <div class="bar green">流程定義</div>
+            </div>
+            <div class="month">
+              <strong>7月</strong>
+              <div class="bar green">Prototype 開發</div>
+            </div>
+            <div class="month">
+              <strong>8月</strong>
+              <div class="bar blue">輸出格式模擬</div>
+            </div>
+            <div class="month">
+              <strong>9月</strong>
+              <div class="bar blue">總流程彙整</div>
+            </div>
+            <div class="month">
+              <strong>10月</strong>
+              <div class="bar gray">外部串接確認</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phase">
+          <h2>整體進度</h2>
+          <div class="progress-bar">
+            <div class="progress-fill">Definition / Prototype Phase</div>
+          </div>
+          <p>目前聚焦於流程定義、資料模型、頁面 UX 與輸出格式模擬；外部系統 API / 欄位對接仍需與 IT、PAS、CFA、ECS owner 確認。</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

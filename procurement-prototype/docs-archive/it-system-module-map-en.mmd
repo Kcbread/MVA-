@@ -1,0 +1,91 @@
+flowchart TB
+
+  subgraph ROLE1["User A / DRI"]
+    U1["Department Item Request"]
+    U11["Request"]
+    U12["History"]
+    U13["Create New Item"]
+    U14["Demand Tracking"]
+    U15["My Submissions"]
+    U1 --> U11
+    U1 --> U12
+    U1 --> U13
+    U1 --> U14
+    U1 --> U15
+  end
+
+  subgraph ROLE2["Manager B"]
+    M1["Manager Approval"]
+    M11["Review Queue"]
+    M12["Project Cost View"]
+    M13["Project Setup"]
+    M14["Demand Tracking"]
+    M15["Review History"]
+    M1 --> M11
+    M1 --> M12
+    M1 --> M13
+    M1 --> M14
+    M1 --> M15
+  end
+
+  subgraph ROLE3["MFG Coordinator"]
+    C1["MFG Demand Coordination"]
+    C11["Collection Status"]
+    C12["Package Queue"]
+    C13["External Progress"]
+    C14["History"]
+    C1 --> C11
+    C1 --> C12
+    C1 --> C13
+    C1 --> C14
+  end
+
+  subgraph ROLE4["OM Purchasing"]
+    O1["OM Purchasing"]
+    O11["PAS Review"]
+    O12["Demand Collection"]
+    O13["Quotation Workbench"]
+    O14["External Progress"]
+    O15["Activity History"]
+    O1 --> O11
+    O1 --> O12
+    O1 --> O13
+    O1 --> O14
+    O1 --> O15
+  end
+
+  subgraph ROLE5["Buyer / Downstream Tracking"]
+    B1["Buyer Progress Tracking"]
+    B11["PR / PO Tracking"]
+    B12["Evidence Upload"]
+    B13["Completion Status"]
+    B1 --> B11
+    B1 --> B12
+    B1 --> B13
+  end
+
+  subgraph SHARED["Shared System Services"]
+    S1["Item Detail Modal"]
+    S2["Progress Timeline"]
+    S3["Evidence Attachment"]
+    S4["Toast / Confirm Feedback"]
+    S5["Export Engine"]
+  end
+
+  U11 --> M11
+  U15 --> S2
+  M11 --> O11
+  M11 --> C11
+  C12 --> S5
+  O13 --> S5
+  O14 --> B11
+  B11 --> S2
+
+  C12 --> S1
+  O13 --> S1
+  U11 --> S1
+  M11 --> S1
+
+  O14 --> S3
+  B12 --> S3
+  C13 --> S3

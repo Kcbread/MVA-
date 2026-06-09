@@ -1,0 +1,10 @@
+flowchart LR
+  Requester --> CreateDemand
+  DeptDRI --> ReviewSubmission
+  CostManager --> FinalAuthorization
+  OMLeader --> Assignment
+  OMPurchasing --> AssignedRows
+  BudgetApprover --> ExceptionApproval
+  Admin --> SetupGovernance
+  BuyerHandoff --> PRPOVisibility
+  Requester -. hidden .-> InternalFields["vendor / PAS / factory / OM assignee / FTV"]

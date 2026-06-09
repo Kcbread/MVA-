@@ -1,0 +1,26 @@
+flowchart LR
+  requester["Requester<br/>需求提出/輸入者"]
+  admin["Admin<br/>Mapping / Role Setup"]
+  manager["Manager B<br/>Approval / Cost Review"]
+  deptDri["Dept DRI<br/>部門確認"]
+  budget["Budget Approver<br/>預算核准"]
+  omLeader["OM Leader<br/>Assignment / Rate"]
+  om["OM Purchasing<br/>PAS / Quote / Export"]
+  mysql[("MySQL POC DB<br/>Shared workflow data")]
+  audit[("audit_events<br/>Append-only history")]
+  attachments[("attachments metadata<br/>filename only in v1")]
+
+  requester -->|"Submit package<br/>Need Date + Demand Rows"| mysql
+  admin -->|"Project Family + Project Code + Demand Department mapping"| mysql
+  manager -->|"Approve / Reject"| mysql
+  deptDri -->|"Price / carryover review"| mysql
+  budget -->|"Final budget decision"| mysql
+  omLeader -->|"Assign OM rows / maintain rate"| mysql
+  om -->|"PAS Demand No / Quote / Export"| mysql
+  mysql --> requester
+  mysql --> manager
+  mysql --> deptDri
+  mysql --> budget
+  mysql --> om
+  mysql --> audit
+  om --> attachments

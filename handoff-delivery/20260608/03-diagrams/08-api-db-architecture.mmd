@@ -1,0 +1,7 @@
+flowchart LR
+  User["Internal user browser"] --> App["Node app container\nstatic + API"]
+  App --> MySQL[("MySQL container or external MySQL")]
+  App --> Uploads[("Upload volume")]
+  App --> Audit[("audit_events")]
+  MySQL --> Vol[("mysql data volume")]
+  Uploads --> UVol[("upload data volume")]

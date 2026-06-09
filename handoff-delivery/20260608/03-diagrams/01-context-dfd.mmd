@@ -1,0 +1,27 @@
+%% Primary IT visual: use the generated swimlane-style PNG next to this source.
+%% This Mermaid source preserves logical traceability, while the PNG provides the handoff-ready DFD notation.
+flowchart LR
+  Browser["Browser UI\nrole-specific screens"]
+  API["Node.js API\nserver session + role authorization"]
+  DB[("MySQL\nshared UAT database")]
+  Uploads[("Local upload volume\nattachment files")]
+  Audit[("audit_events\nappend-only trail")]
+  Requester["Requester"]
+  Dept["Dept DRI"]
+  Cost["Cost Manager"]
+  OMLead["OM Leader"]
+  OMP["OM Purchasing"]
+  Budget["Budget Approver"]
+  Buyer["Buyer Handoff"]
+  Admin["Admin"]
+  Browser --> API --> DB
+  API --> Uploads
+  API --> Audit
+  Requester --> Browser
+  Dept --> Browser
+  Cost --> Browser
+  OMLead --> Browser
+  OMP --> Browser
+  Budget --> Browser
+  Buyer --> Browser
+  Admin --> Browser

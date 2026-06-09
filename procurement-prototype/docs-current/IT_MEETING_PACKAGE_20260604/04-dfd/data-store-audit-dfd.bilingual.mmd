@@ -1,0 +1,32 @@
+flowchart TB
+  UI["Browser UI<br/>No direct MySQL access"]
+  API["Node.js / Express API<br/>session + role authorization"]
+  USERS[("users / sessions")]
+  MAP[("project_requester_mapping<br/>Project Family + Project Code + Demand Department")]
+  REQ[("requests")]
+  LINES[("request_demand_lines")]
+  APPROVALS[("approvals")]
+  QUOTES[("pas_quotes")]
+  EXPORTS[("exports")]
+  ASSIGN[("om_assignments")]
+  AUDIT[("audit_events<br/>append-only")]
+  ATTACH[("attachments metadata<br/>filename / type / linked row")]
+
+  UI -->|"login / me / workflow API"| API
+  API --> USERS
+  API --> MAP
+  API --> REQ
+  API --> LINES
+  API --> APPROVALS
+  API --> QUOTES
+  API --> EXPORTS
+  API --> ASSIGN
+  API --> ATTACH
+  API --> AUDIT
+
+  MAP -->|"resolves requester<br/>not station-based"| REQ
+  REQ --> LINES
+  LINES -->|"MFG station or Non-MFG unit"| APPROVALS
+  APPROVALS --> QUOTES
+  QUOTES --> EXPORTS
+  ASSIGN -->|"Mai assigns Giang / Linh / Mai"| QUOTES

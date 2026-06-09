@@ -1,0 +1,27 @@
+flowchart LR
+  R["Requester<br/>Revise demand / confirm amendment"]
+  M["Manager B<br/>Review submitted package"]
+  OM["OM Purchasing<br/>PAS quote / amendment handling"]
+  DRI["Dept DRI<br/>Price or carryover review"]
+  BA["Budget Approver<br/>Final exception approval"]
+  DB[("MySQL workflow state")]
+  AUDIT[("audit_events")]
+
+  R -->|"Submit"| M
+  M -->|"Reject + reason"| R
+  M -->|"Approve"| OM
+  OM -->|"Reject to Requester / Dept DRI + reason"| R
+  OM -->|"Quote saved"| DRI
+  DRI -->|"Reject + reason"| R
+  DRI -->|"Approve"| BA
+  BA -->|"Reject + reason"| R
+  BA -->|"Approve"| OM
+  R -->|"Amend after quote<br/>qty/spec/item change"| OM
+  OM -->|"Resubmit amendment"| M
+  OM -->|"Export package"| DB
+  R --> DB
+  M --> DB
+  OM --> DB
+  DRI --> DB
+  BA --> DB
+  DB --> AUDIT
