@@ -3,6 +3,17 @@
 This folder keeps the procurement system prototype and supporting materials for
 internal testing.
 
+## Development And Deployment Baseline
+
+- MacBook Pro is the development machine. Source changes, tests, commits, and
+  GitHub pushes should happen here.
+- GitHub `origin/main` is the deployable source of truth.
+- Mac mini is the host / UAT deployment machine. Do not edit deployed source
+  directly on the Mac mini; deploy the same commit that passed tests on
+  MacBook Pro.
+- Docker / Compose deployment assets live in `deploy/mac-mini/`.
+- The detailed sync runbook is `MACBOOK_PRO_SYNC_GUIDE.md`.
+
 ## Start Local Test Server
 
 From this folder, run:
