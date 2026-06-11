@@ -1,0 +1,58 @@
+name: Deploy Mac mini UAT
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test procurement prototype
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: procurement-prototype/package-lock.json
+
+      - name: Install dependencies
+        working-directory: procurement-prototype
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: procurement-prototype
+        run: npx playwright install --with-deps chromium
+
+      - name: Run tests
+        working-directory: procurement-prototype
+        run: ./test.sh
+
+  deploy:
+    name: Deploy on Mac mini
+    needs: test
+    runs-on:
+      - self-hosted
+      - mac-mini
+      - uat
+      - docker
+    environment: mac-mini-uat
+    steps:
+      - name: Checkout deploy commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Deploy
+        env:
+          EXPECTED_BRANCH: main
+          EXPECTED_SHA: ${{ github.sha }}
+        run: deploy/mac-mini/deploy.sh
