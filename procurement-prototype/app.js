@@ -1798,6 +1798,37 @@ function renderUatFeedbackSummary(rows = feedbackReviewRows()) {
     </article>`).join("");
 }
 
+function renderAdminConsole() {
+  const summary = document.getElementById("adminConsoleSummary");
+  const body = document.getElementById("adminConsoleFeedbackRows");
+  if (!summary && !body) return;
+  const rows = [...uatFeedbackRows].sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+  if (summary) {
+    const cards = [
+      ["Total Feedback", rows.length],
+      ["Open", rows.filter((row) => row.status === "open").length],
+      ["In Review", rows.filter((row) => row.status === "in_review").length],
+      ["With Screenshot", rows.filter((row) => row.metadata?.screenshotAttachmentId || row.metadata?.screenshotDownloadUrl).length],
+    ];
+    summary.innerHTML = cards.map(([label, value]) => `
+      <article class="summary-card">
+        <span>${label}</span>
+        <strong>${value}</strong>
+      </article>`).join("");
+  }
+  if (!body) return;
+  body.innerHTML = rows.length ? rows.map((row) => `
+    <tr>
+      <td>${compactDateTime(row.createdAt)}<div class="reason-text">${htmlText(row.id.slice(0, 8))}</div></td>
+      <td><strong>${htmlText(row.submittedByName || row.submittedByUserId)}</strong><div class="reason-text">${htmlText(row.submittedByUserId)}</div></td>
+      <td>${htmlText(row.pageKey)}<div class="reason-text">${htmlText(row.rowScopeLabel || row.rowScopeId || row.rowScopeType || "Page")}</div></td>
+      <td><div class="cell-note-summary" title="${htmlAttr(row.feedbackText)}">${htmlText(row.feedbackText)}</div><div class="reason-text">${htmlText(row.category)} · ${htmlText(row.severity)}</div></td>
+      <td>${uatFeedbackEvidenceHtml(row)}</td>
+      <td><span class="status-pill ${statusClass(row.status)}">${htmlText(row.status.replace("_", " "))}</span></td>
+      <td>${htmlText(row.ownerName || "Unassigned")}</td>
+    </tr>`).join("") : `<tr><td colspan="7" class="empty-cell">No UAT feedback yet. Ask OM Leader or OM Purchasing to submit feedback from the OM page.</td></tr>`;
+}
+
 function uatFeedbackOwnerOptions(selected = "") {
   const options = [`<option value="">Unassigned</option>`];
   uatFeedbackTriageOwners().forEach((user) => {
@@ -1844,12 +1875,23 @@ function renderUatFeedbackReview() {
       <td>${compactDateTime(row.createdAt)}<div class="reason-text">Updated ${compactDateTime(row.updatedAt)}</div></td>
       <td>${reviewer ? `<button class="mini approve" type="button" data-uat-feedback-save="${htmlAttr(row.id)}">Save</button>` : `<span class="status-pill info">Read Only</span>`}</td>
     </tr>`).join("") : `<tr><td colspan="8" class="empty-cell">No UAT feedback yet.</td></tr>`;
+  renderAdminConsole();
 }
 
 async function refreshUatFeedback({ review = isUatFeedbackReviewer(), silent = false } = {}) {
   await fetchUatFeedbackRows({ review, silent });
   renderUatFeedbackReview();
+  renderAdminConsole();
   renderOmFeedbackUtility();
+}
+
+async function refreshAdminConsole() {
+  if (currentRole !== "admin") {
+    showToast("Admin console is available to Admin only.", "error");
+    return;
+  }
+  await refreshUatFeedback({ review: true, silent: false });
+  showToast("Admin console refreshed.", "success");
 }
 
 async function saveUatFeedbackReview(feedbackId) {
@@ -16055,6 +16097,7 @@ function renderAdminSetup() {
   if (delta) delta.value = Number(adminApprovalSetup.thresholds.historyPriceDeltaUsd || 0.4).toFixed(2);
   if (chain) chain.value = adminApprovalSetup.approvalChain.join(" -> ");
   if (updated) updated.textContent = adminApprovalSetup.updatedAt ? `Updated ${compactDateTime(adminApprovalSetup.updatedAt)} by ${adminApprovalSetup.updatedBy}` : "Prototype state";
+  renderAdminConsole();
   const userRows = document.getElementById("adminUserRows");
   if (userRows) {
     userRows.innerHTML = adminApprovalSetup.users.map((user) => `
@@ -17161,6 +17204,7 @@ document.addEventListener("click", (event) => {
   if (action === "openUatFeedbackReview") setView("uatFeedbackReview");
   if (action === "closeUatFeedbackModal") closeUatFeedbackModal();
   if (action === "refreshUatFeedback") refreshUatFeedback({ review: isUatFeedbackReviewer() });
+  if (action === "refreshAdminConsole") refreshAdminConsole();
   if (action === "openItemPicker") openItemPicker();
   if (action === "closeItemPicker") closeItemPicker();
   if (action === "openRequestItemPicker") openRequestItemPicker();
