@@ -700,6 +700,7 @@ test("Admin console surfaces live UAT feedback and screenshot downloads", () => 
   assert.match(adminView, /data-action="refreshAdminConsole"/);
   assert.match(adminView, /attached screenshots/);
   assert.match(app, /function renderAdminConsole/);
+  assert.match(app, /admin-feedback-full/);
   assert.match(app, /function refreshAdminConsole/);
   assert.match(app, /screenshotAttachmentId/);
   assert.match(app, /uatFeedbackEvidenceHtml\(row\)/);

@@ -1822,7 +1822,7 @@ function renderAdminConsole() {
       <td>${compactDateTime(row.createdAt)}<div class="reason-text">${htmlText(row.id.slice(0, 8))}</div></td>
       <td><strong>${htmlText(row.submittedByName || row.submittedByUserId)}</strong><div class="reason-text">${htmlText(row.submittedByUserId)}</div></td>
       <td>${htmlText(row.pageKey)}<div class="reason-text">${htmlText(row.rowScopeLabel || row.rowScopeId || row.rowScopeType || "Page")}</div></td>
-      <td><div class="cell-note-summary" title="${htmlAttr(row.feedbackText)}">${htmlText(row.feedbackText)}</div><div class="reason-text">${htmlText(row.category)} · ${htmlText(row.severity)}</div></td>
+      <td class="admin-console-feedback-cell"><div class="admin-feedback-full">${htmlText(row.feedbackText)}</div><div class="reason-text">${htmlText(row.category)} · ${htmlText(row.severity)}</div></td>
       <td>${uatFeedbackEvidenceHtml(row)}</td>
       <td><span class="status-pill ${statusClass(row.status)}">${htmlText(row.status.replace("_", " "))}</span></td>
       <td>${htmlText(row.ownerName || "Unassigned")}</td>
