@@ -48,12 +48,16 @@ if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "$EXPECTED_BRANCH" ]]; then
   exit 1
 fi
 
-docker compose "${COMPOSE_ARGS[@]}" pull || true
-docker compose "${COMPOSE_ARGS[@]}" up -d --build
+if [[ "${SKIP_DOCKER_PULL:-0}" != "1" ]]; then
+  docker compose "${COMPOSE_ARGS[@]}" pull || true
+  docker compose "${COMPOSE_ARGS[@]}" up -d --build
+else
+  docker compose "${COMPOSE_ARGS[@]}" up -d --build --pull never
+fi
 
 echo "Waiting for health check on http://127.0.0.1:$PORT/api/health"
 for attempt in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:$PORT/api/health"; then
+  if curl --noproxy "*" -fsS "http://127.0.0.1:$PORT/api/health"; then
     echo
     echo "Deployment healthy at commit $CURRENT_SHA"
     exit 0
