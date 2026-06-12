@@ -5,15 +5,25 @@ __pycache__/
 .pycache/
 *.pyc
 .DS_Store
+._*
+~$*
 outputs/
 .env
 delivery-packages/
 review-output/
-procurement-prototype/test-artifacts/uploads/
-procurement-prototype/test-artifacts/design-qa/
+archive/
+procurement-prototype/docs-archive/
+procurement-prototype/test-artifacts/
 procurement-prototype/* 2.js
 procurement-prototype/* 2.html
 procurement-prototype/* 2.css
+handoff-delivery/**/*.zip
+handoff-delivery/20260604/
+handoff-delivery/*/01-source/
+procurement-prototype/docs-current/IT_MEETING_PACKAGE_*/
+procurement-prototype/docs-current/IT_MEETING_PACKAGE_*.zip
+procurement-prototype/docs-current/IT offical handoff/
+procurement-prototype/docs-current/IT offical handoff.zip
 檔案範例/
 data/logs/*.log
 data/state/*.db

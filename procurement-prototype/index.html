@@ -1405,6 +1405,32 @@
           <section class="work-panel">
             <div class="panel-title">
               <div>
+                <h3>Admin Console</h3>
+                <p class="muted">Live UAT feedback monitor from the deployed MySQL environment. Admin can review OM feedback and download attached screenshots.</p>
+              </div>
+              <button class="ghost" type="button" data-action="refreshAdminConsole">Refresh Console</button>
+            </div>
+            <div class="summary-grid" id="adminConsoleSummary"></div>
+            <div class="table-wrap">
+              <table class="data-table workflow-table admin-console-table">
+                <thead>
+                  <tr>
+                    <th>Created</th>
+                    <th>Reporter</th>
+                    <th>Scope</th>
+                    <th>Feedback</th>
+                    <th>Evidence</th>
+                    <th>Status</th>
+                    <th>Owner</th>
+                  </tr>
+                </thead>
+                <tbody id="adminConsoleFeedbackRows"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="work-panel">
+            <div class="panel-title">
+              <div>
                 <h3>Access & Approval Setup</h3>
                 <p class="muted">Prototype setup for user roles, price threshold rules, and DRI approval routing.</p>
               </div>

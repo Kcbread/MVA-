@@ -4284,6 +4284,32 @@ a {
   min-width: 0;
 }
 
+.admin-console-table th:nth-child(1),
+.admin-console-table td:nth-child(1) {
+  width: 128px;
+}
+
+.admin-console-table th:nth-child(5),
+.admin-console-table td:nth-child(5),
+.admin-console-table th:nth-child(6),
+.admin-console-table td:nth-child(6),
+.admin-console-table th:nth-child(7),
+.admin-console-table td:nth-child(7) {
+  width: 140px;
+}
+
+.admin-console-table th:nth-child(4),
+.admin-console-table td:nth-child(4) {
+  min-width: 360px;
+}
+
+.admin-feedback-full {
+  white-space: pre-wrap;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
 .item-picker-card {
   width: min(1560px, calc(100vw - 42px));
   max-height: min(92vh, 980px);

@@ -692,6 +692,22 @@ test("UAT feedback is a utility page and row detail action, not an OM workflow t
   assert.doesNotMatch(omView, /<th>Feedback<\/th>/);
 });
 
+test("Admin console surfaces live UAT feedback and screenshot downloads", () => {
+  const adminView = between(html, '<section class="view" data-view="adminSetup">', '<section class="view" data-view="buyer">');
+  assert.match(adminView, /Admin Console/);
+  assert.match(adminView, /id="adminConsoleSummary"/);
+  assert.match(adminView, /id="adminConsoleFeedbackRows"/);
+  assert.match(adminView, /data-action="refreshAdminConsole"/);
+  assert.match(adminView, /attached screenshots/);
+  assert.match(app, /function renderAdminConsole/);
+  assert.match(app, /admin-feedback-full/);
+  assert.match(app, /function refreshAdminConsole/);
+  assert.match(app, /screenshotAttachmentId/);
+  assert.match(app, /uatFeedbackEvidenceHtml\(row\)/);
+  assert.match(app, /refreshUatFeedback\(\{ review: true, silent: false \}\)/);
+  assert.match(server, /JSON\.parse\(metadata\)/);
+});
+
 test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(server, /\/api\/login/);
   assert.match(server, /function findUserByIdentifier/);

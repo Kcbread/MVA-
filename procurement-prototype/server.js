@@ -544,6 +544,14 @@ async function sendAttachmentDownload(req, res, actor, attachmentId) {
 
 function feedbackFromRow(row) {
   if (!row) return null;
+  let metadata = row.metadata || row.metadata_json || {};
+  if (typeof metadata === "string") {
+    try {
+      metadata = JSON.parse(metadata);
+    } catch {
+      metadata = {};
+    }
+  }
   return {
     id: row.id,
     submittedByUserId: row.submittedByUserId || row.submitted_by_user_id,
@@ -558,7 +566,7 @@ function feedbackFromRow(row) {
     status: row.status || "open",
     ownerUserId: row.ownerUserId || row.owner_user_id || null,
     ownerName: row.ownerName || row.owner_name || "",
-    metadata: row.metadata || row.metadata_json || {},
+    metadata,
     createdAt: row.createdAt || row.created_at,
     updatedAt: row.updatedAt || row.updated_at,
   };
