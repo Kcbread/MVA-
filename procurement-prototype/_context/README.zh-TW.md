@@ -6,7 +6,7 @@
 
 1. 先讀工作區根目錄 `README.md`，確認目前專案入口。
 2. 再讀本文件，確認角色、流程、模組文件索引。
-3. 依任務只讀必要角色文件：
+3. 對任何涉及角色、畫面、權限、流程、UI、API、DB、測試或 handoff 的任務，必須先辨識受影響角色並讀必要角色文件；若角色不明，先讀所有可能受影響角色文件，再標示 ambiguity：
    - Requester: `roles/01-requester.zh-TW.md`
    - Dept DRI: `roles/02-dept-dri.zh-TW.md`
    - Cost Manager: `roles/03-cost-manager.zh-TW.md`
@@ -28,6 +28,17 @@
 
 - 預設使用繁體中文。
 - 回覆要短而可執行，避免把舊上下文整段搬回主線。
+- material thread 在第一個實質判斷、規劃、review、實作或部署前，必須提供 `Startup Context Receipt`：
+
+```text
+Startup Context Receipt
+Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
+Roles: Requester; Dept DRI; Cost Manager; ...
+Decisions: locked decisions used, or none
+Gaps: unresolved ambiguity, or none
+```
+
+- 極小型、非產品、非角色判斷任務可保持 receipt internal；只要碰到角色、權限、UI、流程、API、DB、測試、部署或 PM memory，就不能使用此例外。
 - 長任務交接使用 compact handoff：
   - `Findings`
   - `Decision`
@@ -65,6 +76,7 @@
 - 實作前先確認目前 `git status --short` 的 ownership；不要把功能、部署、PM memory、archive/generated cleanup 混在同一個 commit。
 - 大量 archive、handoff package、review-output、截圖或 generated artifact 刪除，在未確認前一律視為高風險，不得跟功能變更一起提交。
 - 先定角色權責，再改 UI。
+- 不得只靠 screen name、thread 記憶或推測改動角色邏輯；role-affecting work 必須先讀相關角色文件。
 - Warehouse 是 evidence；只有經 workflow ledger/lock 的結果才影響成本。
 - Dept DRI 的審批主視覺是 dashboard-first `Item Quantity Review`：Dashboard 顯示 active project 全品項 MFG aggregate 與 Non-MFG department columns；item switcher / row click 只切換 active item 與 detail scope，不縮減 Dashboard rows。MFG Station Detail / Non-MFG Department Detail 才展開 selected item 明細。Item Quantity Review popup 可 audited direct edit 正式需求數量。
 - Cost Manager、Budget Approver 繼續使用共用 Quantity Review evidence；不要用 Dept DRI 的 item switcher 改寫其角色權責。

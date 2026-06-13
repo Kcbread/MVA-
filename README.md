@@ -18,6 +18,12 @@ internal testing.
 ## Thread Startup And PM Memory
 
 - Project-level rules live in `AGENTS.md`.
+- Every material Codex thread must pass the `Mandatory Startup Context Gate`
+  in `AGENTS.md` before giving a substantive plan, review, implementation,
+  commit, deployment, or product judgment.
+- Role-affecting work must read `procurement-prototype/_context/README.zh-TW.md`
+  and the relevant files under `procurement-prototype/_context/roles/` before
+  changing behavior.
 - Cross-thread PM coordination lives in Notion:
   - Hub: `MVA Procurement Cross-Thread PM Hub`
   - URL: `https://app.notion.com/p/37e51fb7c1518144b408e200fcd68d36`
@@ -29,6 +35,10 @@ internal testing.
 Future Codex threads should not assume they can read other desktop thread
 transcripts directly. Use explicit thread handoffs, Notion PM Hub records, and
 repo-backed summaries.
+
+For material work, include a short `Startup Context Receipt` before
+implementation or key product judgment: files read, roles read, locked
+decisions used, and unresolved gaps.
 
 Before material edits, run or inspect `git status --short`. If the worktree is
 dirty, unmerged, or already contains staged work, identify ownership before

@@ -18,6 +18,29 @@ When starting work in this workspace, read only what is needed, in this order:
 
 Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old Kuso files, or `_doc/v*.md` unless the user asks for handoff documentation or the current docs are missing a required decision.
 
+## Mandatory Startup Context Gate
+
+Every material task must pass this gate before giving a substantive plan, review, implementation, commit, deployment, or product judgment:
+
+1. Read `README.md` and `procurement-prototype/_context/README.zh-TW.md`.
+2. Identify affected roles from the user request, files, screen, feature, API, or data flow. If role ownership is unclear, read every plausibly affected role file before asking.
+3. For any role, screen, permission, workflow, UI, API, DB, test, deployment, or handoff work, read the relevant files under `procurement-prototype/_context/roles/` before changing behavior.
+4. For cross-role work, read the relevant flow file under `procurement-prototype/_context/flows/`.
+5. For table, module, API, or persistence work, read the relevant file under `procurement-prototype/_context/modules/`.
+6. Read `procurement-prototype/PROJECT_DECISIONS.md` only when `_context/` does not contain the required locked decision.
+
+Before implementation or any key product judgment, include a short receipt:
+
+```text
+Startup Context Receipt
+Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
+Roles: Requester; Manager B; Cost Owner; ...
+Decisions: locked decisions used, or none
+Gaps: unresolved ambiguity, or none
+```
+
+The only exception is a tiny task with no product, role, flow, UI, API, DB, test, deployment, or PM-memory judgment, such as reading one explicitly named file or running a simple shell query. Do not use screen names, thread memory, or assumptions as a substitute for role files.
+
 ## Core Operating Rules
 
 - Keep the main thread focused on decisions, tradeoffs, implementation summary, and verification results.
@@ -41,7 +64,7 @@ Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old 
   - `procurement-ui-quality-review` for procurement UI review or UI changes.
   - `frontend-layout-stability` for modal, table, dashboard, and responsive layout work.
 - General internal-system collaboration rules come from `internal-system-delivery-workflow`; this repo's procurement-specific truth still comes from `procurement-prototype/PROJECT_DECISIONS.md` and the procurement skills.
-- For new thread or subagent startup, prefer `procurement-prototype/_context/README.zh-TW.md` plus the relevant role file before reading long history.
+- For new thread or subagent startup, read `procurement-prototype/_context/README.zh-TW.md` plus the relevant role file before reading long history or changing product behavior.
 - Use MCP/thread tools for PM memory only when the user asks to coordinate threads, create automations, or inspect another Codex thread.
 - Use Notion as the cross-thread PM coordination layer for this project:
   - Hub: `MVA Procurement Cross-Thread PM Hub`

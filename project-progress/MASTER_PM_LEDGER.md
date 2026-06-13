@@ -29,11 +29,24 @@ This file is the repo-local index for the Notion cross-thread PM hub. It helps n
 Future threads must follow this startup gate before material edits:
 
 1. Read `README.md` and applicable `AGENTS.md` rules.
-2. If the task touches cross-thread PM memory, handoff, dirty worktree cleanup, branch/commit hygiene, or thread coordination, read this ledger.
-3. Inspect `git status --short`.
-4. If the worktree is dirty, unmerged, or already has staged work, identify ownership and read `project-progress/WORKTREE_TRIAGE_20260613.md` before editing.
-5. Keep unrelated scopes separate: PM memory, prototype feature work, deployment work, SAP/DB import work, and archive/generated cleanup must not be mixed in one commit.
-6. If a change affects future threads, update project-level docs and Notion PM Hub records.
+2. Read `procurement-prototype/_context/README.zh-TW.md` for the current role, flow, module, and API context index.
+3. If the task touches role, screen, permission, workflow, UI, API, DB, test, deployment, or handoff behavior, identify affected roles and read the relevant role files under `procurement-prototype/_context/roles/` before changing behavior.
+4. If the task is cross-role, read the relevant flow file under `procurement-prototype/_context/flows/`; if it touches tables, modules, API, or persistence, read the relevant file under `procurement-prototype/_context/modules/`.
+5. If the task touches cross-thread PM memory, handoff, dirty worktree cleanup, branch/commit hygiene, or thread coordination, read this ledger.
+6. Inspect `git status --short`.
+7. If the worktree is dirty, unmerged, or already has staged work, identify ownership and read `project-progress/WORKTREE_TRIAGE_20260613.md` before editing.
+8. Keep unrelated scopes separate: PM memory, prototype feature work, deployment work, SAP/DB import work, and archive/generated cleanup must not be mixed in one commit.
+9. If a change affects future threads, update project-level docs and Notion PM Hub records.
+
+Before implementation or any key product judgment, material threads must provide:
+
+```text
+Startup Context Receipt
+Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
+Roles: Requester; Dept DRI; Cost Manager; ...
+Decisions: locked decisions used, or none
+Gaps: unresolved ambiguity, or none
+```
 
 ## Required Thread Handoff
 
