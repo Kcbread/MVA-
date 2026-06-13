@@ -11709,6 +11709,115 @@ tr.approval-pipeline-current td {
   line-height: 1.35;
 }
 
+.project-status-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.project-status-panel {
+  display: block;
+}
+
+.project-status-dashboard-wrap {
+  max-height: none;
+}
+
+.project-status-dashboard-table th,
+.project-status-dashboard-table td {
+  vertical-align: middle;
+}
+
+.project-status-owner-cell {
+  min-width: 150px;
+}
+
+.project-status-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.project-status-badges .status-pill {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-status-cell {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-width: 96px;
+  min-height: 72px;
+  padding: 7px;
+  border: 1px solid #cfdce3;
+  border-radius: 6px;
+  background: #f8fbfc;
+  color: #24313a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-status-cell:hover:not(:disabled),
+.project-status-cell.active {
+  border-color: #2574a9;
+  box-shadow: inset 0 0 0 1px #2574a9;
+}
+
+.project-status-cell:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.project-status-cell strong {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.project-status-cell span,
+.project-status-cell small,
+.project-status-total-cell span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-status-cell span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.project-status-cell small {
+  color: #61727a;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.project-status-total-cell {
+  min-width: 120px;
+}
+
+.project-status-total-cell strong,
+.project-status-total-cell span {
+  display: block;
+}
+
+.project-status-detail-table {
+  min-width: 1180px;
+}
+
+.project-status-detail-table td {
+  vertical-align: top;
+}
+
+.project-status-detail-table .project-status-badges {
+  margin-top: 0;
+}
+
 @media (max-width: 760px) {
   .app-screen {
     padding: 8px;

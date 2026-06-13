@@ -69,6 +69,26 @@ async function clickPriceReviewSelection(page, requestId) {
   ], "#roleSelect");
   await rejectText(page, "Login role labels", [/User A/, /\bManager B\b/, /Project DRI/], "#roleSelect");
 
+  for (const role of ["requester", "dri", "manager", "projectDri", "omLeader", "omMember", "buyer"]) {
+    await switchRole(page, role);
+    const projectStatusTab = page.locator('.tabs .tab[data-view="projectStatus"]');
+    if (!await projectStatusTab.isVisible()) fail(`Project Status tab should be visible for ${role}`);
+    await projectStatusTab.click();
+    await expectNoPageErrors(pageErrors, `Project Status ${role}`);
+    await expectText(page, `Project Status ${role}`, [
+      /Project Status/,
+      /Demand Cost Dashboard/,
+      /Line Count/,
+      /View Mode/,
+      /MFG Station Detail/,
+      /Non-MFG Department Detail/,
+    ], 'section[data-view="projectStatus"]');
+    const visibleProjectStatusPanels = await page.locator('section[data-view="projectStatus"] [data-project-status-panel]:visible').count();
+    if (visibleProjectStatusPanels !== 3) fail(`Project Status should show three tables for ${role}`, { visibleProjectStatusPanels });
+    const innerTabCount = await page.locator('section[data-view="projectStatus"] [data-project-status-tab]').count();
+    if (innerTabCount) fail(`Project Status should not use inner tabs for ${role}`, { innerTabCount });
+  }
+
   await switchRole(page, "requester", "department");
   await expectNoPageErrors(pageErrors, "Requester workspace");
   await expectText(page, "Requester workspace", [
@@ -503,7 +523,6 @@ async function clickPriceReviewSelection(page, requestId) {
   await expectText(page, "Dept DRI review", [
     /Price Review/,
     /Dept Review/,
-    /Review Status/,
     /Item Switcher/,
     new RegExp(submittedMfgRequest.id),
     /Dept DRI Quantity Smoke Item 1/,
@@ -531,318 +550,53 @@ async function clickPriceReviewSelection(page, requestId) {
     return {
       activePriceReviewTab: [...document.querySelectorAll('[data-price-review-tab].active')]
         .map((el) => el.dataset.priceReviewTab || ""),
-      activeTab: [...document.querySelectorAll('[data-approval-quantity-tab].active')]
-        .filter(visible)
-        .map((el) => el.dataset.approvalQuantityTab || ""),
-      contextTitle: text(document.getElementById("priceReviewInlineAnalysis")),
-      dashboard: text(document.getElementById("priceReviewInlineDemandCostRows")),
-      activeDashboardRows: [...document.querySelectorAll("#priceReviewInlineDemandCostRows tr.active-row")]
+      nestedTrackingTabs: [...document.querySelectorAll('section[data-view="priceReview"] [data-approval-quantity-tab]')]
         .filter(visible)
         .map(text),
+      inlineAnalysisExists: Boolean(document.getElementById("priceReviewInlineAnalysis")),
+      projectReviewPanelExists: Boolean(document.querySelector('[data-price-review-panel="projectReview"]')),
+      selectedScope: { ...selectedProjectStatusScope },
       requestId,
     };
   }, secondaryRequest.id);
-  if (!switchedItemState.activePriceReviewTab.includes("pending") || !switchedItemState.activeTab.includes("dashboard")) {
-    fail("Dept DRI row selection should stay in Review Queue Project Context Dashboard", switchedItemState);
+  if (!switchedItemState.activePriceReviewTab.includes("pending") || switchedItemState.nestedTrackingTabs.length || switchedItemState.inlineAnalysisExists || switchedItemState.projectReviewPanelExists) {
+    fail("Dept DRI Price Review should stay approval-only without nested Project Context tabs", switchedItemState);
   }
-  if (!switchedItemState.contextTitle.includes("Project Context")) {
-    fail("Dept DRI Review Queue did not show Project Context below the queue", switchedItemState);
+  if (switchedItemState.selectedScope.requestId !== secondaryRequest.id) {
+    fail("Dept DRI row selection should seed Project Status scope", switchedItemState);
   }
-  if (!["Dept DRI Quantity Smoke Item 1", "Dept DRI Quantity Smoke Item 2", "Dept DRI Quantity Smoke Item 3"].every((item) => switchedItemState.dashboard.includes(item))) {
-    fail("Dept DRI Dashboard did not keep all project items visible after row selection", switchedItemState);
-  }
-  if (switchedItemState.dashboard.includes("Dept DRI Quantity Smoke P25 Item") || switchedItemState.dashboard.includes("Dept DRI Quantity Smoke OR5 Item")) {
-    fail("Dept DRI P26 Dashboard should not mix simultaneous P25/OR5 items", switchedItemState);
-  }
-  if (!switchedItemState.dashboard.includes("Line 1 / Line 2")) {
-    fail("Dept DRI Dashboard did not show the P26 multi-line summary for each item", switchedItemState);
-  }
-  if (!switchedItemState.activeDashboardRows.some((text) => text.includes("Dept DRI Quantity Smoke Item 2"))) {
-    fail("Dept DRI Dashboard did not highlight the selected item", switchedItemState);
-  }
-  await page.locator('#priceReviewInlineAnalysis [data-approval-quantity-tab="nonMfg"]').click();
-  await page.waitForTimeout(200);
-  const manualNonMfgState = await page.evaluate((requestId) => {
+  await switchRole(page, "dri", "projectStatus");
+  const projectStatusTrackingState = await page.evaluate((requestId) => {
     const visible = (el) => !!el && el.offsetParent !== null;
     const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
     return {
-      title: text(document.getElementById("priceReviewInlineQuantityTitle")),
-      helper: text(document.getElementById("priceReviewInlineQuantityHelper")),
-      scope: text(document.getElementById("priceReviewInlineQuantityScope")),
-      head: text(document.getElementById("priceReviewInlineQuantityHead")),
-      body: text(document.getElementById("priceReviewInlineQuantityRows")),
-      dashboardHidden: document.querySelector("#priceReviewInlineAnalysis [data-approval-quantity-panel='dashboard']")?.hidden || false,
-      matrixVisible: !!document.querySelector("#priceReviewInlineAnalysis [data-approval-quantity-panel='matrix']") && !document.querySelector("#priceReviewInlineAnalysis [data-approval-quantity-panel='matrix']").hidden,
-      activeTab: [...document.querySelectorAll('[data-approval-quantity-tab].active')]
-        .filter(visible)
-        .map((el) => el.dataset.approvalQuantityTab || ""),
+      panels: [...document.querySelectorAll("[data-project-status-panel]")].map((panel) => ({
+        panel: panel.dataset.projectStatusPanel,
+        visible: visible(panel),
+      })),
+      tabCount: document.querySelectorAll("[data-project-status-tab]").length,
+      dashboard: text(document.getElementById("projectStatusDashboardRows")),
+      mfgHead: text(document.getElementById("projectStatusMfgHead")),
+      mfgBody: text(document.getElementById("projectStatusMfgRows")),
+      nonMfgHead: text(document.getElementById("projectStatusNonMfgHead")),
+      nonMfgBody: text(document.getElementById("projectStatusNonMfgRows")),
+      selectedScope: { ...selectedProjectStatusScope },
       requestId,
     };
   }, secondaryRequest.id);
-  if (!manualNonMfgState.activeTab.includes("nonMfg") || manualNonMfgState.title !== "Non-MFG Department Detail") {
-    fail("Dept DRI manual Non-MFG tab did not render the Non-MFG detail view", manualNonMfgState);
+  if (projectStatusTrackingState.tabCount || projectStatusTrackingState.panels.some((panel) => !panel.visible)) {
+    fail("Project Status should render Dashboard, MFG, and Non-MFG as three visible tables without inner tabs", projectStatusTrackingState);
   }
-  if (manualNonMfgState.scope.includes("CG") || manualNonMfgState.scope.includes("P1.0 / CG")) {
-    fail("Dept DRI manual Non-MFG tab carried over an MFG station scope", manualNonMfgState);
+  if (!projectStatusTrackingState.dashboard.includes("Dept DRI Quantity Smoke Item 2")
+    || !projectStatusTrackingState.mfgHead.includes("Review Status")
+    || !projectStatusTrackingState.mfgHead.includes("MFG Mainline Station")
+    || !projectStatusTrackingState.nonMfgHead.includes("Review Status")
+    || !projectStatusTrackingState.nonMfgHead.includes("Department")) {
+    fail("Project Status did not carry Dept DRI selected row into the three-table tracking surface", projectStatusTrackingState);
   }
-  if (!manualNonMfgState.head.includes("P1.0") || !manualNonMfgState.head.includes("MP") || manualNonMfgState.head.includes("CG") || !manualNonMfgState.head.includes("Non-MFG Department")) {
-    fail("Dept DRI manual Non-MFG tab did not show multi-phase department detail", manualNonMfgState);
-  }
-  if (!manualNonMfgState.dashboardHidden || !manualNonMfgState.matrixVisible) {
-    fail("Dept DRI detail tab should hide Dashboard and show only the detail matrix", manualNonMfgState);
-  }
-  if (!manualNonMfgState.body.includes(secondaryRequest.id)) {
-    fail("Dept DRI manual Non-MFG detail did not stay scoped to the selected item", manualNonMfgState);
-  }
-  if (!manualNonMfgState.body.match(/\b[1-9][0-9]*\b/)) {
-    fail("Dept DRI manual Non-MFG detail did not show requester Non-MFG quantities", manualNonMfgState);
-  }
-  await clickPriceReviewSelection(page, submittedMfgRequest.id);
-  await page.waitForTimeout(200);
-  const mixedItemSelectionState = await page.evaluate((requestId) => {
-    const visible = (el) => !!el && el.offsetParent !== null;
-    const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
-    return {
-      activeTab: [...document.querySelectorAll('[data-approval-quantity-tab].active')]
-        .filter(visible)
-        .map((el) => el.dataset.approvalQuantityTab || ""),
-      dashboardHidden: document.querySelector("#priceReviewInlineAnalysis [data-approval-quantity-panel='dashboard']")?.hidden || false,
-      matrixHidden: document.querySelector("#priceReviewInlineAnalysis [data-approval-quantity-panel='matrix']")?.hidden || false,
-      dashboard: text(document.getElementById("priceReviewInlineDemandCostRows")),
-      activeDashboardRows: [...document.querySelectorAll("#priceReviewInlineDemandCostRows tr.active-row")]
-        .filter(visible)
-        .map(text),
-      requestId,
-    };
-  }, submittedMfgRequest.id);
-  if (!mixedItemSelectionState.activeTab.includes("dashboard") || mixedItemSelectionState.dashboardHidden || !mixedItemSelectionState.matrixHidden) {
-    fail("Dept DRI mixed MFG/Non-MFG item selection should return to Dashboard overview", mixedItemSelectionState);
-  }
-  if (!["Dept DRI Quantity Smoke Item 1", "Dept DRI Quantity Smoke Item 2", "Dept DRI Quantity Smoke Item 3"].every((item) => mixedItemSelectionState.dashboard.includes(item))) {
-    fail("Dept DRI mixed item Dashboard overview did not keep all P26 items visible", mixedItemSelectionState);
-  }
-  if (!mixedItemSelectionState.activeDashboardRows.some((text) => text.includes("Dept DRI Quantity Smoke Item 1"))) {
-    fail("Dept DRI mixed item Dashboard overview did not highlight the clicked item", mixedItemSelectionState);
-  }
-  const p25ProjectChip = page.locator('#priceReviewInlineAnalysis [data-project-context-project="P25"]').first();
-  if (await p25ProjectChip.count()) {
-    await p25ProjectChip.click();
-    await page.waitForTimeout(200);
-    const p25ProjectSwitchState = await page.evaluate(() => {
-      const visible = (el) => !!el && el.offsetParent !== null;
-      const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
-      return {
-        activeProjectChip: [...document.querySelectorAll("#priceReviewInlineAnalysis .project-context-chip.active")]
-          .filter(visible)
-          .map(text),
-        dashboard: text(document.getElementById("priceReviewInlineDemandCostRows")),
-        scope: text(document.getElementById("priceReviewInlineDemandCostScope")),
-        activeDashboardRows: [...document.querySelectorAll("#priceReviewInlineDemandCostRows tr.active-row")]
-          .filter(visible)
-          .map(text),
-      };
-    });
-    if (!p25ProjectSwitchState.activeProjectChip.includes("P25") || !p25ProjectSwitchState.scope.includes("P25")) {
-      fail("Dept DRI Project Context project switcher did not activate P25", p25ProjectSwitchState);
-    }
-    if (!p25ProjectSwitchState.dashboard.includes("Dept DRI Quantity Smoke P25 Item") || p25ProjectSwitchState.dashboard.includes("Dept DRI Quantity Smoke Item 1") || p25ProjectSwitchState.dashboard.includes("Dept DRI Quantity Smoke OR5 Item")) {
-      fail("Dept DRI Project Context project switcher did not isolate the P25 dashboard", p25ProjectSwitchState);
-    }
-    if (!p25ProjectSwitchState.activeDashboardRows.some((text) => text.includes("Dept DRI Quantity Smoke P25 Item"))) {
-      fail("Dept DRI Project Context project switcher did not highlight a P25 review item", p25ProjectSwitchState);
-    }
-  } else {
-    fail("Dept DRI Project Context did not render a P25 project switcher chip");
-  }
-  const or5ProjectChip = page.locator('#priceReviewInlineAnalysis [data-project-context-project="OR5"]').first();
-  if (await or5ProjectChip.count()) {
-    await or5ProjectChip.click();
-    await page.waitForTimeout(200);
-    const or5ProjectSwitchState = await page.evaluate(() => {
-      const visible = (el) => !!el && el.offsetParent !== null;
-      const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
-      return {
-        activeProjectChip: [...document.querySelectorAll("#priceReviewInlineAnalysis .project-context-chip.active")]
-          .filter(visible)
-          .map(text),
-        dashboard: text(document.getElementById("priceReviewInlineDemandCostRows")),
-        scope: text(document.getElementById("priceReviewInlineDemandCostScope")),
-        activeDashboardRows: [...document.querySelectorAll("#priceReviewInlineDemandCostRows tr.active-row")]
-          .filter(visible)
-          .map(text),
-      };
-    });
-    if (!or5ProjectSwitchState.activeProjectChip.includes("OR5") || !or5ProjectSwitchState.scope.includes("OR5")) {
-      fail("Dept DRI Project Context project switcher did not activate OR5", or5ProjectSwitchState);
-    }
-    if (!or5ProjectSwitchState.dashboard.includes("Dept DRI Quantity Smoke OR5 Item") || or5ProjectSwitchState.dashboard.includes("Dept DRI Quantity Smoke Item 1") || or5ProjectSwitchState.dashboard.includes("Dept DRI Quantity Smoke P25 Item")) {
-      fail("Dept DRI Project Context project switcher did not isolate the OR5 dashboard", or5ProjectSwitchState);
-    }
-  } else {
-    fail("Dept DRI Project Context did not render an OR5 project switcher chip");
-  }
-  await clickPriceReviewSelection(page, p25Request.id);
-  await page.waitForTimeout(200);
-  const p25DashboardState = await page.evaluate((requestId) => {
-    const visible = (el) => !!el && el.offsetParent !== null;
-    const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
-    return {
-      activeTab: [...document.querySelectorAll('[data-approval-quantity-tab].active')]
-        .filter(visible)
-        .map((el) => el.dataset.approvalQuantityTab || ""),
-      dashboard: text(document.getElementById("priceReviewInlineDemandCostRows")),
-      scope: text(document.getElementById("priceReviewInlineDemandCostScope")),
-      activeDashboardRows: [...document.querySelectorAll("#priceReviewInlineDemandCostRows tr.active-row")]
-        .filter(visible)
-        .map(text),
-      requestId,
-    };
-  }, p25Request.id);
-  if (!p25DashboardState.activeTab.includes("dashboard") || !p25DashboardState.scope.includes("P25")) {
-    fail("Dept DRI P25 row selection should switch to the P25 Dashboard overview", p25DashboardState);
-  }
-  if (!p25DashboardState.dashboard.includes("Dept DRI Quantity Smoke P25 Item") || p25DashboardState.dashboard.includes("Dept DRI Quantity Smoke Item 1") || p25DashboardState.dashboard.includes("Dept DRI Quantity Smoke OR5 Item")) {
-    fail("Dept DRI P25 Dashboard should show only active-project P25 items", p25DashboardState);
-  }
-  if (!p25DashboardState.activeDashboardRows.some((text) => text.includes("Dept DRI Quantity Smoke P25 Item"))) {
-    fail("Dept DRI P25 Dashboard did not highlight the selected P25 item", p25DashboardState);
-  }
-  await clickPriceReviewSelection(page, or5Request.id);
-  await page.waitForTimeout(200);
-  const or5DashboardState = await page.evaluate((requestId) => {
-    const visible = (el) => !!el && el.offsetParent !== null;
-    const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
-    return {
-      activeTab: [...document.querySelectorAll('[data-approval-quantity-tab].active')]
-        .filter(visible)
-        .map((el) => el.dataset.approvalQuantityTab || ""),
-      dashboard: text(document.getElementById("priceReviewInlineDemandCostRows")),
-      scope: text(document.getElementById("priceReviewInlineDemandCostScope")),
-      activeDashboardRows: [...document.querySelectorAll("#priceReviewInlineDemandCostRows tr.active-row")]
-        .filter(visible)
-        .map(text),
-      requestId,
-    };
-  }, or5Request.id);
-  if (!or5DashboardState.activeTab.includes("dashboard") || !or5DashboardState.scope.includes("OR5")) {
-    fail("Dept DRI OR5 row selection should switch to the OR5 Dashboard overview", or5DashboardState);
-  }
-  if (!or5DashboardState.dashboard.includes("Dept DRI Quantity Smoke OR5 Item") || or5DashboardState.dashboard.includes("Dept DRI Quantity Smoke Item 1") || or5DashboardState.dashboard.includes("Dept DRI Quantity Smoke P25 Item")) {
-    fail("Dept DRI OR5 Dashboard should show only active-project OR5 items", or5DashboardState);
-  }
+  await switchRole(page, "dri", "priceReview");
   await clickPriceReviewSelection(page, submittedMfgRequest.id);
   await page.waitForTimeout(100);
-  await page.locator('#priceReviewInlineAnalysis [data-approval-quantity-tab="dashboard"]').click();
-  await page.waitForTimeout(100);
-  await page.evaluate((requestId) => {
-    const button = document.querySelector(`#priceReviewInlineDemandCostRows [data-approval-dashboard-request-id="${CSS.escape(requestId)}"][data-approval-dashboard-unit="MFG"] button`);
-    if (!button) throw new Error(`No MFG dashboard cell for ${requestId}`);
-    button.click();
-  }, submittedMfgRequest.id);
-  await page.waitForTimeout(200);
-  const mfgDrillState = await page.evaluate((requestId) => {
-    const visible = (el) => !!el && el.offsetParent !== null;
-    const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
-    return {
-      activeTab: [...document.querySelectorAll('[data-approval-quantity-tab].active')]
-        .filter(visible)
-        .map((el) => el.dataset.approvalQuantityTab || ""),
-      selected: [...document.querySelectorAll("#priceReviewInlineDemandCostRows tr.active-row")]
-        .map(text),
-      head: text(document.getElementById("priceReviewInlineQuantityHead")),
-      body: text(document.getElementById("priceReviewInlineQuantityRows")),
-      requestId,
-    };
-  }, submittedMfgRequest.id);
-  if (!mfgDrillState.activeTab.includes("mfg")) fail("Dept DRI MFG dashboard cell did not open MFG Station Detail", mfgDrillState);
-  if (!mfgDrillState.selected.some((text) => text.includes(submittedMfgRequest.id))) fail("Dept DRI MFG dashboard cell did not select the clicked item", mfgDrillState);
-  if (!mfgDrillState.head.includes("MFG Mainline Station") || !mfgDrillState.head.includes("CG") || mfgDrillState.head.includes("ENG1")) {
-    fail("Dept DRI MFG detail rendered the wrong station column family", mfgDrillState);
-  }
-  if (!mfgDrillState.body.includes(submittedMfgRequest.id)) fail("Dept DRI MFG detail did not scope to the clicked item", mfgDrillState);
-  await clickPriceReviewSelection(page, submittedNonMfgRequest.id);
-  await page.evaluate((requestId) => {
-    const button = [...document.querySelectorAll(`#priceReviewInlineDemandCostRows [data-approval-dashboard-request-id="${CSS.escape(requestId)}"][data-approval-dashboard-unit] button`)]
-      .find((cell) => cell.closest("[data-approval-dashboard-unit]")?.dataset.approvalDashboardUnit !== "MFG");
-    if (!button) throw new Error(`No Non-MFG dashboard cell for ${requestId}`);
-    button.click();
-  }, submittedNonMfgRequest.id);
-  await page.waitForTimeout(200);
-  const nonMfgReviewState = await page.evaluate((requestId) => {
-    const visible = (el) => !!el && el.offsetParent !== null;
-    const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
-    const activeTab = [...document.querySelectorAll('[data-approval-quantity-tab].active')]
-      .filter(visible)
-      .map((el) => el.dataset.approvalQuantityTab || "");
-    return {
-      activeTab,
-      head: text(document.getElementById("priceReviewInlineQuantityHead")),
-      body: text(document.getElementById("priceReviewInlineQuantityRows")),
-      selected: [...document.querySelectorAll("#priceReviewInlineDemandCostRows tr.active-row")]
-        .map(text),
-      requestId,
-    };
-  }, submittedNonMfgRequest.id);
-  if (!nonMfgReviewState.activeTab.includes("nonMfg")) fail("Dept DRI did not open Non-MFG Department Detail for Non-MFG requester submission", nonMfgReviewState);
-  if (!nonMfgReviewState.head.includes("Non-MFG Department") || !nonMfgReviewState.head.includes("FATP TE") || nonMfgReviewState.head.includes("CG")) fail("Dept DRI Non-MFG matrix rendered the wrong column family", nonMfgReviewState);
-  if (!nonMfgReviewState.body.includes(submittedNonMfgRequest.id)) fail("Dept DRI Non-MFG matrix did not stay scoped to the selected item", nonMfgReviewState);
-  await clickPriceReviewSelection(page, submittedMfgRequest.id);
-  await page.locator('#priceReviewInlineAnalysis [data-approval-quantity-tab="mfg"]').click();
-  await page.waitForTimeout(200);
-  const quantityCellCount = await page.locator(`section[data-view="priceReview"] [data-item-quantity-request="${submittedMfgRequest.id}"]`).count();
-  if (!quantityCellCount) fail("Dept DRI quantity worksheet has no clickable quantity cells");
-  await page.evaluate((requestId) => {
-    const cells = [...document.querySelectorAll(`section[data-view="priceReview"] [data-item-quantity-request="${CSS.escape(requestId)}"]`)];
-    const visibleCell = cells.find((cell) => cell.offsetParent !== null);
-    if (!visibleCell) throw new Error(`No visible quantity cell for ${requestId}`);
-    visibleCell.click();
-  }, submittedMfgRequest.id);
-  await expectText(page, "Dept DRI item quantity popup", [
-    /Direct Quantity Edit/,
-    new RegExp(submittedMfgRequest.id),
-    /DEMAND DEPT\s*MFG/i,
-    new RegExp(`TOTAL QTY\\s*${submittedMfgRequest.totalQty}`, "i"),
-    /MFG|Non-MFG/,
-    /Editable Matrix/,
-    /Approve/,
-    /Save Direct Edit/,
-    /Reject Item/,
-  ], "#itemQuantityReviewModal");
-	  await rejectText(page, "Dept DRI item quantity popup", [
-	    /Requester Revisions/,
-	    /Official Changes/,
-	    /Current official demand/,
-	  ], "#itemQuantityReviewModal");
-	  await page.locator('#itemQuantityReviewModal [data-item-quantity-review-input][data-row-ids]:not([data-row-ids=""])').first().fill("9");
-	  page.once("dialog", (dialog) => dialog.accept("Direct edit smoke note"));
-	  await page.locator('[data-action="saveItemQuantityReviewDirectEdit"]').click();
-  const directEditState = await page.evaluate((requestId) => {
-    const row = requests.find((item) => item.id === requestId);
-    return {
-      hasEditedQty: (row?.stationBreakdown || []).some((entry) => Number(entry.qty || 0) === 9),
-      reviewStatus: row?.itemQuantityReviewStatus || "",
-      auditCount: row?.itemQuantityChangeCount || 0,
-      matrixText: (document.getElementById("priceReviewInlineQuantityRows")?.textContent || "").replace(/\s+/g, " ").trim(),
-    };
-  }, submittedMfgRequest.id);
-  if (!directEditState.hasEditedQty || directEditState.reviewStatus !== "Direct Edit Applied" || directEditState.auditCount < 1 || !directEditState.matrixText.includes(submittedMfgRequest.id)) {
-    fail("Dept DRI direct edit did not update the selected item detail matrix", directEditState);
-  }
-  const pendingPipelineState = await page.evaluate((requestId) => {
-    const visible = (el) => !!el && el.offsetParent !== null;
-    const cells = [...document.querySelectorAll(`section[data-view="priceReview"] [data-item-quantity-request="${CSS.escape(requestId)}"][data-approval-pipeline-status]`)]
-      .filter(visible);
-    const dashboardRow = [...document.querySelectorAll(`#priceReviewInlineDemandCostRows [data-approval-dashboard-request-id="${CSS.escape(requestId)}"]`)]
-      .find((node) => node.dataset.approvalPipelineStatus);
-    return {
-      cellStatuses: cells.map((cell) => cell.dataset.approvalPipelineStatus || ""),
-      dashboardStatus: dashboardRow?.dataset.approvalPipelineStatus || "",
-      cellTitles: cells.map((cell) => cell.getAttribute("title") || "").slice(0, 3),
-    };
-  }, submittedMfgRequest.id);
-  if (!pendingPipelineState.cellStatuses.includes("pending") && pendingPipelineState.dashboardStatus !== "pending") {
-    fail("Dept DRI pending matrix did not expose pending pipeline status", pendingPipelineState);
-  }
   await page.evaluate(() => window.setPriceReviewTab?.("pending"));
   await page.waitForTimeout(100);
   await page.evaluate((requestId) => {
@@ -855,31 +609,39 @@ async function clickPriceReviewSelection(page, requestId) {
   await page.evaluate(() => window.setPriceReviewTab?.("pending"));
   await expectText(page, "Dept DRI review after approve", [
     /Dept Review/,
-    /Project Context/,
     /Cost Manager/,
+  ], 'section[data-view="priceReview"]');
+  await rejectText(page, "Dept DRI review after approve", [
+    /Project Context/,
+    /MFG Station Detail/,
+    /Non-MFG Department Detail/,
   ], 'section[data-view="priceReview"]');
   const approvedPipelineState = await page.evaluate((requestId) => {
     const row = requests.find((item) => item.id === requestId);
     const pipeline = approvalPipelineStatus(row, "dri");
     const visible = (el) => !!el && el.offsetParent !== null;
-    const dashboardText = (document.getElementById("priceReviewInlineDemandCostRows")?.textContent || "").replace(/\s+/g, " ").trim();
     const visibleApproveButtons = [...document.querySelectorAll(`[data-price-review-decision="${CSS.escape(requestId)}"]`)].filter(visible);
+    window.setView?.("projectStatus");
+    renderProjectStatus();
+    const projectStatusText = (document.querySelector('section[data-view="projectStatus"]')?.textContent || "").replace(/\s+/g, " ").trim();
+    window.setView?.("priceReview");
+    window.setPriceReviewTab?.("pending");
     return {
       deptDriReviewStatus: row?.deptDriReviewStatus || "",
       procurementStatus: row?.procurementStatus || "",
       nextOwner: pipeline.nextOwner || "",
       poStatus: pipeline.poStatus || "",
       selectedId: selectedPriceReviewRequestId || "",
-      dashboardHasRow: dashboardText.includes(requestId),
-      dashboardHasReviewStatus: dashboardText.includes("You approved") && dashboardText.includes("Cost Manager"),
+      projectStatusHasRow: projectStatusText.includes(requestId),
+      projectStatusHasReviewStatus: projectStatusText.includes("Cost Manager"),
       visibleApproveButtonCount: visibleApproveButtons.length,
     };
   }, submittedMfgRequest.id);
   if (!/Approved/.test(approvedPipelineState.deptDriReviewStatus) || approvedPipelineState.nextOwner !== "Cost Manager" || approvedPipelineState.poStatus !== "PO Pending") {
     fail("Dept DRI approval did not route the row to Cost Manager pipeline tracking", approvedPipelineState);
   }
-  if (!approvedPipelineState.dashboardHasRow || !approvedPipelineState.dashboardHasReviewStatus || approvedPipelineState.visibleApproveButtonCount) {
-    fail("Dept DRI approved row did not remain in shared evidence as read-only Review Status", approvedPipelineState);
+  if (!approvedPipelineState.projectStatusHasRow || !approvedPipelineState.projectStatusHasReviewStatus || approvedPipelineState.visibleApproveButtonCount) {
+    fail("Dept DRI approved row did not remain in Project Status as read-only tracking", approvedPipelineState);
   }
   await page.evaluate((requestId) => {
     renderItemDetail(requests.find((item) => item.id === requestId), "request");
@@ -976,8 +738,8 @@ async function clickPriceReviewSelection(page, requestId) {
 	  await expectText(page, "Budget Approver shared shell", [
 	    /Budget Review/,
 	  ], 'section[data-view="priceReview"]');
-	  await expectText(page, "Budget Approver shared evidence", [
-	    /Dashboard/,
+	  await rejectText(page, "Budget Approver approval-only shell", [
+	    /Project Context/,
 	    /MFG Station Detail/,
 	    /Non-MFG Department Detail/,
 	  ], 'section[data-price-review-panel="pending"]');
@@ -1004,7 +766,11 @@ async function clickPriceReviewSelection(page, requestId) {
     applyPriceReviewDecision(row.id, "approve");
     approvalQuantityReviewTab = "dashboard";
     renderPriceReview();
-    const dashboardText = (document.getElementById("priceReviewInlineDemandCostRows")?.textContent || "").replace(/\s+/g, " ").trim();
+    window.setView?.("projectStatus");
+    selectedProjectStatusScope = projectStatusScopeFromRow(row);
+    renderProjectStatus();
+    const projectStatusText = (document.querySelector('section[data-view="projectStatus"]')?.textContent || "").replace(/\s+/g, " ").trim();
+    window.setView?.("priceReview");
     const roleRows = roleReviewRows("projectDri");
     const selectedRow = roleRows.find((item) => item.id === selectedPriceReviewRequestId) || roleRows.find((item) => item.id === row.id);
     const selectedScope = priceReviewSelectedRowScope(selectedRow);
@@ -1016,19 +782,19 @@ async function clickPriceReviewSelection(page, requestId) {
     return {
       id: row.id,
       roleRowVisible: roleRows.some((item) => item.id === row.id),
-      dashboardHasRow: dashboardText.includes(row.id),
-      dashboardHasReviewStatus: dashboardText.includes("Final approved"),
+      projectStatusHasRow: projectStatusText.includes(row.id),
+      projectStatusHasReviewStatus: projectStatusText.includes("OM") || projectStatusText.includes("Export"),
       selectedPriceReviewRequestId,
       selectedProject: selectedPriceReviewProjectContext,
       activeProject,
       sourceIds: sourceRows.map((item) => item.id).slice(0, 8),
       matrixIds: matrixRows.map((item) => item.id).slice(0, 8),
-      dashboardPrefix: dashboardText.slice(0, 240),
+      projectStatusPrefix: projectStatusText.slice(0, 240),
       visibleDecisionButtonCount: visibleDecisionButtons.length,
     };
   });
-  if (!budgetFinalApprovedState.roleRowVisible || !budgetFinalApprovedState.dashboardHasRow || !budgetFinalApprovedState.dashboardHasReviewStatus || budgetFinalApprovedState.visibleDecisionButtonCount) {
-    fail("Budget Approver final approved row did not remain in shared evidence as read-only Review Status", budgetFinalApprovedState);
+  if (!budgetFinalApprovedState.roleRowVisible || !budgetFinalApprovedState.projectStatusHasRow || !budgetFinalApprovedState.projectStatusHasReviewStatus || budgetFinalApprovedState.visibleDecisionButtonCount) {
+    fail("Budget Approver final approved row did not remain in Project Status as read-only tracking", budgetFinalApprovedState);
   }
   await rejectText(page, "Budget Approver review carryover noise", [
     /Confirmed Carryover Saving/,

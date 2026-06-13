@@ -7,6 +7,7 @@ const priceDecision = require("../app-modules/price-decision.js");
 const leadTime = require("../app-modules/lead-time.js");
 const workflowStatus = require("../app-modules/workflow-status.js");
 const workflowStatusTable = require("../app-modules/workflow-status-table.js");
+const projectStatusDashboard = require("../app-modules/project-status-dashboard.js");
 const ftvCode = require("../app-modules/ftv-code.js");
 const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
@@ -210,6 +211,63 @@ test("workflow status table exposes assignment for OM roles", () => {
     "assignment",
     "detail",
   ]);
+});
+
+test("project status dashboard groups MFG aggregate and Non-MFG department columns", () => {
+  const model = projectStatusDashboard.buildDashboard([
+    {
+      id: "REQ-PS-001",
+      project: "P26",
+      name: "IPC",
+      detail: "Industrial PC",
+      status: "Submitted",
+      submittedAt: "2026-06-01T00:00:00Z",
+      stationBreakdown: [
+        { phase: "evt", station: "CG", qty: 3 },
+        { phase: "evt", demandType: "Non-MFG", demandUnit: "FATP TE", qty: 2 },
+      ],
+    },
+  ], { role: "manager", today: new Date("2026-06-05T00:00:00Z") });
+
+  assert.equal(model.items.length, 1);
+  assert.equal(model.items[0].cells.MFG.qty, 3);
+  assert.equal(model.items[0].cells["FATP TE"].qty, 2);
+  assert.equal(model.items[0].status.pendingOwner, "Dept DRI");
+});
+
+test("project status detail rows split MFG and Non-MFG drilldown scopes", () => {
+  const rows = [{
+    id: "REQ-PS-002",
+    project: "OR5",
+    name: "Monitor",
+    status: "Approved",
+    sentToOmAt: "2026-06-02T00:00:00Z",
+    stationBreakdown: [
+      { phase: "p10", station: "CG", qty: 1 },
+      { phase: "p10", demandType: "Non-MFG", demandUnit: "ENG1", qty: 4 },
+    ],
+  }];
+
+  const mfg = projectStatusDashboard.buildDetailRows(rows, { role: "om", today: new Date("2026-06-05T00:00:00Z") }, { mode: "mfg" });
+  const nonMfg = projectStatusDashboard.buildDetailRows(rows, { role: "om", today: new Date("2026-06-05T00:00:00Z") }, { mode: "nonMfg", unit: "ENG1" });
+
+  assert.equal(mfg.length, 1);
+  assert.equal(mfg[0].station, "CG");
+  assert.equal(nonMfg.length, 1);
+  assert.equal(nonMfg[0].unit, "ENG1");
+  assert.equal(nonMfg[0].status.currentStage, "PAS Demand No");
+});
+
+test("project status tracks price exception and stock carryover states", () => {
+  const priceRow = {
+    id: "REQ-PS-PRICE",
+    priceDecisionStatus: "Price Escalation Required",
+    driApprovedAt: "2026-06-02T00:00:00Z",
+  };
+  assert.equal(projectStatusDashboard.isPriceException(priceRow), true);
+  assert.equal(projectStatusDashboard.priceExceptionStage(priceRow), "Budget Approver");
+  assert.equal(projectStatusDashboard.stockCarryoverState({ transactionType: "use-candidate", status: "Pending OM" }), "Pending review");
+  assert.equal(projectStatusDashboard.stockCarryoverState({ transactionType: "use-candidate", status: "Locked Use" }), "Locked / applied");
 });
 
 test("role guards normalize legacy role names and preserve business ownership", () => {
