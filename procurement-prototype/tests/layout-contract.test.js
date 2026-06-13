@@ -72,3 +72,14 @@ test('identity and spec are treated differently', () => {
   assert.match(css, /-webkit-line-clamp:\s*3/);
   assert.match(js, /lineMode === 'identity'/);
 });
+
+test('item quantity review popup keeps editable matrix stable inside modal', () => {
+  assert.match(indexHtml, /id="itemQuantityReviewModal"/);
+  assert.match(appStyles, /\.item-quantity-review-shell/);
+  assert.match(appStyles, /max-height:\s*58vh/);
+  assert.match(appStyles, /\.item-review-item-head/);
+  assert.match(appStyles, /\.item-quantity-edit-input/);
+  assert.match(appStyles, /\.item-review-qty-cell\.changed/);
+  assert.match(appStyles, /\.quantity-review-mode-switch/);
+  assert.match(appStyles, /\.manager-quantity-wide-table thead tr:first-child th:nth-child\(5\)/);
+});

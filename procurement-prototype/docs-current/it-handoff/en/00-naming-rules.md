@@ -167,7 +167,8 @@ Examples:
 | `PAS Material No` | Entered by OM in `PAS Quote Result` after bidding result; carried downstream. |
 | `Quote Valid Until` | Entered by OM in `PAS Quote Result`; required before sending quote result to Requester. |
 | `Expiry Status` | Derived from Quote Valid Until: Valid, Expiring Soon within 14 days, or Expired / Requote Required. |
-| `Factory Material No` | Filled by Buyer/PUR after PO; only then enters Reuse Item history. |
+| `Factory Material No` | Filled by Buyer/PUR after PO; only then enters Reuse Item history. Maps to SAP PO Raw Data column A `料號` / `factory_material_no`. |
+| `SAP Material No` | SAP PO Raw Data column H `料號` / `sap_material_no`; separate from Factory Material No and must not share the same identity type. |
 | `需求單位` | Demand-origin unit, such as ENG1, MFG, or TE. |
 | `Station` | Physical station, such as CG, BG, FATP, or Test. |
 | `Demand Type` | `MFG` or `Non-MFG`. `MFG` requires Station and does not require 需求單位; `Non-MFG` requires 需求單位 and does not use Station. |

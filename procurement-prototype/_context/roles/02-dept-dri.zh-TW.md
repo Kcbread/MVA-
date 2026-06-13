@@ -10,6 +10,10 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 - item/spec、need date、demand scope、qty、warehouse/carryover evidence、exception reason。
 - price exception 摘要：history price、quote price、USD delta、threshold、Temporary Budget 標記。
 - Cost Manager 與 Budget Approver 所需的下一站狀態。
+- 使用與 Cost Manager 同殼的 `Dept Review`：上方是角色 queue / approve-reject action，下方是同一套 dashboard-first evidence。
+- `Dept Review` 主表與 Dashboard / MFG Station Detail / Non-MFG Department Detail 的第一欄固定為 `Review Status`，只顯示審批鏈狀態，不取代或混用 project status。
+- Dashboard 顯示 active project 全品項 MFG aggregate 與 Non-MFG department totals；queue row / item click 只切換 active item 並回 Dashboard overview；MFG Station Detail / Non-MFG Department Detail 才展開 selected item 明細。
+- 審批動作只在 `Dept Review` pending row；已 approve / reject / 派往下一站的 row 仍留在主 evidence，可 drilldown，但以 `You approved` / `Rejected by Dept DRI` / current owner 標示並改為 read-only。`Review History` 保留 audit log，不作為找 approved item 的主要入口。
 
 ## 可操作功能
 
@@ -17,6 +21,7 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 - Approve / Reject 自己 unit scope 內的 warehouse inventory use candidate。
 - Approve / Reject carryover candidate。
 - Approve / Reject price exception 第一層。
+- 在 Item Quantity Review popup 直接 add/edit/delete 正式需求數量；每次 direct edit 必須寫 audit / revision metadata。
 - Reject 時填原因，回 Requester Action Required。
 
 ## 不可看 / 不可做
@@ -29,17 +34,23 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 
 ## 主要 UI / 模組
 
-- Submission Review
-- Stock / Carryover Review
-- Price Exception Review
-- Workflow Status Table
+- Dept Review
+  - Submission Review
+  - Stock / Carryover Review
+  - Price Exception Review
+  - Dashboard
+  - MFG Station Detail
+  - Non-MFG Department Detail
+  - Item Quantity Review direct edit popup
+- Review History
 
 ## 資料輸入 / 輸出
 
-- 輸入：approve/reject decision、reason。
+- 輸入：approve/reject decision、reason、direct quantity edit note。
 - 輸出：
   - requester submission approved -> Cost Manager final authorization。
   - requester submission rejected -> Requester Action Required。
+  - direct quantity edit -> 更新正式 stationBreakdown / phase qty / total qty，並保留 itemQuantityReviewHistory audit。
 - unit-owned stock/carryover approved -> locked/applied ledger。
   - price exception approved -> Budget Approver。
 
@@ -55,9 +66,13 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 - Dept DRI approve submission 後必須進 Cost Manager，不可直接進 OM。
 - Dept DRI reject 一律回 Requester Action Required。
 - Dept DRI 不顯示手動 carryover input 或 top-level Suggest / Apply workbench。
+- Dept DRI 不顯示獨立全域 `Cost Dashboard` / `Station Matrix` tab，也不顯示獨立 top-level `Project Review`；`Dept Review` 內固定使用 `Dashboard / MFG Station Detail / Non-MFG Department Detail`。
+- Dept DRI approve 後該 row 必須仍在 `Dept Review` 的 Dashboard / MFG / Non-MFG evidence 可見，第一欄顯示 `You approved` 與目前派往 Cost Manager 或 Budget Approver。
+- Item Quantity Review popup 點 quantity / total / item cell 都可開啟，direct edit 後必須同步 total qty 並增加 audit count。
+- Dept DRI 主畫面不顯示大型 carryover card、line impact strip 或空 ledger。
 - Dept DRI 不 lock OM-owned / MFG-owned warehouse candidate。
 - Dept DRI 只看到自己 scope 的 row。
 
 ## Compact Handoff
 
-Dept DRI is the scoped first review gate. It approves/rejects requester submissions, unit-owned stock/carryover candidates, and price exceptions, but does not operate OM/MFG warehouse owner workflows or global cost dashboards.
+Dept DRI is the scoped first review gate. It approves/rejects requester submissions, unit-owned stock/carryover candidates, and price exceptions in Dept Review, using the same Cost Manager-style review shell with dashboard-first evidence, Dashboard, MFG Station Detail / Non-MFG Department Detail drill-in, and audited direct quantity edits.

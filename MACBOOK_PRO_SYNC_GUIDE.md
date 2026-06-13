@@ -1,24 +1,24 @@
-# MacBook Pro 同步準則
+# MacBook Pro / Mac mini 分工與同步準則
 
 ## 目標
 
-MacBook Pro 是主要開發機，負責前端、後端、DB schema、測試與 GitHub push。
+MacBook Pro 是主要 feature development / review 機，適合做較大範圍的前端、後端、DB schema、測試與文件整理。
 
-Mac mini 是 host / UAT 部署機，不應直接手動修改 source。兩邊同步基準一律以 GitHub `origin/main` 的 commit 為準，避免 MacBook Pro 修正後 Mac mini 仍停在舊版。
+Mac mini 是 host / UAT 部署機，並且允許承接 UAT-blocking hotfix。hotfix 可以在 Mac mini 的 Git working copy 內完成，但必須測試、commit、push 回 GitHub，不能直接 patch running container、手動改未追蹤部署檔，或讓修正只留在 Mac mini。
 
-目前 Mac mini 尚未固定 IP，因此本文件先定義 MacBook Pro 端的準備與同步準則，不包含 SSH deploy 指令。
+兩邊同步基準一律以 GitHub `origin/main` 的 commit 為準。角色轉換後，MacBook Pro 不再是唯一可改 source 的機器；GitHub 仍是唯一 deployable source of truth。
 
 ## 角色分工
 
 | 機器 | 角色 | 應做事項 | 不應做事項 |
 | --- | --- | --- | --- |
-| MacBook Pro | 開發機 | 修改 source、跑測試、commit、push 到 GitHub | 手動複製半套檔案到 Mac mini |
+| MacBook Pro | Feature development / review | 較大功能、流程重構、文件整理、測試更新、一般 commit / push | 手動複製半套檔案到 Mac mini |
 | GitHub | 唯一版本來源 | 保存 `main` 的可部署 commit | 保存 `.env`、password、secret |
-| Mac mini | Host / UAT | 從 GitHub 拉取指定 commit 並部署 | 直接修改正式 source |
+| Mac mini | Host / UAT / hotfix | 拉取/部署 `origin/main`，處理 UAT-blocking hotfix，執行 health check | 直接修改 container 或未 commit 的部署檔、讓 hotfix 不回推 GitHub |
 
 ## 開工前檢查
 
-在 MacBook Pro 開始任何修改前，先進入 repo：
+在 MacBook Pro 開始一般開發前，先進入 repo：
 
 ```bash
 cd "/Users/kai-chenyang/Desktop/桌面 - Kai-chen的MacBook Pro/Codex/資料庫建置"
@@ -41,14 +41,25 @@ echo "Origin main: $(git rev-parse origin/main)"
 
 如果 `Local HEAD` 與 `Origin main` 不一致，先釐清差異。不要在不確定差異內容的情況下直接覆蓋、reset 或部署。
 
+若 worktree 已經有 staged/unstaged changes、unmerged path，或這次任務涉及跨 thread PM memory / handoff / branch hygiene，先讀：
+
+- `project-progress/MASTER_PM_LEDGER.md`
+- `project-progress/WORKTREE_TRIAGE_20260613.md`
+- Notion `MVA Procurement Cross-Thread PM Hub`: `https://app.notion.com/p/37e51fb7c1518144b408e200fcd68d36`
+
+不要在未確認 ownership 的情況下把 PM memory、prototype feature、deploy、SAP/DB import、archive/generated cleanup 混成同一個 commit。
+
 ## 開發準則
 
-- 所有正式變更都在 MacBook Pro 完成。
+- 一般功能與較大重構仍優先在 MacBook Pro 完成。
+- Mac mini 可以做 hotfix，但範圍應限於 UAT-blocking 問題、部署腳本問題、health check 問題或小型修補。
 - 不用 zip、AirDrop、Finder copy 或手動覆蓋 source 作為正式同步方式。
 - 不要把 `.env`、DB password、`SESSION_SECRET`、token、private key 或 production-like secret commit 進 Git。
 - UI、API、DB schema、seed、測試變更應一起提交，避免 Mac mini 部署到半套狀態。
 - 如果有 DB migration、seed 或資料結構變更，commit message 或 handoff 必須明確寫出。
-- Mac mini 若發現問題，修正仍應回到 MacBook Pro 或 GitHub flow 完成，再重新部署。
+- Mac mini hotfix 完成後必須 push 回 GitHub；MacBook Pro 後續要先 fetch/pull，不可覆蓋 Mac mini hotfix commit。
+- 大量 archive、handoff package、review-output、截圖、zip 或 generated artifact 刪除必須獨立確認；不要跟功能、部署或 PM memory commit 混在一起。
+- 任何會影響未來 thread 的同步/部署規則更新，都要同步更新 `AGENTS.md`、`README.md`、`project-progress/MASTER_PM_LEDGER.md`，並在 Notion PM Hub 留下 `Thread Updates` 或 `Decision Log` 紀錄。
 
 ## 測試門檻
 
@@ -110,6 +121,57 @@ Mac mini 的 `git rev-parse HEAD` 應該等於 MacBook Pro push 後的 `origin/m
 
 在 GitHub Actions self-hosted runner 與 Docker Compose 正式導入前，Mac mini 端部署結果仍需要人工確認，不可將「已 push 到 GitHub」視為「Mac mini 已部署完成」。
 
+## Mac mini hotfix 流程
+
+只在 UAT-blocking 或部署阻塞時使用 hotfix。開工前先確認狀態：
+
+```bash
+cd "/Users/kai-chenyang/Desktop/Codex /資料庫建置"
+git status --short --branch
+git fetch origin
+git log --oneline --decorate -5
+```
+
+建議從 `main` 的最新 commit 開始：
+
+```bash
+git checkout main
+git pull --ff-only origin main
+```
+
+修正後依風險選擇驗證：
+
+```bash
+# 小型 syntax / unit / contract hotfix
+deploy/mac-mini/hotfix.sh quick
+
+# 影響 UI、API、DB schema、role flow 或測試期待值時
+deploy/mac-mini/hotfix.sh full
+```
+
+完成後必須 commit 並 push 回 GitHub：
+
+```bash
+git status --short
+git add -A
+git commit -m "Hotfix Mac mini UAT issue"
+git push origin HEAD:main
+```
+
+若只需要重新部署同一個已驗證 commit：
+
+```bash
+deploy/mac-mini/hotfix.sh deploy
+deploy/mac-mini/hotfix.sh health
+```
+
+Hotfix 禁止事項：
+
+- 不改 running container 內的檔案。
+- 不把未 commit 的 Mac mini local patch 當作已部署完成。
+- 不在 UAT DB 直接做破壞性 schema/data 變更，除非另有備份與 rollback 記錄。
+- 不用 hotfix 承接大型流程重構；大型變更回到 MacBook Pro / PR flow。
+
 ## 後續升級方向
 
 Mac mini 固定 IP、host runtime 與 runner 權限整理完成後，目標流程升級為：
@@ -133,7 +195,7 @@ curl -fsS http://127.0.0.1:8080/api/health
 
 ## Codex 行為準則
 
-MacBook Pro 那邊的 Codex 應遵守：
+MacBook Pro / Mac mini 上的 Codex 應遵守：
 
 - 預設用繁體中文回覆 Kai。
 - 開始 substantial work 前，先讀：

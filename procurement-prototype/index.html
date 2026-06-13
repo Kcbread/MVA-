@@ -50,6 +50,10 @@
                 <option value="">Auto from Excel requester list</option>
               </select>
             </label>
+            <label id="omOperatorField" hidden>
+              OM operator
+              <select id="omOperatorSelect"></select>
+            </label>
             <div class="login-row">
               <label class="check"><input type="checkbox" /> Remember me</label>
               <a href="#">Forgot password?</a>
@@ -79,6 +83,7 @@
 
         <nav class="tabs" aria-label="Main navigation">
           <button class="tab active" data-view="department" data-roles="requester admin">Requester Workspace</button>
+          <button class="tab" data-view="projectStatus" data-roles="requester manager procurement om omLeader omMember dri projectDri sourcing buyer admin">Project Status</button>
           <button class="tab" data-view="manager" data-roles="manager admin">Cost Manager Dashboard</button>
           <button class="tab" data-view="procurement" data-roles="procurement admin">MFG Coordination</button>
           <button class="tab" data-view="om" data-roles="om omLeader omMember admin">OM Purchasing</button>
@@ -88,6 +93,106 @@
           <button class="tab" data-view="buyer" data-roles="buyer admin">Buyer PR / PO</button>
           <button class="tab" data-view="adminSetup" data-roles="admin">Admin Setup</button>
         </nav>
+
+        <section class="view" data-view="projectStatus">
+          <div class="section-head-tight">
+            <h2>Project Status</h2>
+            <p class="muted">Read-only line-opening cost overview using the manager-accepted Demand Cost Dashboard and station matrices.</p>
+          </div>
+          <div class="page-toolbar compact-toolbar">
+            <label>
+              Year Project
+              <select id="projectStatusProjectFilter">
+                <option value="">All year projects</option>
+              </select>
+            </label>
+            <label>
+              Project
+              <select id="projectStatusProjectCodeFilter">
+                <option value="">All projects</option>
+              </select>
+            </label>
+            <label>
+              Line
+              <select id="projectStatusLineFilter">
+                <option value="">All lines</option>
+              </select>
+            </label>
+            <label>
+              Phase
+              <select id="projectStatusPhaseFilter">
+                <option value="">All stages</option>
+              </select>
+            </label>
+            <label>
+              Line Count
+              <input id="projectStatusLineCount" class="compact-input" type="number" min="1" step="1" value="1" />
+            </label>
+            <label>
+              View Mode
+              <select id="projectStatusViewMode">
+                <option value="amount">Amount</option>
+                <option value="qty">Qty</option>
+              </select>
+            </label>
+          </div>
+          <div class="project-status-stack" aria-label="Project status tables">
+          <section class="project-status-panel active" data-project-status-panel="dashboard">
+            <section class="work-panel demand-cost-panel">
+              <div class="panel-title section-head-tight">
+                <div>
+                  <h3>Dashboard Quantity Review</h3>
+                  <p class="panel-subcopy">Manager line-opening cost dashboard. MFG is aggregated; Non-MFG department columns continue to the right.</p>
+                </div>
+                <span class="status-pill info" id="projectStatusDashboardMeta">VND view</span>
+              </div>
+              <div id="projectStatusDemandCostUnitSummary" class="demand-cost-unit-summary"></div>
+              <div data-horizontal-nav="projectStatusDashboard" class="horizontal-table-nav-anchor"></div>
+              <div class="table-wrap table-shell demand-cost-wrap project-status-dashboard-wrap">
+                <table class="data-table table-fixed dense-dashboard-table demand-cost-summary-table project-status-dashboard-table" id="projectStatusDashboardTable">
+                  <colgroup id="projectStatusDashboardColgroup"></colgroup>
+                  <thead id="projectStatusDashboardHead"></thead>
+                  <tbody id="projectStatusDashboardRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+          <section class="project-status-panel active" data-project-status-panel="mfg">
+            <section class="work-panel">
+              <div class="panel-title section-head-tight">
+                <div>
+                  <h3>MFG Station Detail</h3>
+                  <p class="panel-subcopy">Selected item status by phase and station. Click MFG in Dashboard to update this table.</p>
+                </div>
+                <span class="status-pill info" id="projectStatusMfgScope">All MFG rows</span>
+              </div>
+              <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
+                <table class="data-table manager-quantity-table manager-quantity-wide-table project-status-detail-table" id="projectStatusMfgMatrixTable">
+                  <thead id="projectStatusMfgHead"></thead>
+                  <tbody id="projectStatusMfgRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+          <section class="project-status-panel active" data-project-status-panel="nonMfg">
+            <section class="work-panel">
+              <div class="panel-title section-head-tight">
+                <div>
+                  <h3>Non-MFG Department Detail</h3>
+                  <p class="panel-subcopy">Selected item status by phase and department. Click a Non-MFG cell in Dashboard to update this table.</p>
+                </div>
+                <span class="status-pill info" id="projectStatusNonMfgScope">All Non-MFG rows</span>
+              </div>
+              <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
+                <table class="data-table manager-quantity-table manager-quantity-wide-table project-status-detail-table" id="projectStatusNonMfgMatrixTable">
+                  <thead id="projectStatusNonMfgHead"></thead>
+                  <tbody id="projectStatusNonMfgRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+          </div>
+        </section>
 
         <section class="view active" data-view="department">
           <div class="page-toolbar compact-toolbar">
@@ -99,11 +204,16 @@
               </select>
             </label>
             <label class="project-picker">
-              Project
+              Year Project
               <select id="projectSelect">
                 <option value="P26">P26</option>
                 <option value="OR5">OR5</option>
               </select>
+            </label>
+            <label class="project-picker">
+              Project
+              <input id="projectCodeInput" list="projectCodeOptions" placeholder="4CS4, CGY4, PKK4..." />
+              <datalist id="projectCodeOptions"></datalist>
             </label>
           </div>
 
@@ -132,6 +242,11 @@
                   <button class="primary" type="button" data-action="openRequestItemPicker">Add Item</button>
                   <span class="record-count" id="requestWorksheetScopeSummary">0 worksheet rows</span>
                 </div>
+                <div class="request-phase-jump-row">
+                  <div id="requestWorksheetPhaseJumpBar" class="request-phase-jump-bar"></div>
+                  <span id="requestWorksheetCurrentPhaseIndicator" class="request-current-phase-indicator">All phases</span>
+                </div>
+                <div data-horizontal-nav="requestWorksheet" class="horizontal-table-nav-anchor"></div>
                 <div class="table-wrap aligned-table-wrap table-shell form-table-shell request-worksheet-shell">
                   <table class="data-table table-fixed form-table matrix-table request-table request-worksheet-table" data-layout-managed="manual">
                     <thead id="requestWorksheetHead"></thead>
@@ -143,7 +258,7 @@
                 </div>
                 <div class="request-submit-bar">
                   <label>
-                    <span>Need Date</span>
+                    <span id="requestPackageNeedDateLabel">MFG Need Date</span>
                     <input id="requestPackageNeedDate" type="date" />
                   </label>
                   <button class="ghost" data-action="saveRequesterDraft">Save Draft</button>
@@ -406,12 +521,10 @@
           </section>
         </section>
 
-        <section class="view" data-view="manager">
-          <div class="inner-tabs manager-tabs" aria-label="Manager dashboard sections">
-            <button class="inner-tab active" data-manager-tab="review">Submission Monitor</button>
-            <button class="inner-tab" data-manager-tab="analysis">Demand Analysis</button>
-            <button class="inner-tab" data-manager-tab="demand">Progress Tracking</button>
-            <button class="inner-tab" data-manager-tab="setup">Project Setup</button>
+        <section class="view" data-view="manager" data-approval-review-role="manager">
+          <div class="inner-tabs manager-tabs" aria-label="Cost Manager review sections">
+            <button class="inner-tab active" data-manager-tab="review">Cost Review</button>
+            <button class="inner-tab" data-manager-tab="history">Review History</button>
           </div>
 
           <section class="manager-panel active" data-manager-panel="review">
@@ -426,20 +539,93 @@
                 </select>
               </label>
             </div>
-            <section class="work-panel">
+            <section class="work-panel approval-quantity-review-host">
               <div class="panel-title">
                 <div>
-                  <h3>Requester Submission Monitor</h3>
+                  <h3>Quantity Review</h3>
+                  <p class="panel-subcopy">Dashboard summarizes all review rows; drill into MFG station or Non-MFG department detail when needed.</p>
                 </div>
                 <span class="record-count" id="managerCount">0 items</span>
               </div>
-              <div id="managerQueue" class="queue-list"></div>
+              <div id="managerQueue" class="pending-work-host"></div>
+              <section id="managerAuthorizedAnalysis" class="price-review-inline-analysis" hidden>
+                <div class="panel-title section-head-tight">
+                  <div>
+                    <h3>Project Context</h3>
+                    <p class="panel-subcopy">Keep the review queue selected item highlighted while the dashboard remains available for project reference.</p>
+                  </div>
+                  <span class="status-pill info" id="managerAuthorizedAnalysisScopeBadge">Select a row</span>
+                </div>
+                <div id="managerApprovalQuantityTabs"></div>
+                <div class="price-review-inline-analysis-stack">
+                  <section class="work-panel demand-cost-panel" data-approval-quantity-panel="dashboard">
+                    <div class="panel-title section-head-tight">
+                      <div>
+                        <h3>Quantity Dashboard</h3>
+                        <p class="panel-subcopy">Excel-like overview with MFG as all-station total and Non-MFG departments to the right.</p>
+                      </div>
+                      <span class="status-pill info" id="managerAuthorizedDemandCostCurrencyMeta">VND view</span>
+                    </div>
+                    <div class="price-review-inline-scope-bar">
+                      <strong>Project Context Scope</strong>
+                      <span id="managerAuthorizedDemandCostScope">All review rows</span>
+                    </div>
+                    <div class="price-review-inline-hidden-filters" aria-hidden="true">
+                      <select id="managerAuthorizedDemandCostProjectFilter"><option value="">All projects</option></select>
+                      <select id="managerAuthorizedDemandCostLineFilter"><option value="">All lines</option></select>
+                      <select id="managerAuthorizedDemandCostPhaseFilter"><option value="">All stages</option></select>
+                      <input id="managerAuthorizedDemandCostLineCount" class="compact-input" type="number" min="1" step="1" value="1" />
+                      <select id="managerAuthorizedDemandCostViewMode"><option value="amount">Amount</option><option value="qty">Qty</option></select>
+                    </div>
+                    <div id="managerAuthorizedDemandCostExplain" class="decision-explain-strip"></div>
+                    <div id="managerAuthorizedDemandCostUnitSummary" class="demand-cost-unit-summary"></div>
+                    <div data-horizontal-nav="managerAuthorizedDemandCost" class="horizontal-table-nav-anchor"></div>
+                    <div class="table-wrap table-shell demand-cost-wrap">
+                      <table class="data-table table-fixed dense-dashboard-table demand-cost-table" id="managerAuthorizedDemandCostTable">
+                        <colgroup id="managerAuthorizedDemandCostColgroup"></colgroup>
+                        <thead id="managerAuthorizedDemandCostHead"></thead>
+                        <tbody id="managerAuthorizedDemandCostRows"></tbody>
+                      </table>
+                    </div>
+                  </section>
+                  <section class="work-panel" data-approval-quantity-panel="matrix">
+                    <div class="panel-title section-head-tight">
+                      <div>
+                        <h3 id="managerAuthorizedQuantityTitle">MFG Station Detail</h3>
+                        <p id="managerAuthorizedQuantityHelper" class="panel-subcopy">Selected item by phase and MFG station. Use Dashboard MFG to open this station view.</p>
+                      </div>
+                    </div>
+                    <div class="price-review-inline-scope-bar">
+                      <strong>Selected Row</strong>
+                      <span id="managerAuthorizedQuantityScope">Select a row</span>
+                    </div>
+                    <div class="price-review-inline-hidden-filters" aria-hidden="true">
+                      <select id="managerAuthorizedQuantityProjectFilter"><option value="">All projects</option></select>
+                      <select id="managerAuthorizedQuantityLineFilter"><option value="">All lines</option></select>
+                      <select id="managerAuthorizedQuantityItemFilter"><option value="">All items</option></select>
+                      <select id="managerAuthorizedQuantityPhaseFilter"><option value="">All phases</option></select>
+                      <select id="managerAuthorizedQuantityStationFilter"><option value="">All stations</option></select>
+                      <select id="managerAuthorizedQuantityUnitFilter"><option value="">All demand units</option></select>
+                      <select id="managerAuthorizedQuantitySortFilter"><option value="">Default</option></select>
+                    </div>
+                    <div data-horizontal-nav="managerAuthorizedQuantity" class="horizontal-table-nav-anchor"></div>
+                    <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap">
+                      <table class="data-table manager-quantity-table manager-quantity-wide-table" id="managerAuthorizedQuantityMatrixTable">
+                        <thead id="managerAuthorizedQuantityHead"></thead>
+                        <tbody id="managerAuthorizedQuantityRows"></tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              </section>
             </section>
+          </section>
 
+          <section class="manager-panel" data-manager-panel="history">
             <section class="work-panel review-history-panel">
               <div class="panel-title">
                 <div>
-                  <h3>Dept DRI Decision History</h3>
+                  <h3>Cost Review History</h3>
                 </div>
               </div>
               <div class="summary-grid" id="managerDashboardSummary"></div>
@@ -457,8 +643,8 @@
                   Decision Status
                   <select id="managerDashboardStatusFilter">
                     <option value="">All decisions</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Rejected">Rejected</option>
+                    <option value="Cost Manager Authorized">Authorized</option>
+                    <option value="Cost Manager Rejected">Rejected</option>
                   </select>
                 </label>
               </div>
@@ -471,7 +657,7 @@
                       <th>Item</th>
                       <th>Affected Phases</th>
                       <th>Total Qty</th>
-                      <th>Dept DRI Decision</th>
+                      <th>Cost Manager Decision</th>
                       <th>Reason</th>
                       <th>Decision Time</th>
                       <th>Detail</th>
@@ -481,7 +667,6 @@
                 </table>
               </div>
             </section>
-
           </section>
 
           <section class="manager-panel" data-manager-panel="analysis">
@@ -498,6 +683,12 @@
                   Project
                   <select id="managerDemandCostProjectFilter">
                     <option value="">All projects</option>
+                  </select>
+                </label>
+                <label>
+                  Line
+                  <select id="managerDemandCostLineFilter">
+                    <option value="">All lines</option>
                   </select>
                 </label>
                 <label>
@@ -533,8 +724,7 @@
               </div>
               <div id="managerDemandCostExplain" class="decision-explain-strip"></div>
               <div id="managerDemandCostUnitSummary" class="demand-cost-unit-summary"></div>
-              <div id="managerDemandCostCarryoverCompare" class="demand-cost-carryover-compare"></div>
-              <div id="managerDemandCostLineCompare" class="demand-cost-line-compare"></div>
+              <div data-horizontal-nav="managerDemandCost" class="horizontal-table-nav-anchor"></div>
               <div class="table-wrap table-shell demand-cost-wrap">
                 <table class="data-table table-fixed dense-dashboard-table demand-cost-table" id="managerDemandCostTable">
                   <colgroup id="managerDemandCostColgroup"></colgroup>
@@ -542,7 +732,6 @@
                   <tbody id="managerDemandCostRows"></tbody>
                 </table>
               </div>
-              <div id="managerDemandCostCarryoverLedger" class="demand-cost-carryover-ledger"></div>
             </section>
             </section>
 
@@ -554,6 +743,12 @@
                     Project
                     <select id="managerQuantityProjectFilter">
                       <option value="">All projects</option>
+                    </select>
+                  </label>
+                  <label>
+                    Line
+                    <select id="managerQuantityLineFilter">
+                      <option value="">All lines</option>
                     </select>
                   </label>
                   <label>
@@ -603,114 +798,6 @@
                 <table class="data-table manager-quantity-table manager-quantity-wide-table" id="managerQuantityMatrixTable">
                   <thead id="managerQuantityHead"></thead>
                   <tbody id="managerQuantityRows"></tbody>
-                </table>
-              </div>
-              <div id="managerQuantityCarryoverLedger" class="demand-cost-carryover-ledger compact"></div>
-            </section>
-          </section>
-
-          <section class="manager-panel" data-manager-panel="demand">
-            <div class="manager-progress-toolbar">
-              <div class="toolbar-label">Scope Filters</div>
-              <div class="manager-progress-controls">
-                <label>
-                  Year Project
-                  <select id="managerProgressYearFilter">
-                    <option value="">All year projects</option>
-                  </select>
-                </label>
-                <label>
-                  Project
-                  <select id="managerProgressProjectFilter">
-                    <option value="">All projects</option>
-                  </select>
-                </label>
-                <label>
-                  Process
-                  <select id="managerProgressProcessFilter">
-                    <option value="">All process</option>
-                  </select>
-                </label>
-                <label>
-                  Stage
-                  <select id="managerProgressStageFilter">
-                    <option value="">All stage</option>
-                  </select>
-                </label>
-                <label>
-                  Department
-                  <select id="managerProgressDepartmentFilter">
-                    <option value="">All departments</option>
-                  </select>
-                </label>
-              </div>
-              <div class="manager-risk-controls" aria-label="Demand risk filters">
-                <label class="risk-toggle">
-                  <input id="managerProgressLateOnly" type="checkbox" />
-                  <span>Late only</span>
-                </label>
-                <label class="risk-toggle">
-                  <input id="managerProgressPendingOnly" type="checkbox" />
-                  <span>Pending only</span>
-                </label>
-                <button class="ghost" type="button" data-action="clearManagerProgressFilters">Clear Filters</button>
-              </div>
-            </div>
-            <div class="summary-grid" id="managerStageSummary"></div>
-            <div class="table-wrap manager-cost-wrap">
-              <table class="data-table manager-cost-table" id="managerDemandOverviewTable">
-                <thead>
-                  <tr>
-                    <th>Year Project</th>
-                    <th>Project</th>
-                    <th>Item</th>
-                    <th>Department</th>
-                    <th>Quantity</th>
-                    <th>Submitted / Received Date</th>
-                    <th>Pending Owner</th>
-                    <th>Current Stage</th>
-                    <th>Days Pending</th>
-                    <th>Quote Status</th>
-                    <th>Next Action</th>
-                    <th>Pending / Risk Reason</th>
-                    <th>Detail</th>
-                  </tr>
-                </thead>
-                <tbody id="managerStageRows"></tbody>
-              </table>
-            </div>
-            <section class="work-panel manager-stage-detail-panel" id="managerStageDetailPanel" hidden>
-              <div class="panel-title section-head-tight">
-                <div>
-                  <h3 id="managerStageDetailTitle">Demand Detail</h3>
-                </div>
-                <button class="ghost" type="button" data-action="closeManagerStageDetail">Close</button>
-              </div>
-              <div class="table-wrap stage-demand-wrap">
-                <table class="data-table stage-demand-table" id="managerStageDetailTable">
-                  <thead>
-                    <tr>
-                      <th>Phase</th>
-                      <th>CG</th>
-                      <th>BG</th>
-                      <th>FATP</th>
-                      <th>Test</th>
-                      <th>Hybrid</th>
-                      <th>Auto</th>
-                      <th>ENG Pack</th>
-                      <th>Zombie</th>
-                      <th>Laser_pico</th>
-                      <th>Rework</th>
-                      <th>Repair</th>
-                      <th>WH</th>
-                      <th>Buffer</th>
-                      <th>Total Demand for EQ</th>
-                      <th>Stock</th>
-                      <th>Actual Need QTY</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody id="managerStageDetailRows"></tbody>
                 </table>
               </div>
             </section>
@@ -1304,41 +1391,29 @@
 
         </section>
 
-        <section class="view" data-view="priceReview">
+        <section class="view" data-view="priceReview" data-approval-review-role="dri">
+          <div class="section-head-tight">
+            <h2 id="priceReviewTitle">Dept Review</h2>
+            <p class="muted">Shared Price Review surface for Dept DRI, Cost Manager, and Budget Approver decisions.</p>
+          </div>
           <div class="inner-tabs price-review-tabs" aria-label="Price review sections">
-            <button class="inner-tab active" data-price-review-tab="pending">Pending Price Review</button>
+            <button class="inner-tab active" data-price-review-tab="pending">Review Queue</button>
             <button class="inner-tab" data-price-review-tab="history">Review History</button>
           </div>
 
           <section class="price-review-panel active" data-price-review-panel="pending">
             <section class="work-panel">
-              <div class="panel-title">
+              <div class="panel-title" id="priceReviewPendingHeader">
                 <div>
-                  <h3>Pending Price Review</h3>
-                  <p class="muted">Only quotes above threshold, missing history price, or Temporary Budget Requests arrive here.</p>
+                  <h3>Review Queue</h3>
+                  <p class="muted">Approve or reject queued review rows here. Use Project Status for cross-role tracking.</p>
                 </div>
                 <span class="record-count" id="priceReviewPendingCount">0 rows</span>
               </div>
-              <div class="table-wrap">
-                <table class="data-table price-review-table">
-                  <thead>
-                    <tr>
-                      <th>Request ID</th>
-                      <th>Project</th>
-                      <th>Item</th>
-                      <th>Need Date</th>
-                      <th>Category</th>
-                      <th>History Price</th>
-                      <th>Quote Price</th>
-                      <th>Variance</th>
-                      <th>Pending Owner</th>
-                      <th>Decision</th>
-                      <th>Detail</th>
-                    </tr>
-                  </thead>
-                  <tbody id="priceReviewPendingRows"></tbody>
-                </table>
-              </div>
+              <div id="priceReviewWorkspaceBanner" class="decision-explain-strip" hidden></div>
+              <div id="priceReviewQueueTabs" class="pending-work-queue-tabs"></div>
+              <p id="priceReviewQueueHelper" class="muted">Select a row for approval actions. Project tracking is available in the top-level Project Status tab.</p>
+              <div id="priceReviewPendingWorkspace" class="pending-work-host"></div>
             </section>
           </section>
 
@@ -1467,23 +1542,118 @@
                   </table>
                 </div>
               </section>
+              <section class="admin-setup-card">
+                <h4>OM Assignment Rules</h4>
+                <div class="form-grid two">
+                  <label>Rule Name<input id="adminNewOmRuleName" type="text" placeholder="Project or unit rule" /></label>
+                  <label>Priority<input id="adminNewOmRulePriority" type="number" min="1" step="1" value="10" /></label>
+                  <label>Assignee<select id="adminNewOmRuleAssignee"></select></label>
+                  <label>Project Codes<input id="adminNewOmRuleProjectCodes" type="text" placeholder="P26, OR5" /></label>
+                  <label>Project Families<input id="adminNewOmRuleProjectFamilies" type="text" placeholder="G, Non-G" /></label>
+                  <label>Department Scopes<input id="adminNewOmRuleDepartmentScopes" type="text" placeholder="MFG, IT, FAC" /></label>
+                </div>
+                <label>Note<input id="adminNewOmRuleNote" type="text" placeholder="Routing note" /></label>
+                <label class="permission-toggle"><input id="adminNewOmRuleActive" type="checkbox" checked /><span>Active</span></label>
+                <label class="permission-toggle"><input id="adminNewOmRuleFallback" type="checkbox" /><span>Fallback</span></label>
+                <button class="primary" type="button" data-action="createOmAssignmentRule">Create Rule</button>
+                <div class="table-wrap">
+                  <table class="data-table workflow-table">
+                    <thead>
+                      <tr>
+                        <th>Rule</th>
+                        <th>Priority</th>
+                        <th>Assignee</th>
+                        <th>Projects</th>
+                        <th>Families</th>
+                        <th>Departments</th>
+                        <th>Status</th>
+                        <th>Note</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="adminOmAssignmentRuleRows"></tbody>
+                  </table>
+                </div>
+              </section>
             </div>
           </section>
           <section class="work-panel">
             <div class="panel-title">
               <div>
-                <h3>User Role Assignment</h3>
-                <p class="muted">First prototype stores updates in local page state; IT can map this to the real identity database.</p>
+                <h3>SAP PO Raw Import</h3>
+                <p class="muted">UAT-only import preview for Raw Data A-BN. Yellow rows are OM scope; non-yellow rows are MFG buy in full import mode.</p>
+              </div>
+              <span class="status-pill" id="sapPoRawImportDbStatus">DB status unknown</span>
+            </div>
+            <div class="form-grid three">
+              <label>Workbook Path<input id="sapPoRawWorkbookPath" type="text" placeholder="Default Source DB regularize_0608_renumbered.xlsx" /></label>
+              <label>Sheet<input id="sapPoRawSheetName" type="text" value="Raw Data" /></label>
+              <label>Scope Mode<select id="sapPoRawScopeMode"><option value="yellow-only">Yellow OM rows only</option><option value="all">All rows: OM + MFG buy</option></select></label>
+            </div>
+            <div class="footer-actions">
+              <button class="ghost" type="button" data-action="refreshSapPoRawImportStatus">Refresh Import Status</button>
+              <button class="primary" type="button" data-action="previewSapPoRawImport">Preview Import</button>
+              <button class="danger" type="button" data-action="commitSapPoRawImport">Commit Preview to UAT</button>
+            </div>
+            <div class="summary-grid" id="sapPoRawImportSummary"></div>
+            <div class="table-wrap">
+              <table class="data-table workflow-table sap-po-raw-import-table">
+                <thead>
+                  <tr>
+                    <th>Row</th>
+                    <th>Scope</th>
+                    <th>Factory Material No</th>
+                    <th>SAP Material No</th>
+                    <th>FTV</th>
+                    <th>Normalized Item</th>
+                    <th>LV</th>
+                    <th>Expected Prefix</th>
+                  </tr>
+                </thead>
+                <tbody id="sapPoRawImportRows"></tbody>
+              </table>
+            </div>
+            <div class="reason-text" id="sapPoRawImportMessages"></div>
+          </section>
+          <section class="work-panel">
+            <div class="panel-title">
+              <div>
+                <h3>User Lifecycle</h3>
+                <p class="muted">Create, import, export, activate, deactivate, and scope users before mapping to the real identity database.</p>
               </div>
             </div>
+            <div class="form-grid three">
+              <label>Employee ID<input id="adminNewUserEmployeeId" type="text" placeholder="V1234567" /></label>
+              <label>Name<input id="adminNewUserName" type="text" placeholder="Display name" /></label>
+              <label>Email<input id="adminNewUserEmail" type="email" placeholder="user@example.com" /></label>
+              <label>Department<input id="adminNewUserDepartment" type="text" placeholder="MFG / OM / IT" /></label>
+              <label>Role<select id="adminNewUserRole"></select></label>
+              <label>Scope Type<select id="adminNewUserScopeType"><option value="department">Department</option><option value="project">Project</option><option value="priceReviewScoped">Price Review Scoped</option></select></label>
+              <label>Scope Value<input id="adminNewUserScopeValue" type="text" placeholder="MFG, P26, OR5" /></label>
+            </div>
+            <div class="footer-actions">
+              <button class="primary" type="button" data-action="createAdminUser">Create User</button>
+              <button class="ghost" type="button" data-action="exportAdminUsers">Export Users</button>
+            </div>
+            <label>
+              Import Users
+              <textarea id="adminImportTextarea" rows="3" placeholder="employee_id,name,email,department,role,scope_type,scope_value"></textarea>
+            </label>
+            <button class="ghost" type="button" data-action="importAdminUsers">Import Users</button>
             <div class="table-wrap">
               <table class="data-table admin-user-table">
                 <thead>
                   <tr>
+                    <th>Employee ID</th>
                     <th>Name</th>
                     <th>Email</th>
                     <th>Department</th>
                     <th>Role</th>
+                    <th>Scope</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Created By</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody id="adminUserRows"></tbody>
@@ -1493,8 +1663,54 @@
           <section class="work-panel">
             <div class="panel-title">
               <div>
-                <h3>Current Role Capability Matrix</h3>
+                <h3>Roles & Permissions</h3>
                 <p class="muted">Working draft for UAT alignment. Names can still change, but current ownership and visibility stay explicit.</p>
+              </div>
+            </div>
+            <div class="form-grid three">
+              <label>Role Key<input id="adminNewRoleKey" type="text" placeholder="customRole" /></label>
+              <label>Role Name<input id="adminNewRoleName" type="text" placeholder="Custom Role" /></label>
+              <label>Role Level<input id="adminNewRoleLevel" type="text" value="governance" /></label>
+            </div>
+            <button class="ghost" type="button" data-action="createAdminRole">Create Role</button>
+            <div id="adminRolePermissionMatrix" class="role-matrix"></div>
+          </section>
+          <section class="work-panel">
+            <div class="panel-title">
+              <div>
+                <h3>Sensitive Field Access</h3>
+                <p class="muted">Control role-level visibility for internal procurement and price fields.</p>
+              </div>
+            </div>
+            <div id="adminFieldVisibilityMatrix" class="role-matrix"></div>
+          </section>
+          <section class="work-panel">
+            <div class="panel-title">
+              <div>
+                <h3>Audit Log</h3>
+                <p class="muted">Governance trail for user, permission, field visibility, and routing changes.</p>
+              </div>
+              <button class="ghost" type="button" data-action="exportAdminAuditLog">Export Audit Log</button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table workflow-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Event</th>
+                    <th>Actor</th>
+                    <th>Entity</th>
+                  </tr>
+                </thead>
+                <tbody id="adminAuditRows"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="work-panel">
+            <div class="panel-title">
+              <div>
+                <h3>Current Role Capability Matrix</h3>
+                <p class="muted">Read-only summary for UAT alignment.</p>
               </div>
             </div>
             <div id="adminRoleMatrix" class="role-matrix"></div>
@@ -1561,8 +1777,8 @@
           <div class="request-item-picker-toolbar">
             <div class="request-item-picker-filterbar">
               <label>
-                Search Item / Spec
-                <input id="requestItemPickerQuery" type="search" placeholder="Search catalog, reuse, copy demand, or type new item/spec..." />
+                Search Item
+                <input id="requestItemPickerQuery" type="search" placeholder="Search item name only, or type a new item name..." />
               </label>
               <label>
                 Lv1
@@ -1741,6 +1957,25 @@
           <div id="managerTrackSummary" class="summary-grid"></div>
           <div class="footer-actions modal-exit-row">
             <button class="ghost" type="button" data-action="closeManagerTrack">Done</button>
+          </div>
+        </section>
+      </div>
+      <div class="modal-backdrop" id="itemQuantityReviewModal" hidden>
+        <section class="modal-card item-quantity-review-card" role="dialog" aria-modal="true" aria-labelledby="itemQuantityReviewTitle">
+          <div class="modal-head">
+            <div>
+              <h3 id="itemQuantityReviewTitle">Item Quantity Review</h3>
+              <p id="itemQuantityReviewSubtitle" class="modal-helper">Single-item phase / station approval row</p>
+            </div>
+            <button class="ghost" type="button" data-action="closeItemQuantityReview">Close</button>
+          </div>
+          <div id="itemQuantityReviewSummary" class="summary-grid item-quantity-review-summary"></div>
+          <div id="itemQuantityReviewBody" class="detail-stack"></div>
+          <div class="footer-actions modal-exit-row item-quantity-review-footer">
+            <button class="primary" type="button" data-action="approveItemQuantityReview">Approve</button>
+	            <button class="ghost" type="button" data-action="saveItemQuantityReviewDirectEdit">Save Direct Edit</button>
+            <button class="danger" type="button" data-action="rejectItemQuantityReview">Reject Item</button>
+            <button class="ghost" type="button" data-action="closeItemQuantityReview">Done</button>
           </div>
         </section>
       </div>
@@ -2131,6 +2366,13 @@
     <script src="./app-modules/lead-time.js?v=20260605-usd-delta-v1"></script>
     <script src="./app-modules/workflow-status.js?v=20260606-workflow-status-v1"></script>
     <script src="./app-modules/workflow-status-table.js?v=20260606-workflow-status-v1"></script>
+    <script src="./app-modules/sap-po-raw-contract.js?v=20260613-sap-po-raw-v1"></script>
+    <script src="./app-modules/horizontal-table-navigator.js?v=20260610-evidence-navigator-v2"></script>
+    <script src="./app-modules/request-worksheet-matrix.js?v=20260609-approval-workbench-v1"></script>
+    <script src="./app-modules/approval-workbench.js?v=20260609-approval-workbench-v1"></script>
+    <script src="./app-modules/approval-quantity-review.js?v=20260610-direct-quantity-review-v1"></script>
+    <script src="./app-modules/approval-review-surface.js?v=20260613-shared-approval-surface-v1"></script>
+    <script src="./app-modules/role-queue-config.js?v=20260609-approval-workbench-v1"></script>
     <script src="./app.js?v=20260608-requester-worksheet-v4"></script>
     <script src="./user-a-flow.js?v=20260604-role-routing-v2"></script>
   <script src="carryover-extension.js?v=20260604-role-routing-v2"></script>

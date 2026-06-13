@@ -530,40 +530,8 @@
   function renderDriCarryover() {
     var host = findHostForRole('dri');
     if (!host) return;
-    var container = upsertContainer(host, 'carryover-review-workspace');
-    if (!container) return;
-    var rows = readLedger();
-    var stats = ledgerStats(rows);
-    container.innerHTML =
-      '<div class="carryover-card">' +
-        '<h3>Carryover Review</h3>' +
-        '<p class="carryover-muted">Dept DRI reviews requester stock/carryover candidates. Cost Manager and OM Purchasing only see the result and effective demand impact.</p>' +
-        '<div class="carryover-impact-strip">' +
-          '<div class="carryover-impact-card"><span>Applied Events</span><strong>' + formatQty(stats.applied) + '</strong></div>' +
-          '<div class="carryover-impact-card"><span>Pending Review</span><strong>' + formatQty(stats.pending) + '</strong></div>' +
-          '<div class="carryover-impact-card"><span>Carryover Qty</span><strong>-' + formatQty(stats.carryoverQty) + '</strong></div>' +
-          '<div class="carryover-impact-card"><span>Cost Avoidance</span><strong>' + htmlEscape(formatMoney(stats.costImpact)) + '</strong></div>' +
-        '</div>' +
-        '<div class="carryover-table-shell">' +
-          '<table class="carryover-table" aria-label="Carryover Flow Ledger">' +
-            '<thead><tr><th>Source Line</th><th>Target Line</th><th>Item</th><th>Phase</th><th>Station / Unit</th><th>Original</th><th>Used</th><th>Carryover</th><th>Effective</th><th>Status</th><th>Confirmed</th><th>Reason</th><th>Action</th></tr></thead>' +
-            '<tbody>' + ledgerRowsHtml(rows, 'dri') + '</tbody>' +
-          '</table>' +
-        '</div>' +
-      '</div>';
-
-    container.querySelectorAll('[data-carryover-apply]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        updateLedgerStatus(button.getAttribute('data-carryover-apply'), 'Applied');
-        renderAll();
-      });
-    });
-    container.querySelectorAll('[data-carryover-reject]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        updateLedgerStatus(button.getAttribute('data-carryover-reject'), 'Rejected');
-        renderAll();
-      });
-    });
+    var node = document.getElementById('carryover-review-workspace');
+    if (node) node.remove();
   }
 
   function renderManagerCarryover() {
@@ -594,7 +562,7 @@
   function removeDisallowedCarryoverViews() {
     var role = currentRole();
     var allowed = {
-      dri: ['carryover-review-workspace'],
+      dri: [],
       manager: ['carryover-manager-readonly'],
       om: []
     }[role] || [];

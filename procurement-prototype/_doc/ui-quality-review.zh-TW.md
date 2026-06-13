@@ -2,7 +2,7 @@
 
 ## 核心問題
 
-每次調整 OPM / Manager B / OM Purchasing UI，都必須回答四個問題：
+每次調整 Requester / Dept DRI / Cost Manager / Budget Approver / OM UI，都必須回答四個問題：
 
 - 眼睛看不看得到重點？
 - 看了之後，使用者看不看得懂？
@@ -29,20 +29,22 @@
 
 - 頁面第一眼只放該角色當下最重要的工作。
 - OPM 第一眼：新增 / reuse / draft / submit。
-- Manager B 第一眼：Excel Dashboard-like cost/qty view；有疑慮才進 Station Matrix。
+- Dept DRI / Cost Manager / Budget Approver 第一眼：`Quantity Review` Dashboard-first 總覽與 row picker；Dashboard 不需 selected row，detail matrix 才吃 selected row 或 dashboard cell drill-in scope。
 - OM Purchasing 第一眼：收到日期、目前卡在哪、停留幾天、下一步做什麼。
 - Contact、raw Excel source、long history、補充說明放 Detail 或 popup。
 
-## Manager B 例外規則
+## Review Evidence 例外規則
 
-Manager 的 `Station Matrix` 與 `Cost Dashboard` 是 Excel-like 高密度例外，不套一般卡片化 dashboard 規則。
+Dept DRI、Cost Manager、Budget Approver 的 `Quantity Review` 是 Excel-like 高密度例外，不套一般卡片化 dashboard 規則。
 
-`Demand Analysis > Cost Dashboard` 必須接近 Excel `Dashboard` 分頁：
+`Dashboard` 必須接近 Excel `Dashboard` 分頁，且不綁 selected row；`MFG` 欄是全部 MFG station 加總，右側是 Non-MFG department columns：
 
 - `ENG Name`
 - `CN-ENG Name`
 - `VN Name`
 - `Price`
+- `MFG`
+- `FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`
 - `MFG`
 - `FATP TE`
 - `FATP IQC`
@@ -53,6 +55,8 @@ Manager 的 `Station Matrix` 與 `Cost Dashboard` 是 Excel-like 高密度例外
 - `ENG1`
 - `ENG2`
 - `ENG3`
+
+Carryover 在三個審批角色中只能作 secondary evidence；不可用大型 card、line impact strip 或空 ledger 佔據主視覺。
 - `IT`
 - `FAC`
 

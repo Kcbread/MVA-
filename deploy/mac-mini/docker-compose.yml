@@ -40,10 +40,12 @@ services:
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10485760}
       UPLOAD_ROOT: /var/lib/mva-procurement/uploads
+      SAP_PO_RAW_WORKBOOK_PATH: /var/lib/mva-procurement/imports/Source DB regularize_0608_renumbered.xlsx
     ports:
       - "${PORT:-8080}:8080"
     volumes:
       - mva_uploads:/var/lib/mva-procurement/uploads
+      - ./imports:/var/lib/mva-procurement/imports:ro
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/api/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))\""]
       interval: 30s

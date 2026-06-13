@@ -53,12 +53,13 @@
 - Since OM Buy classifications are already maintained in the master sheet, classified items should not trigger the old legacy material maintenance gate during User A submission.
 - Buyer only receives exported OM rows and updates PR / PO / external progress / evidence.
 
-## Cost Manager Dashboard
+## Legacy Cost Manager Dashboard (superseded by v1.5 Quantity Review)
 
 - Visible `Manager B` / `Cost Owner` naming has been replaced by `Cost Manager`.
 - Cost Manager is the P&L/cost review role and final authorization gate after Dept DRI approval.
-- Cost Manager approval is limited to requester-submission final authorization. It does not edit demand, operate OM quote/export, or lock warehouse/carryover evidence.
-- Cost Manager tabs are fixed as:
+- Superseded rule: v1.5 `Quantity Review` replaces the old Cost Manager `Submission Monitor / Demand Analysis / Progress Tracking / Project Setup` shell as the cost authorization workspace.
+- Cost Manager approval remains limited to requester-submission final authorization. It does not operate OM quote/export or lock warehouse/carryover evidence. It may directly edit official demand only through audited `Item Quantity Review` direct edit.
+- Legacy Cost Manager tabs were:
   - `Submission Monitor`
   - `Demand Analysis`
   - `Progress Tracking`
@@ -181,7 +182,7 @@
 - FTV code is a customs / Trading / Accounting audit control. It is not a cost-analysis key and must not be used to group Cost Manager dashboard numbers.
 - Item identity and FTV mapping are separate:
   - `item_master` identifies the normalized item/spec.
-  - `material_identity` identifies system/internal material numbers such as HFCOM, PAS material no., factory material no., or legacy mapping references.
+  - `material_identity` identifies system/internal material numbers such as HFCOM, PAS material no., factory material no., SAP material no., or legacy mapping references.
   - `ftv_code_master` maps `item/material + demand_department` to the active FTV code.
 - Same item/spec purchased by different demand departments can have different FTV codes because customs reporting must identify the buying/using department.
 - Same item/spec purchased by the same demand department and `external_import` route must reuse the active FTV code until EOL.
@@ -212,6 +213,12 @@
 - Demand rows are long-form and have exactly one phase, station, demand unit, qty, and remark per row. One item can own many demand rows across phases, stations, and demand units.
 - `PAS Material No` is external PAS/PUR tracking data entered by OM/PUR and carried through PAS Quote Result, Export Package, Buyer, Detail, and History.
 - `Factory Material No` is not generated during draft or approval. It is only filled after PO by Buyer/PUR, then used as the factory-side tracking key for reusable price history.
+- In `Source DB regularize_0608_renumbered.xlsx` / SAP PO `Raw Data`, column A `料號` is the official `Factory Material No` (`factory_material_no`). Column H `料號` is a separate `SAP Material No` (`sap_material_no`). They must not be merged or displayed as the same field.
+- PO/SAP export templates may include `Factory Material No`, `SAP Material No`, PO number, acceptance, settlement, and other PO-only columns before PO integration is live; those fields remain blank until PO/Buyer/SAP evidence exists and must not block quote or approval flow.
+- For SAP PO `Raw Data` imports, Excel yellow-filled rows are `OM scope` (`buy_scope = om_scope`, `scope_source = excel_yellow_fill`). Non-yellow rows are `MFG buy` (`buy_scope = mfg_buy`, `scope_source = default_non_yellow`) during full imports.
+- `Raw Data` Q pink/purple highlighting is not an OM scope signal. Import scope is determined by yellow fill on the source row across A-BN.
+- `Raw Data` BL/BM/BN must be validated against the `編碼規則` sheet before commit. Missing LV code rules are surfaced as import warnings and must not silently rewrite A-column `Factory Material No`.
+- `資訊類` rows use the supplemental Lv1-Lv3 rule confirmed from the user-provided screenshot: `電腦週邊` covers `鍵盤`/`滑鼠`, `顯示器` covers `螢幕`, `電腦` covers office/QA/industrial computer variants, and `條碼設備` covers scanner/printer variants. Current Factory Material No prefixes such as `ITKEY`, `ITMON`, `ITMOU`, `ITPCA`, and `ITPRT` are accepted for these exact Lv3 paths.
 - `Reuse Item` history only includes PO issued/completed rows that have Factory Material No, item/spec, price, and PO trace. Adding from history never carries active Factory Material No into the new request; Factory Material No remains reference only until the new PO.
 - Reusable History row-level `Add` must append a new current-project draft and must not replace existing Draft Items. It resolves both static purchase records and completed request rows because completed PO rows can become reusable history sources.
 - Demand source picker has three official modes:
@@ -240,6 +247,8 @@
 - Worksheet headers are two-row phase groups: `P1.0 / P1.1 / EVT / DVT / PVT / MP`, with station/department qty columns repeated under every phase.
 - MFG phase group columns are `CG / BG / FATP / Test / Hybrid / Auto / ENG Pack / Zombie / Laser_pico / Rework / Repair / WH`.
 - Non-MFG phase group columns are `FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`.
+- Requester `Need Date / Request Date` is scoped by `project + line + demandType`; MFG and Non-MFG worksheets may be owned by different inputters and must not overwrite one shared date.
+- Requester `Submit` stays scoped to the current line and current `MFG / Non-MFG` worksheet. Rows outside that scope remain draft and must be explained as excluded instead of silently disappearing.
 - The primary add entry is the left/top `Add Item` popup. Popup table columns are `Add / Source / Item / Spec / Phase Trace / Detail`, with `Add` first.
 - `Copy Demand` copies item/spec/source trace only; all target phase/station qty starts at 0. `New Item Request` must complete the material master request draft before it can become a pending worksheet row.
 - `New Item Request` is a pending material master request, not a direct insert into active `item_master`. Requester must complete CN/EN/VN names, Lv123, spec summary, structured spec, UOM, use case, estimate unit price/amount/reason, and duplicate difference/evidence when similar items exist before the pending row can enter the worksheet. Dept DRI reviews need first; OM/master reviewer approves, merges, or rejects before active catalog/master creation.
@@ -248,15 +257,15 @@
 - `Request Status` combines the previous `My Demand Overview` and submitted tracking. It shows draft rows with demand qty plus submitted/approved/rejected/in-progress rows, using compact timeline chips.
 - `Reuse by Item` and `Reuse by Project Package` still preserve source references, but every added row targets the current OPM project and remains editable before submit.
 
-## Manager Demand Analysis
+## Legacy Manager Demand Analysis (superseded by v1.5 Quantity Review)
 
-- Cost Manager owns a top-level `Demand Analysis` tab. It contains two inner layers:
+- Superseded rule: Cost Manager no longer owns a top-level `Demand Analysis` tab. Dept DRI、Cost Manager、Budget Approver now share `Quantity Review` with `Dashboard / MFG Station Detail / Non-MFG Department Detail`.
+- The old `Demand Analysis` tab contained two inner layers:
   - `Cost Dashboard` as the default first layer for unit split, item count, quantity, and amount.
   - `Station Matrix` as the second layer for Excel-like demand reasonableness checks.
-- `Cost Dashboard` and `Station Matrix` are inner layers under `Demand Analysis`, not parallel top-level tabs.
-- Clicking a Cost Dashboard row/cell switches to `Station Matrix` and applies unit / phase / item filters.
+- v1.5 replacement: `Dashboard` is the first layer and is not selected-row scoped; clicking a Dashboard `MFG` cell opens `MFG Station Detail`, and clicking a Non-MFG department cell opens `Non-MFG Department Detail`.
 - `Demand Analysis` updates as soon as Requester demand passes into the review/approved pipeline; it does not wait for OM, Buyer, PO, or completion.
-- Cost Dashboard first focus is selected phase/unit totals, not individual item price. The item rows remain as Excel-style detail below the totals row.
+- Dashboard first focus is all items / all phases / all MFG + Non-MFG demand units, not an individual selected row.
 - Cost calculation follows the Excel Dashboard sheet: selected phase demand quantity x item price x line count, split by `MFG / FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`.
 
 ## OM Export Package
@@ -272,8 +281,8 @@
 - UI changes must be reviewed with the `procurement-ui-quality-review` skill.
 - Review criteria are readability, WCAG 2 accessibility, attention flow, action clarity, and design consistency.
 - English UI copy may use Flesch-Kincaid as a reference; Traditional Chinese and mixed Chinese/English text are judged by sentence length, naming consistency, acronym clarity, and action clarity.
-- Cost Manager `Cost Dashboard` and `Station Matrix` are intentional Excel-like high-density exceptions, but they still require readable headers, stable columns, and clear drilldown.
-- Cost Manager `Cost Dashboard` must follow the Excel `Dashboard` sheet field logic and must not use low-value summary cards such as `Highest Unit`, `Highest Item`, or `Price Pending` summary.
+- Shared approval `Quantity Dashboard` and `Quantity Detail Matrix` are intentional Excel-like high-density exceptions, but they still require readable headers, stable columns, and clear drilldown.
+- `Quantity Dashboard` must follow the Excel `Dashboard` sheet field logic and must not use low-value summary cards such as `Highest Unit`, `Highest Item`, or `Price Pending` summary.
 - The matrix source of truth is User A long-form demand rows: `demandType / phase / station / 需求單位 / qty / remark`.
 - The phase columns follow `P1.0 / P1.1 / EVT / DVT / PVT / MP`; station grouping follows the MFG station master from the Ideal Format workbook.
 - Quantity Matrix phase cells use the B+ swimlane pattern: each phase shows total qty plus grouped station chips for `Mainline`, `Packing`, and `Supporting`.
@@ -289,12 +298,12 @@
 - Quantity Matrix supports adaptive readability without giving up density: `Item` and `Spec` are line-clamped by default and can expand per row; all-phase station columns stay narrow, while single-phase mode uses wider station/calculation columns.
 - Quantity Matrix main-table headers may use short labels such as `Support`, `Calc`, `Total Demand`, and `Actual Need`; Detail and header tooltips retain the full source names.
 - Quantity Matrix summary cards must show manager decision signals, not structural metadata. Current cards are `Items`, `Total Qty`, `Est. Amount`, `Price Pending`, `High Qty Items`, and `Selected Scope`.
-- `Demand Analysis > Cost Dashboard` follows the Excel `Dashboard` sheet concept and summarizes `Item x Phase x Excel demand unit` using phase groups `P1.0 / P1.1 / EVT / DVT / PVT / MP`, each expanded into `MFG / FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`.
+- `Quantity Review > Dashboard` follows the Excel `Dashboard` sheet concept and summarizes `Item x Phase x Excel demand unit` using phase groups `P1.0 / P1.1 / EVT / DVT / PVT / MP`, each expanded into `MFG / FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`.
 - Unit Split Dashboard supports `Qty` and `Amount` modes. Amount mode calculates `Qty x Unit Price x Line Count`; price source remains quote-first, then history price, then OPM estimate, otherwise `Price Pending`.
 - Unit Split Dashboard cells show total quantity or estimated amount plus demand-line count, and clicking an item/unit/cell drills into the same station matrix by updating item/phase/unit filters.
 - Demand rows now distinguish `MFG` and `Non-MFG`. `MFG` rows require a station, do not require `需求單位`, and feed the station matrix. `Non-MFG` rows hide/disable station, require `需求單位`, and feed unit dashboards without being forced into fake CG station demand.
-- Cost Manager first-level demand/cost view is `Demand Analysis > Cost Dashboard`, not the wide `Station Matrix`.
-  - `Cost Dashboard` summarizes phase x unit cost/quantity for `MFG / FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`.
+- First-level approval demand/cost view is `Quantity Review > Dashboard`, not the wide `MFG Station Detail` / `Non-MFG Department Detail`.
+  - `Quantity Dashboard` summarizes phase x unit cost/quantity for `MFG / FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`.
   - All `MFG` demand rolls up to `MFG`.
   - `Non-MFG` demand rolls up by `需求單位`.
   - It supports Qty / Amount view through the global VND/USD display.
@@ -362,6 +371,16 @@
 - Dense lookup/reuse tables use compact rows; workflow/request tables use larger workflow rows; dashboard tables use standard rows.
 - Main tables must clamp `Item / Spec / Purpose / Remark / reason-text`; full content belongs in Detail, tooltip, or modal.
 - Future table changes must preserve row-height tokens and update tests if a new table type needs a different vertical rhythm.
+
+# v1.5 Approval Quantity Review Direct Edit
+
+- Dept DRI、Cost Manager、Budget Approver 共用 `Quantity Review` 作為審批主視覺；pending review 以 row picker + dashboard/detail context 承接，不再以 `Cost Review Workbench` queue table 作主畫面。
+- `Dashboard` 是第一層全域 Excel-like matrix，不需要 selected row；欄位第一組 `MFG` 代表全部 MFG station 加總，往右才是 Non-MFG department columns。
+- `MFG Station Detail` 是 drill-in 明細，展開 `CG / BG / FATP / Test / Hybrid / Auto / ENG Pack / Zombie / Laser_pico / Rework / Repair / WH` 等 station；`Non-MFG Department Detail` 展開 Non-MFG department/unit 明細。
+- 審批摘要中的 `Min Demand Unit` 表示最小需求顆粒度：MFG = Station，Non-MFG = Department。
+- 點 quantity cell、total cell、row/item cell 會開啟 `Item Quantity Review` popup。具備 editable permission 的審批人可直接 add/edit/delete 正式需求數量。
+- Direct edit 會更新正式 `stationBreakdown`，再同步 phase qty / total qty / dashboard aggregation；這次決策明確覆寫舊的 reviewer proposal-only 模式。
+- 每次 direct edit 必須寫入 audit / revision metadata：`itemQuantityReviewHistory`、`itemQuantityChangeCount`、`itemQuantityLastChanged*`。不得無痕覆寫 requester demand。
 
 # v1.5 Text Visibility Decision
 

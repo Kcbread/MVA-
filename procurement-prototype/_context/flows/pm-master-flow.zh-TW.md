@@ -57,7 +57,7 @@ Reject 永遠要保留 reason、timestamp、actor、previous stage。
 
 ## Cost Manager 保護區
 
-`Demand Analysis > Cost Dashboard / Station Matrix` 是 Cost Manager 的受保護分析區。其他 workflow/status refactor 不可改動其畫面與數字邏輯。
+Cost Manager 是 Dept DRI 後的下一層 scoped decision owner。Dept DRI、Cost Manager、Budget Approver 的審批主視覺固定為共用 `Quantity Review`；Dashboard 是全域 MFG aggregate + Non-MFG department 總覽，row picker / dashboard cell 只驅動 MFG Station Detail 與 Non-MFG Department Detail。Item Quantity Review popup 可 audited direct edit 正式 stationBreakdown / phase qty / total qty，其他 workflow/status refactor 不可改動其數字邏輯。
 
 ## PM 檢查句
 

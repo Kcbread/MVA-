@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { URL } = require("node:url");
+const sapPoRawImporter = require("./app-modules/sap-po-raw-importer");
 
 let mysql;
 try {
@@ -37,6 +38,18 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * Number(process.env.SESSION_TTL_HOURS || 
 const OMITTED_USER_FIELDS = new Set(["password_hash"]);
 const UPLOAD_ROOT = process.env.UPLOAD_ROOT || path.join(path.dirname(ROOT), "uploads");
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 25 * 1024 * 1024);
+const PUBLIC_ROOT_FILES = new Set([
+  "/index.html",
+  "/app.js",
+  "/styles.css",
+  "/layout-contract.css",
+  "/layout-contract.js",
+  "/carryover-extension.css",
+  "/carryover-extension.js",
+  "/real-data-seeds.js",
+  "/requester-responsibility-data.js",
+  "/user-a-flow.js",
+]);
 
 const uatUsers = [
   { id: "om-leader-mai", employee_id: "maint5", name: "Mai", email: "maint5@fih-foxconn.com", department: "Operations", role: "omLeader", project_family: "Mixed", project_codes: "All OM", responsibility_department: "OM Purchasing", password_hash: "plain:123", is_active: 1 },
@@ -62,18 +75,184 @@ const testLoginRoleIdentifiers = {
   admin: "admin",
 };
 
+const defaultOmAssignmentRules = [
+  {
+    id: "om-rule-p27-f27-linh",
+    name: "P27/F27 -> Linh",
+    active: true,
+    priority: 10,
+    projectCodes: ["P27", "F27"],
+    projectFamilies: [],
+    departmentScopes: [],
+    assigneeUserId: "om-member-linh",
+    isFallback: false,
+    note: "Default OM assignment for P27 and F27.",
+  },
+  {
+    id: "om-rule-fallback-giang",
+    name: "Fallback -> Giang",
+    active: true,
+    priority: 999,
+    projectCodes: [],
+    projectFamilies: [],
+    departmentScopes: [],
+    assigneeUserId: "om-member-giang",
+    isFallback: true,
+    note: "Fallback OM assignment when no higher-priority rule matches.",
+  },
+];
+
+const adminRoleCatalog = [
+  { role_key: "requester", role_name: "Requester", app_role: "requester", role_level: "business", is_system: 1 },
+  { role_key: "costOwner", role_name: "Cost Owner", app_role: "manager", role_level: "business", is_system: 1 },
+  { role_key: "omLeader", role_name: "OM Leader", app_role: "omLeader", role_level: "operations", is_system: 1 },
+  { role_key: "omMember", role_name: "OM Purchasing", app_role: "omMember", role_level: "operations", is_system: 1 },
+  { role_key: "deptDri", role_name: "Dept DRI", app_role: "dri", role_level: "approval", is_system: 1 },
+  { role_key: "budgetApprover", role_name: "Budget Approver", app_role: "projectDri", role_level: "approval", is_system: 1 },
+  { role_key: "admin", role_name: "System Admin", app_role: "admin", role_level: "governance", is_system: 1 },
+];
+
+const adminPermissionModules = [
+  { module_key: "admin.users", module_name: "User Lifecycle" },
+  { module_key: "admin.mapping", module_name: "Mapping / Scope" },
+  { module_key: "admin.user_scope", module_name: "User Scope" },
+  { module_key: "admin.roles", module_name: "Role & Permission" },
+  { module_key: "admin.fields", module_name: "Sensitive Field Access" },
+  { module_key: "admin.audit", module_name: "Audit Log" },
+];
+
+const defaultRolePermissions = {
+  requester: {
+    "admin.users": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.mapping": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.user_scope": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.roles": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.fields": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.audit": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+  },
+  costOwner: {
+    "admin.users": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.mapping": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.user_scope": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.roles": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.fields": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.audit": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+  },
+  omLeader: {
+    "admin.users": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.mapping": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.user_scope": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.roles": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.fields": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.audit": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+  },
+  omMember: {
+    "admin.users": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.mapping": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.user_scope": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.roles": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.fields": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.audit": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+  },
+  deptDri: {
+    "admin.users": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.mapping": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.user_scope": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.roles": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.fields": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.audit": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+  },
+  budgetApprover: {
+    "admin.users": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.mapping": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.user_scope": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.roles": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.fields": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+    "admin.audit": { can_create: 0, can_update: 0, can_delete: 0, can_view: 0, can_export: 0 },
+  },
+  admin: {
+    "admin.users": { can_create: 1, can_update: 1, can_delete: 1, can_view: 1, can_export: 1 },
+    "admin.mapping": { can_create: 1, can_update: 1, can_delete: 0, can_view: 1, can_export: 1 },
+    "admin.user_scope": { can_create: 0, can_update: 1, can_delete: 0, can_view: 1, can_export: 1 },
+    "admin.roles": { can_create: 1, can_update: 1, can_delete: 1, can_view: 1, can_export: 1 },
+    "admin.fields": { can_create: 1, can_update: 1, can_delete: 1, can_view: 1, can_export: 1 },
+    "admin.audit": { can_create: 0, can_update: 0, can_delete: 0, can_view: 1, can_export: 1 },
+  },
+};
+
+const defaultFieldVisibilityRules = [
+  { field_key: "costPrice", field_label: "Cost Price", visibility: "visible", role_key: "costOwner", reserved: 0 },
+  { field_key: "costPrice", field_label: "Cost Price", visibility: "visible", role_key: "deptDri", reserved: 0 },
+  { field_key: "costPrice", field_label: "Cost Price", visibility: "visible", role_key: "budgetApprover", reserved: 0 },
+  { field_key: "costPrice", field_label: "Cost Price", visibility: "visible", role_key: "admin", reserved: 0 },
+  { field_key: "vendor", field_label: "Vendor", visibility: "visible", role_key: "omLeader", reserved: 0 },
+  { field_key: "vendor", field_label: "Vendor", visibility: "visible", role_key: "omMember", reserved: 0 },
+  { field_key: "vendor", field_label: "Vendor", visibility: "visible", role_key: "admin", reserved: 0 },
+  { field_key: "pasMaterialNo", field_label: "PAS Material No", visibility: "visible", role_key: "omLeader", reserved: 0 },
+  { field_key: "pasMaterialNo", field_label: "PAS Material No", visibility: "visible", role_key: "omMember", reserved: 0 },
+  { field_key: "pasMaterialNo", field_label: "PAS Material No", visibility: "visible", role_key: "admin", reserved: 0 },
+  { field_key: "factoryMaterialNo", field_label: "Factory Material No", visibility: "visible", role_key: "omLeader", reserved: 0 },
+  { field_key: "factoryMaterialNo", field_label: "Factory Material No", visibility: "visible", role_key: "omMember", reserved: 0 },
+  { field_key: "factoryMaterialNo", field_label: "Factory Material No", visibility: "visible", role_key: "admin", reserved: 0 },
+  { field_key: "sapMaterialNo", field_label: "SAP Material No", visibility: "visible", role_key: "omLeader", reserved: 0 },
+  { field_key: "sapMaterialNo", field_label: "SAP Material No", visibility: "visible", role_key: "omMember", reserved: 0 },
+  { field_key: "sapMaterialNo", field_label: "SAP Material No", visibility: "visible", role_key: "admin", reserved: 0 },
+  { field_key: "omAssignee", field_label: "OM Assignee", visibility: "visible", role_key: "omLeader", reserved: 0 },
+  { field_key: "omAssignee", field_label: "OM Assignee", visibility: "visible", role_key: "admin", reserved: 0 },
+  { field_key: "employeeSalary", field_label: "Employee Salary", visibility: "visible", role_key: "admin", reserved: 1 },
+];
+
 const memoryStore = {
   users: new Map(uatUsers.flatMap((user) => [
-    [String(user.email || "").toLowerCase(), { ...user }],
-    [String(user.employee_id || "").toLowerCase(), { ...user }],
-    [String(user.id || "").toLowerCase(), { ...user }],
+    [String(user.email || "").toLowerCase(), {
+      ...user,
+      status: user.is_active ? "active" : "inactive",
+      created_at: user.created_at || "2026-06-01T00:00:00.000Z",
+      created_by: user.created_by || "system-seed",
+      disabled_at: user.disabled_at || null,
+      scope_type: user.scope_type || "global",
+      scope_value: user.scope_value || "All",
+    }],
+    [String(user.employee_id || "").toLowerCase(), {
+      ...user,
+      status: user.is_active ? "active" : "inactive",
+      created_at: user.created_at || "2026-06-01T00:00:00.000Z",
+      created_by: user.created_by || "system-seed",
+      disabled_at: user.disabled_at || null,
+      scope_type: user.scope_type || "global",
+      scope_value: user.scope_value || "All",
+    }],
+    [String(user.id || "").toLowerCase(), {
+      ...user,
+      status: user.is_active ? "active" : "inactive",
+      created_at: user.created_at || "2026-06-01T00:00:00.000Z",
+      created_by: user.created_by || "system-seed",
+      disabled_at: user.disabled_at || null,
+      scope_type: user.scope_type || "global",
+      scope_value: user.scope_value || "All",
+    }],
   ].filter(([key]) => key))),
-  usersById: new Map(uatUsers.map((user) => [user.id, { ...user }])),
+  usersById: new Map(uatUsers.map((user) => [user.id, {
+    ...user,
+    status: user.is_active ? "active" : "inactive",
+    created_at: user.created_at || "2026-06-01T00:00:00.000Z",
+    created_by: user.created_by || "system-seed",
+    disabled_at: user.disabled_at || null,
+    scope_type: user.scope_type || "global",
+    scope_value: user.scope_value || "All",
+  }])),
   sessions: new Map(),
   assignments: new Map(),
+  omAssignmentRules: defaultOmAssignmentRules.map((rule) => ({ ...rule })),
   uatFeedback: new Map(),
   attachments: new Map(),
   auditEvents: [],
+  roles: adminRoleCatalog.map((role) => ({ ...role })),
+  rolePermissions: JSON.parse(JSON.stringify(defaultRolePermissions)),
+  fieldVisibilityRules: defaultFieldVisibilityRules.map((rule) => ({ ...rule })),
+  importJobs: [],
+  sapPoRawImportPreviews: new Map(),
+  sapPoRawImportJobs: [],
 };
 
 function hashToken(token) {
@@ -233,6 +412,16 @@ function createPool() {
 
 const pool = createPool();
 
+async function healthStatus() {
+  if (!pool) return { status: 200, payload: { ok: true, db: "memory-fallback" } };
+  try {
+    await pool.query("SELECT 1 AS ok");
+    return { status: 200, payload: { ok: true, db: "mysql" } };
+  } catch {
+    return { status: 503, payload: { ok: false, db: "mysql", error: "Database health check failed" } };
+  }
+}
+
 async function audit(eventType, req, { actor, entityType, entityId, metadata } = {}) {
   const event = {
     event_type: eventType,
@@ -254,6 +443,416 @@ async function audit(eventType, req, { actor, entityType, entityId, metadata } =
   memoryStore.auditEvents.push({ ...event, id: memoryStore.auditEvents.length + 1, created_at: new Date().toISOString() });
 }
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function roleKeyFromAppRole(role) {
+  return {
+    manager: "costOwner",
+    dri: "deptDri",
+    projectDri: "budgetApprover",
+  }[role] || role || "";
+}
+
+function appRoleFromRoleKey(roleKey) {
+  return memoryStore.roles.find((role) => role.role_key === roleKey)?.app_role || roleKey || "";
+}
+
+function canAdminGovern(user) {
+  return roleKeyFromAppRole(user?.role) === "admin";
+}
+
+function listUsersMemory() {
+  return Array.from(memoryStore.usersById.values())
+    .map((user) => ({
+      ...publicUser(user),
+      role_key: roleKeyFromAppRole(user.role),
+      role_name: memoryStore.roles.find((role) => role.app_role === user.role || role.role_key === roleKeyFromAppRole(user.role))?.role_name || user.role,
+    }))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+}
+
+function replaceMemoryUser(user) {
+  const next = { ...user };
+  memoryStore.usersById.set(next.id, next);
+  [next.email, next.employee_id, next.id].forEach((key) => {
+    if (key) memoryStore.users.set(String(key).toLowerCase(), next);
+  });
+  return next;
+}
+
+function removeUserLookupKeys(user = {}) {
+  [user.email, user.employee_id, user.id].forEach((key) => {
+    if (key) memoryStore.users.delete(String(key).toLowerCase());
+  });
+}
+
+function duplicateUser(user, { employee_id, email, id }, ignoreId = "") {
+  return user && user.id !== ignoreId && (
+    String(user.employee_id || "").toLowerCase() === String(employee_id || "").toLowerCase()
+    || String(user.email || "").toLowerCase() === String(email || "").toLowerCase()
+    || String(user.id || "").toLowerCase() === String(id || "").toLowerCase()
+  );
+}
+
+function findDuplicateUser({ employee_id, email, id }, ignoreId = "") {
+  return listUsersMemory().find((user) => duplicateUser(user, { employee_id, email, id }, ignoreId)) || null;
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, "\"\"")}"` : text;
+}
+
+function listRolesMemory() {
+  return memoryStore.roles.map((role) => ({
+    ...role,
+    permissions: cloneJson(memoryStore.rolePermissions[role.role_key] || {}),
+  }));
+}
+
+function listFieldVisibilityMemory() {
+  const grouped = new Map();
+  memoryStore.fieldVisibilityRules.forEach((rule) => {
+    if (!grouped.has(rule.field_key)) {
+      grouped.set(rule.field_key, {
+        field_key: rule.field_key,
+        field_label: rule.field_label,
+        reserved: Boolean(rule.reserved),
+        visibility_by_role: {},
+      });
+    }
+    grouped.get(rule.field_key).visibility_by_role[rule.role_key] = rule.visibility;
+  });
+  return Array.from(grouped.values());
+}
+
+function roleCan(user, moduleKey, action) {
+  const roleKey = roleKeyFromAppRole(user?.role);
+  return Boolean(memoryStore.rolePermissions?.[roleKey]?.[moduleKey]?.[`can_${action}`]);
+}
+
+async function revokeSessionsForUser(userId) {
+  if (!userId) return;
+  if (pool) {
+    await pool.execute("UPDATE sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL", [userId]);
+    return;
+  }
+  Array.from(memoryStore.sessions.entries()).forEach(([tokenHash, session]) => {
+    if (session.user_id === userId) memoryStore.sessions.delete(tokenHash);
+  });
+}
+
+async function updateLastLoginAt(userId) {
+  const current = memoryStore.usersById.get(userId);
+  if (!current) return;
+  replaceMemoryUser({ ...current, last_login_at: new Date().toISOString() });
+}
+
+async function requireAdmin(req, res, { moduleKey = "admin.users", action = "view" } = {}) {
+  const user = await requireAuth(req, res);
+  if (!user) return null;
+  if (!canAdminGovern(user) || !roleCan(user, moduleKey, action)) {
+    await audit("admin.access_blocked", req, {
+      actor: user,
+      entityType: moduleKey,
+      entityId: action,
+      metadata: { moduleKey, action },
+    });
+    sendJson(res, 403, { error: "Admin permission required" });
+    return null;
+  }
+  return user;
+}
+
+function parseAdminImportRows(rows = []) {
+  return rows.map((row) => ({
+    employee_id: textValue(row.employee_id || row.employeeId, 80),
+    name: textValue(row.name, 120),
+    email: textValue(row.email, 120).toLowerCase(),
+    department: textValue(row.department, 120),
+    role_key: textValue(row.role_key || row.roleKey, 80) || "requester",
+    scope_type: textValue(row.scope_type || row.scopeType, 80) || "department",
+    scope_value: textValue(row.scope_value || row.scopeValue, 120) || textValue(row.department, 120),
+  }));
+}
+
+function sapPoRawImportStatusPayload() {
+  const workbookPath = sapPoRawImporter.resolveWorkbookPath("", ROOT);
+  return {
+    mysql_config_present: mysqlConfigPresent(),
+    db_target: process.env.MYSQL_URL ? "MYSQL_URL" : process.env.MYSQL_DATABASE || process.env.DB_NAME || "mva_procurement_uat",
+    workbook_path: workbookPath,
+    workbook_exists: Boolean(workbookPath && fs.existsSync(workbookPath)),
+    default_scope_mode: sapPoRawImporter.SCOPE_MODE_YELLOW_ONLY,
+    previews: Array.from(memoryStore.sapPoRawImportPreviews.values()).slice(0, 5).map((preview) => sapPoRawImporter.compactPreview(preview)),
+    jobs: memoryStore.sapPoRawImportJobs.slice(0, 10),
+  };
+}
+
+async function createSapPoRawImportPreview(req, actor, body = {}) {
+  const preview = await sapPoRawImporter.previewSapPoRawImport({
+    workbookPath: textValue(body.workbookPath || body.workbook_path, 1000),
+    sheetName: textValue(body.sheetName || body.sheet_name, 120) || "Raw Data",
+    scopeMode: textValue(body.scopeMode || body.scope_mode, 40) || sapPoRawImporter.SCOPE_MODE_YELLOW_ONLY,
+    root: ROOT,
+    pool,
+    includeRows: true,
+  });
+  memoryStore.sapPoRawImportPreviews.set(preview.id, preview);
+  await audit("admin.sap_po_raw_previewed", req, {
+    actor,
+    entityType: "sap_po_raw_import_preview",
+    entityId: preview.id,
+    metadata: {
+      source_file_name: preview.source_file_name,
+      scope_mode: preview.scope_mode,
+      selected_row_count: preview.rows?.length || 0,
+      error_count: preview.errors?.length || 0,
+      warning_count: preview.warnings?.length || 0,
+    },
+  });
+  return sapPoRawImporter.compactPreview(preview);
+}
+
+async function commitSapPoRawImport(req, actor, body = {}) {
+  const previewId = textValue(body.previewId || body.preview_id, 120);
+  let preview = previewId ? memoryStore.sapPoRawImportPreviews.get(previewId) : null;
+  if (!preview) {
+    preview = await sapPoRawImporter.previewSapPoRawImport({
+      workbookPath: textValue(body.workbookPath || body.workbook_path, 1000),
+      sheetName: textValue(body.sheetName || body.sheet_name, 120) || "Raw Data",
+      scopeMode: textValue(body.scopeMode || body.scope_mode, 40) || sapPoRawImporter.SCOPE_MODE_YELLOW_ONLY,
+      root: ROOT,
+      pool,
+      includeRows: true,
+    });
+    memoryStore.sapPoRawImportPreviews.set(preview.id, preview);
+  }
+  const receipt = await sapPoRawImporter.commitSapPoRawImport({
+    pool,
+    preview,
+    actorUserId: actor.id,
+    scopeMode: preview.scope_mode,
+  });
+  const job = {
+    id: receipt.import_batch_id,
+    created_at: new Date().toISOString(),
+    created_by: actor.id,
+    source_file_name: preview.source_file_name,
+    scope_mode: preview.scope_mode,
+    selected_row_count: preview.rows?.length || 0,
+    inserted_lines: receipt.inserted_lines,
+    scope_counts: receipt.scope_counts,
+    warning_count: receipt.warning_count,
+  };
+  memoryStore.sapPoRawImportJobs.unshift(job);
+  await audit("admin.sap_po_raw_committed", req, {
+    actor,
+    entityType: "sap_po_raw_import_batch",
+    entityId: receipt.import_batch_id,
+    metadata: job,
+  });
+  return { ...receipt, job };
+}
+
+async function createAdminUser(req, actor, body = {}) {
+  const roleKey = textValue(body.role_key || body.roleKey, 80) || "requester";
+  const appRole = appRoleFromRoleKey(roleKey);
+  const record = {
+    id: textValue(body.id, 120) || crypto.randomUUID(),
+    employee_id: textValue(body.employee_id || body.employeeId, 80),
+    name: textValue(body.name, 120),
+    email: textValue(body.email, 120).toLowerCase(),
+    department: textValue(body.department, 120),
+    role: appRole,
+    status: "active",
+    is_active: 1,
+    created_at: new Date().toISOString(),
+    created_by: actor.id,
+    disabled_at: null,
+    scope_type: textValue(body.scope_type || body.scopeType, 80) || "department",
+    scope_value: textValue(body.scope_value || body.scopeValue, 120) || textValue(body.department, 120),
+    password_hash: body.password_hash || "plain:123",
+  };
+  if (!record.employee_id || !record.name || !record.email || !record.department) {
+    const error = new Error("employee_id, name, email, and department are required");
+    error.status = 400;
+    throw error;
+  }
+  if (findDuplicateUser(record)) {
+    const error = new Error("Duplicate employee_id or email");
+    error.status = 409;
+    throw error;
+  }
+  replaceMemoryUser(record);
+  await audit("admin.user_created", req, {
+    actor,
+    entityType: "user",
+    entityId: record.id,
+    metadata: { employee_id: record.employee_id, role_key: roleKey, scope_type: record.scope_type, scope_value: record.scope_value },
+  });
+  return record;
+}
+
+async function updateAdminUserStatus(req, actor, userId, status) {
+  const current = memoryStore.usersById.get(userId);
+  if (!current) {
+    const error = new Error("User not found");
+    error.status = 404;
+    throw error;
+  }
+  const normalizedStatus = ["active", "inactive", "archived"].includes(status) ? status : "";
+  if (!normalizedStatus) {
+    const error = new Error("Status must be active, inactive, or archived");
+    error.status = 400;
+    throw error;
+  }
+  const next = replaceMemoryUser({
+    ...current,
+    status: normalizedStatus,
+    is_active: normalizedStatus === "active" ? 1 : 0,
+    disabled_at: normalizedStatus === "active" ? null : new Date().toISOString(),
+  });
+  if (normalizedStatus !== "active") await revokeSessionsForUser(userId);
+  await audit(normalizedStatus === "active" ? "admin.user_activated" : "admin.user_deactivated", req, {
+    actor,
+    entityType: "user",
+    entityId: userId,
+    metadata: { status: normalizedStatus },
+  });
+  return next;
+}
+
+async function updateAdminUserRecord(req, actor, userId, body = {}) {
+  const current = memoryStore.usersById.get(userId);
+  if (!current) {
+    const error = new Error("User not found");
+    error.status = 404;
+    throw error;
+  }
+  const next = {
+    ...current,
+    employee_id: textValue(body.employee_id || body.employeeId || current.employee_id, 80),
+    name: textValue(body.name || current.name, 120),
+    email: textValue(body.email || current.email, 120).toLowerCase(),
+    department: textValue(body.department || current.department, 120),
+    role: appRoleFromRoleKey(textValue(body.role_key || body.roleKey, 80) || roleKeyFromAppRole(current.role)),
+    scope_type: textValue(body.scope_type || body.scopeType || current.scope_type, 80) || "department",
+    scope_value: textValue(body.scope_value || body.scopeValue || current.scope_value, 120) || current.department,
+  };
+  const duplicate = findDuplicateUser({ employee_id: next.employee_id, email: next.email, id: next.id }, userId);
+  if (duplicate) {
+    const error = new Error("Duplicate employee_id or email");
+    error.status = 409;
+    throw error;
+  }
+  removeUserLookupKeys(current);
+  replaceMemoryUser(next);
+  await audit("admin.user_role_changed", req, {
+    actor,
+    entityType: "user",
+    entityId: userId,
+    metadata: { role_key: roleKeyFromAppRole(next.role), department: next.department, scope_type: next.scope_type, scope_value: next.scope_value },
+  });
+  return next;
+}
+
+async function createAdminRole(req, actor, body = {}) {
+  const roleKey = textValue(body.role_key || body.roleKey, 80);
+  const roleName = textValue(body.role_name || body.roleName, 120);
+  if (!roleKey || !roleName) {
+    const error = new Error("role_key and role_name are required");
+    error.status = 400;
+    throw error;
+  }
+  if (memoryStore.roles.some((role) => role.role_key === roleKey)) {
+    const error = new Error("Role already exists");
+    error.status = 409;
+    throw error;
+  }
+  const role = {
+    role_key: roleKey,
+    role_name: roleName,
+    app_role: textValue(body.app_role || body.appRole, 80) || roleKey,
+    role_level: textValue(body.role_level || body.roleLevel, 80) || "governance",
+    is_system: 0,
+  };
+  memoryStore.roles.push(role);
+  memoryStore.rolePermissions[roleKey] = cloneJson(defaultRolePermissions.requester);
+  await audit("admin.role_created", req, {
+    actor,
+    entityType: "role",
+    entityId: roleKey,
+    metadata: { role_name: role.role_name },
+  });
+  return role;
+}
+
+async function updateRolePermissions(req, actor, roleKey, permissions = {}) {
+  if (!memoryStore.roles.some((role) => role.role_key === roleKey)) {
+    const error = new Error("Role not found");
+    error.status = 404;
+    throw error;
+  }
+  const current = cloneJson(memoryStore.rolePermissions[roleKey] || {});
+  Object.entries(permissions).forEach(([moduleKey, next]) => {
+    current[moduleKey] = {
+      can_create: Number(Boolean(next.can_create ?? next.canCreate)),
+      can_update: Number(Boolean(next.can_update ?? next.canUpdate)),
+      can_delete: Number(Boolean(next.can_delete ?? next.canDelete)),
+      can_view: Number(Boolean(next.can_view ?? next.canView)),
+      can_export: Number(Boolean(next.can_export ?? next.canExport)),
+    };
+  });
+  memoryStore.rolePermissions[roleKey] = current;
+  await audit("admin.permission_updated", req, {
+    actor,
+    entityType: "role",
+    entityId: roleKey,
+    metadata: { permissions: current },
+  });
+  return current;
+}
+
+async function updateFieldVisibilityRules(req, actor, rules = []) {
+  rules.forEach((rule) => {
+    const fieldKey = textValue(rule.field_key || rule.fieldKey, 80);
+    const roleKey = textValue(rule.role_key || rule.roleKey, 80);
+    const visibility = textValue(rule.visibility, 40) || "hidden";
+    if (!fieldKey || !roleKey) return;
+    const existingIndex = memoryStore.fieldVisibilityRules.findIndex((item) => item.field_key === fieldKey && item.role_key === roleKey);
+    const baseLabel = memoryStore.fieldVisibilityRules.find((item) => item.field_key === fieldKey)?.field_label || fieldKey;
+    const nextRule = { field_key: fieldKey, field_label: baseLabel, role_key: roleKey, visibility, reserved: Number(Boolean(rule.reserved)) };
+    if (existingIndex === -1) memoryStore.fieldVisibilityRules.push(nextRule);
+    else memoryStore.fieldVisibilityRules.splice(existingIndex, 1, { ...memoryStore.fieldVisibilityRules[existingIndex], ...nextRule });
+  });
+  await audit("admin.field_visibility_updated", req, {
+    actor,
+    entityType: "field_visibility",
+    entityId: "sensitive-fields",
+    metadata: { rules },
+  });
+  return listFieldVisibilityMemory();
+}
+
+function filterAuditEvents(query) {
+  return memoryStore.auditEvents.filter((event) => {
+    const createdAt = new Date(event.created_at || 0).getTime();
+    if (query.get("actorUserId") && event.actor_user_id !== query.get("actorUserId")) return false;
+    if (query.get("actorRole") && event.actor_role !== query.get("actorRole")) return false;
+    if (query.get("eventType") && event.event_type !== query.get("eventType")) return false;
+    if (query.get("module")) {
+      const prefix = `${query.get("module")}.`;
+      if (!String(event.event_type || "").startsWith(prefix)) return false;
+    }
+    if (query.get("from") && createdAt < new Date(query.get("from")).getTime()) return false;
+    if (query.get("to") && createdAt > new Date(query.get("to")).getTime()) return false;
+    return true;
+  }).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+}
+
 async function findUserByIdentifier(identifier) {
   const normalized = String(identifier || "").trim().toLowerCase();
   if (pool) {
@@ -263,7 +862,8 @@ async function findUserByIdentifier(identifier) {
     );
     return rows[0] || null;
   }
-  return memoryStore.users.get(normalized) || null;
+  const user = memoryStore.users.get(normalized) || null;
+  return user?.is_active ? user : null;
 }
 
 async function findUserById(id) {
@@ -272,7 +872,8 @@ async function findUserById(id) {
     const [rows] = await pool.execute("SELECT * FROM users WHERE id = ? AND is_active = 1 LIMIT 1", [id]);
     return rows[0] || null;
   }
-  return memoryStore.usersById.get(id) || null;
+  const user = memoryStore.usersById.get(id) || null;
+  return user?.is_active ? user : null;
 }
 
 async function createSession(req, user) {
@@ -292,6 +893,7 @@ async function createSession(req, user) {
   } else {
     memoryStore.sessions.set(tokenHash, session);
   }
+  await updateLastLoginAt(user.id);
   await audit("auth.login", req, { actor: user, entityType: "session", entityId: session.id });
   return token;
 }
@@ -600,6 +1202,105 @@ async function omAssignments() {
   return [...memoryStore.assignments.values()];
 }
 
+function splitRuleValues(value = []) {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  return String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeOmAssignmentRule(rule = {}) {
+  return {
+    id: String(rule.id || crypto.randomUUID()),
+    name: String(rule.name || "OM Assignment Rule").trim(),
+    active: Boolean(rule.active ?? rule.is_active ?? true),
+    priority: Number(rule.priority ?? 999) || 999,
+    projectCodes: splitRuleValues(rule.projectCodes ?? rule.project_codes),
+    projectFamilies: splitRuleValues(rule.projectFamilies ?? rule.project_families),
+    departmentScopes: splitRuleValues(rule.departmentScopes ?? rule.department_scopes),
+    assigneeUserId: String(rule.assigneeUserId || rule.assignee_user_id || "").trim(),
+    isFallback: Boolean(rule.isFallback ?? rule.is_fallback),
+    note: String(rule.note || "").trim(),
+  };
+}
+
+async function omAssignmentRules() {
+  return memoryStore.omAssignmentRules.map(normalizeOmAssignmentRule).sort((left, right) =>
+    left.priority - right.priority || Number(left.isFallback) - Number(right.isFallback) || left.name.localeCompare(right.name));
+}
+
+async function validateOmAssignmentRule(rule, { excludeId = "" } = {}) {
+  if (!rule.name) {
+    const error = new Error("Rule name is required");
+    error.status = 400;
+    throw error;
+  }
+  if (!rule.assigneeUserId) {
+    const error = new Error("Assignee is required");
+    error.status = 400;
+    throw error;
+  }
+  if (rule.priority < 1) {
+    const error = new Error("Priority must be 1 or greater");
+    error.status = 400;
+    throw error;
+  }
+  const assignee = await findUserById(rule.assigneeUserId);
+  if (!assignee || assignee.role !== "omMember" || !assignee.is_active) {
+    const error = new Error("Assignee must be an active OM Purchasing user");
+    error.status = 400;
+    throw error;
+  }
+  if (rule.isFallback) {
+    const duplicate = memoryStore.omAssignmentRules
+      .map(normalizeOmAssignmentRule)
+      .find((item) => item.id !== excludeId && item.isFallback && item.active);
+    if (duplicate) {
+      const error = new Error("Only one active fallback rule is allowed");
+      error.status = 400;
+      throw error;
+    }
+  }
+}
+
+async function createOmAssignmentRule(req, actor, payload = {}) {
+  const rule = normalizeOmAssignmentRule(payload);
+  await validateOmAssignmentRule(rule);
+  memoryStore.omAssignmentRules = [
+    ...memoryStore.omAssignmentRules.filter((item) => !(rule.isFallback && normalizeOmAssignmentRule(item).isFallback)),
+    rule,
+  ];
+  await audit("admin.om_assignment_rule_created", req, {
+    actor,
+    entityType: "om_assignment_rule",
+    entityId: rule.id,
+    metadata: rule,
+  });
+  return rule;
+}
+
+async function updateOmAssignmentRule(req, actor, ruleId, payload = {}) {
+  const existing = memoryStore.omAssignmentRules.map(normalizeOmAssignmentRule).find((rule) => rule.id === ruleId);
+  if (!existing) {
+    const error = new Error("OM assignment rule not found");
+    error.status = 404;
+    throw error;
+  }
+  const next = normalizeOmAssignmentRule({ ...existing, ...payload, id: ruleId });
+  await validateOmAssignmentRule(next, { excludeId: ruleId });
+  memoryStore.omAssignmentRules = [
+    ...memoryStore.omAssignmentRules
+      .map(normalizeOmAssignmentRule)
+      .filter((rule) => rule.id !== ruleId && !(next.isFallback && rule.isFallback)),
+    next,
+  ];
+  await audit("admin.om_assignment_rule_updated", req, {
+    actor,
+    entityType: "om_assignment_rule",
+    entityId: ruleId,
+    metadata: next,
+  });
+  return next;
+}
+
 async function setOmAssignment(req, actor, requestId, assignedToUserId, note) {
   const assignee = assignedToUserId ? await findUserById(assignedToUserId) : null;
   if (assignedToUserId && !assignee) {
@@ -868,13 +1569,16 @@ function clearCookieHeader() {
 async function handleApi(req, res, url) {
   try {
     if (req.method === "GET" && url.pathname === "/api/health") {
-      sendJson(res, 200, { ok: true, db: pool ? "mysql" : "memory-fallback" });
+      const health = await healthStatus();
+      sendJson(res, health.status, health.payload);
       return;
     }
     if (req.method === "POST" && url.pathname === "/api/login") {
       const body = await readBody(req);
       const requestedRole = String(body.role || body.loginRole || "").trim();
-      const identifier = testLoginRoleIdentifiers[requestedRole] || body.identifier || body.account || body.employeeId || body.employee_id || body.email;
+      const identifier = requestedRole === "omMember"
+        ? body.operatorEmployeeId || body.identifier || body.account || body.employeeId || body.employee_id || body.email
+        : testLoginRoleIdentifiers[requestedRole] || body.identifier || body.account || body.employeeId || body.employee_id || body.email;
       const user = await findUserByIdentifier(identifier);
       if (!user || !verifyPassword(String(body.password || ""), user.password_hash)) {
         await audit("auth.login_failed", req, { metadata: { identifier: identifier || "", requestedRole } });
@@ -894,6 +1598,226 @@ async function handleApi(req, res, url) {
       const user = await requireAuth(req, res);
       if (!user) return;
       sendJson(res, 200, { user: publicUser(user) });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/admin/sap-po-raw-import/status") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.mapping", action: "view" });
+      if (!user) return;
+      sendJson(res, 200, sapPoRawImportStatusPayload());
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/sap-po-raw-import/preview") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.mapping", action: "view" });
+      if (!user) return;
+      const preview = await createSapPoRawImportPreview(req, user, await readBody(req));
+      sendJson(res, 200, { preview });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/sap-po-raw-import/commit") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.mapping", action: "create" });
+      if (!user) return;
+      const receipt = await commitSapPoRawImport(req, user, await readBody(req));
+      sendJson(res, 200, { receipt });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/admin/users") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.users", action: "view" });
+      if (!user) return;
+      sendJson(res, 200, { users: listUsersMemory() });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/users") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.users", action: "create" });
+      if (!user) return;
+      const created = await createAdminUser(req, user, await readBody(req));
+      sendJson(res, 201, { user: publicUser(created) });
+      return;
+    }
+    const adminUserMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+    if (req.method === "PATCH" && adminUserMatch) {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.users", action: "update" });
+      if (!user) return;
+      const updated = await updateAdminUserRecord(req, user, decodeURIComponent(adminUserMatch[1]), await readBody(req));
+      sendJson(res, 200, { user: publicUser(updated) });
+      return;
+    }
+    const adminUserStatusMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/status$/);
+    if (req.method === "PATCH" && adminUserStatusMatch) {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.users", action: "update" });
+      if (!user) return;
+      const body = await readBody(req);
+      const updated = await updateAdminUserStatus(req, user, decodeURIComponent(adminUserStatusMatch[1]), textValue(body.status, 40));
+      sendJson(res, 200, { user: publicUser(updated) });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/users/import") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.users", action: "create" });
+      if (!user) return;
+      const body = await readBody(req);
+      const rows = parseAdminImportRows(body.rows || []);
+      const imported = [];
+      const errors = [];
+      rows.forEach((row, index) => {
+        if (!row.employee_id || !row.name || !row.email || !row.department) {
+          errors.push({ row: index + 1, error: "Missing required fields", employee_id: row.employee_id || "" });
+          return;
+        }
+        if (findDuplicateUser({ employee_id: row.employee_id, email: row.email, id: row.employee_id })) {
+          errors.push({ row: index + 1, error: "Duplicate employee_id or email", employee_id: row.employee_id });
+          return;
+        }
+        const created = {
+          id: crypto.randomUUID(),
+          employee_id: row.employee_id,
+          name: row.name,
+          email: row.email,
+          department: row.department,
+          role: appRoleFromRoleKey(row.role_key),
+          status: "active",
+          is_active: 1,
+          created_at: new Date().toISOString(),
+          created_by: user.id,
+          disabled_at: null,
+          scope_type: row.scope_type,
+          scope_value: row.scope_value,
+          password_hash: "plain:123",
+        };
+        replaceMemoryUser(created);
+        imported.push(created);
+      });
+      const job = {
+        id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        created_by: user.id,
+        imported_count: imported.length,
+        error_count: errors.length,
+        errors,
+      };
+      memoryStore.importJobs.unshift(job);
+      await audit("admin.user_imported", req, {
+        actor: user,
+        entityType: "import_job",
+        entityId: job.id,
+        metadata: { imported_count: imported.length, error_count: errors.length },
+      });
+      sendJson(res, 200, { job, imported: imported.map(publicUser), errors });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/admin/users/export") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.users", action: "export" });
+      if (!user) return;
+      const users = listUsersMemory();
+      await audit("admin.user_exported", req, {
+        actor: user,
+        entityType: "user_export",
+        entityId: `count:${users.length}`,
+        metadata: { count: users.length },
+      });
+      const format = textValue(url.searchParams.get("format"), 20) || "json";
+      if (format === "csv") {
+        const header = ["employee_id", "name", "email", "department", "role_key", "status", "scope_type", "scope_value", "last_login_at"];
+        const lines = [
+          header.join(","),
+          ...users.map((row) => [
+            row.employee_id,
+            row.name,
+            row.email,
+            row.department,
+            row.role_key,
+            row.status,
+            row.scope_type,
+            row.scope_value,
+            row.last_login_at || "",
+          ].map(csvEscape).join(",")),
+        ];
+        res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8" });
+        res.end(lines.join("\n"));
+        return;
+      }
+      sendJson(res, 200, { users });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/admin/roles") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.roles", action: "view" });
+      if (!user) return;
+      sendJson(res, 200, { roles: listRolesMemory(), modules: adminPermissionModules });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/roles") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.roles", action: "create" });
+      if (!user) return;
+      const role = await createAdminRole(req, user, await readBody(req));
+      sendJson(res, 201, { role });
+      return;
+    }
+    const adminRolePermissionMatch = url.pathname.match(/^\/api\/admin\/roles\/([^/]+)\/permissions$/);
+    if (req.method === "PATCH" && adminRolePermissionMatch) {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.roles", action: "update" });
+      if (!user) return;
+      const permissions = await updateRolePermissions(req, user, decodeURIComponent(adminRolePermissionMatch[1]), (await readBody(req)).permissions || {});
+      sendJson(res, 200, { permissions });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/admin/field-visibility") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.fields", action: "view" });
+      if (!user) return;
+      sendJson(res, 200, { rules: listFieldVisibilityMemory() });
+      return;
+    }
+    if (req.method === "PATCH" && url.pathname === "/api/admin/field-visibility") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.fields", action: "update" });
+      if (!user) return;
+      const body = await readBody(req);
+      const rules = await updateFieldVisibilityRules(req, user, body.rules || []);
+      sendJson(res, 200, { rules });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/admin/audit-events") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.audit", action: "view" });
+      if (!user) return;
+      sendJson(res, 200, { events: filterAuditEvents(url.searchParams) });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/admin/audit-events/export") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.audit", action: "export" });
+      if (!user) return;
+      const events = filterAuditEvents(url.searchParams);
+      const header = ["created_at", "event_type", "actor_user_id", "actor_role", "entity_type", "entity_id", "ip_address"];
+      const lines = [
+        header.join(","),
+        ...events.map((row) => [
+          row.created_at || "",
+          row.event_type || "",
+          row.actor_user_id || "",
+          row.actor_role || "",
+          row.entity_type || "",
+          row.entity_id || "",
+          row.ip_address || "",
+        ].map(csvEscape).join(",")),
+      ];
+      res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8" });
+      res.end(lines.join("\n"));
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/admin/om-assignment-rules") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.mapping", action: "view" });
+      if (!user) return;
+      sendJson(res, 200, { rules: await omAssignmentRules() });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/om-assignment-rules") {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.mapping", action: "create" });
+      if (!user) return;
+      const rule = await createOmAssignmentRule(req, user, await readBody(req));
+      sendJson(res, 201, { rule });
+      return;
+    }
+    const omRuleMatch = url.pathname.match(/^\/api\/admin\/om-assignment-rules\/([^/]+)$/);
+    if (req.method === "PATCH" && omRuleMatch) {
+      const user = await requireAdmin(req, res, { moduleKey: "admin.mapping", action: "update" });
+      if (!user) return;
+      const rule = await updateOmAssignmentRule(req, user, decodeURIComponent(omRuleMatch[1]), await readBody(req));
+      sendJson(res, 200, { rule });
       return;
     }
     if (req.method === "POST" && url.pathname === "/api/attachments") {
@@ -971,6 +1895,16 @@ async function handleApi(req, res, url) {
       sendJson(res, 200, { assignees: await omAssignees() });
       return;
     }
+    if (req.method === "GET" && url.pathname === "/api/om/assignment-rules") {
+      const user = await requireAuth(req, res);
+      if (!user) return;
+      if (!canViewOm(user) && user.role !== "admin") {
+        sendJson(res, 403, { error: "OM role required" });
+        return;
+      }
+      sendJson(res, 200, { rules: await omAssignmentRules() });
+      return;
+    }
     if (req.method === "GET" && url.pathname === "/api/om/assignments") {
       const user = await requireAuth(req, res);
       if (!user) return;
@@ -997,16 +1931,39 @@ async function handleApi(req, res, url) {
     }
     sendJson(res, 404, { error: "API route not found" });
   } catch (error) {
-    sendJson(res, error.status || 500, { error: error.message || "Server error" });
+    sendJson(res, error.status || 500, { error: error.message || "Server error", errors: error.errors || undefined });
   }
 }
 
+function decodePathname(pathname) {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return "";
+  }
+}
+
+function publicAssetPath(pathname) {
+  const decoded = decodePathname(pathname);
+  if (!decoded) return null;
+  const normalized = path.posix.normalize(decoded === "/" ? "/index.html" : decoded);
+  if (!normalized.startsWith("/") || normalized.includes("\0")) return null;
+  if (PUBLIC_ROOT_FILES.has(normalized)) return normalized;
+  if (normalized.startsWith("/app-modules/") && path.posix.extname(normalized) === ".js") return normalized;
+  return null;
+}
+
 function serveStatic(req, res, url) {
-  const requested = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+  const requested = publicAssetPath(url.pathname);
+  if (!requested) {
+    res.writeHead(404);
+    res.end("Not found");
+    return;
+  }
   const filePath = path.normalize(path.join(ROOT, requested));
-  if (!filePath.startsWith(ROOT)) {
-    res.writeHead(403);
-    res.end("Forbidden");
+  if (!filePath.startsWith(ROOT + path.sep)) {
+    res.writeHead(404);
+    res.end("Not found");
     return;
   }
   fs.readFile(filePath, (error, data) => {

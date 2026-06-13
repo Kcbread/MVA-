@@ -6,7 +6,7 @@
 
 1. 先讀工作區根目錄 `README.md`，確認目前專案入口。
 2. 再讀本文件，確認角色、流程、模組文件索引。
-3. 依任務只讀必要角色文件：
+3. 對任何涉及角色、畫面、權限、流程、UI、API、DB、測試或 handoff 的任務，必須先辨識受影響角色並讀必要角色文件；若角色不明，先讀所有可能受影響角色文件，再標示 ambiguity：
    - Requester: `roles/01-requester.zh-TW.md`
    - Dept DRI: `roles/02-dept-dri.zh-TW.md`
    - Cost Manager: `roles/03-cost-manager.zh-TW.md`
@@ -28,11 +28,25 @@
 
 - 預設使用繁體中文。
 - 回覆要短而可執行，避免把舊上下文整段搬回主線。
+- material thread 在第一個實質判斷、規劃、review、實作或部署前，必須提供 `Startup Context Receipt`：
+
+```text
+Startup Context Receipt
+Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
+Roles: Requester; Dept DRI; Cost Manager; ...
+Decisions: locked decisions used, or none
+Gaps: unresolved ambiguity, or none
+```
+
+- 極小型、非產品、非角色判斷任務可保持 receipt internal；只要碰到角色、權限、UI、流程、API、DB、測試、部署或 PM memory，就不能使用此例外。
 - 長任務交接使用 compact handoff：
   - `Findings`
   - `Decision`
   - `Risk`
   - `Next`
+- 重要 thread 交接還必須附 `Evidence`：repo path、Notion URL、測試輸出、截圖、commit，或標 `evidence_missing`。
+- 跨 thread PM 記憶以 Notion `MVA Procurement Cross-Thread PM Hub` 管理；repo `_context/` 與 `PROJECT_DECISIONS.md` 仍是產品決策真相來源。
+- 新 thread 若涉及 PM memory、handoff、dirty worktree、branch/commit hygiene，先讀 `project-progress/MASTER_PM_LEDGER.md`；若 worktree 已髒或有 unmerged path，先讀 `project-progress/WORKTREE_TRIAGE_20260613.md`。
 - subagent 只能做有限任務：研究、規格、實作切片、測試、驗證；不能自行改產品決策。
 
 ## 不要預設讀取
@@ -59,9 +73,13 @@
 
 ## 核心原則
 
+- 實作前先確認目前 `git status --short` 的 ownership；不要把功能、部署、PM memory、archive/generated cleanup 混在同一個 commit。
+- 大量 archive、handoff package、review-output、截圖或 generated artifact 刪除，在未確認前一律視為高風險，不得跟功能變更一起提交。
 - 先定角色權責，再改 UI。
+- 不得只靠 screen name、thread 記憶或推測改動角色邏輯；role-affecting work 必須先讀相關角色文件。
 - Warehouse 是 evidence；只有經 workflow ledger/lock 的結果才影響成本。
-- Cost Manager 的 `Demand Analysis > Cost Dashboard / Station Matrix` 是受保護 baseline，非必要不要改。
+- Dept DRI 的審批主視覺是 dashboard-first `Item Quantity Review`：Dashboard 顯示 active project 全品項 MFG aggregate 與 Non-MFG department columns；item switcher / row click 只切換 active item 與 detail scope，不縮減 Dashboard rows。MFG Station Detail / Non-MFG Department Detail 才展開 selected item 明細。Item Quantity Review popup 可 audited direct edit 正式需求數量。
+- Cost Manager、Budget Approver 繼續使用共用 Quantity Review evidence；不要用 Dept DRI 的 item switcher 改寫其角色權責。
 - Requester 畫面不得顯示 vendor、PAS material、factory material、OM assignee、FTV 等內部採購欄位。
 - OM Leader 負責追蹤、派工、匯率、feedback triage；OM Purchasing 處理 assigned rows。
 - Buyer Handoff 是 OM export 後的 PR/PO 所屬階段，不再使用容易誤解的 `Downstream` 作為使用者文案。

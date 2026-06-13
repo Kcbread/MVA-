@@ -197,6 +197,7 @@
       showVendor: ["om", "omLeader", "omMember", "admin"].includes(normalizedRole),
       showPasMaterial: ["om", "omLeader", "omMember", "admin"].includes(normalizedRole),
       showFactoryMaterial: ["om", "omLeader", "omMember", "admin"].includes(normalizedRole),
+      showSapMaterial: ["om", "omLeader", "omMember", "admin"].includes(normalizedRole),
       showOmAssignee: ["om", "omLeader", "admin"].includes(normalizedRole),
       showCostImpact: ["costOwner", "manager", "admin", "deptDri"].includes(normalizedRole),
       showOperationalActions: ["om", "omLeader", "omMember", "requester", "dri", "projectDri", "admin"].includes(normalizedRole),

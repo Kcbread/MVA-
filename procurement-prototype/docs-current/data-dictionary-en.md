@@ -149,9 +149,27 @@ These are not requester-visible.
 | supplier | Supplier name | OM / Buyer / Admin |
 | pasDemandNo | PAS Demand No | OM / Cost Manager / Buyer |
 | pasMaterialNo | PAS Material No | OM / Buyer |
-| factoryMaterialNo | Factory material number after PO | Buyer / OM / Admin |
+| factoryMaterialNo | Factory material number after PO; SAP PO Raw Data column A `料號` | Buyer / OM / Admin |
+| sapMaterialNo | SAP material number from SAP PO Raw Data column H `料號`; separate from Factory Material No | OM / Buyer / Admin |
 | omAssignee | OM assigned owner | OM Leader / Admin |
 | ftvCode | Customs/audit FTV code | OM / Buyer / Admin |
+
+## 6A. SAP / PO Raw Mirror
+
+SAP PO raw import/export keeps the Excel `Raw Data` A-BN shape as a mirror layer. Core workflow tables should consume canonical fields only; PO-only fields may be blank before Buyer/PUR/SAP evidence exists.
+
+| Field | Raw Data Column | Meaning |
+| --- | --- | --- |
+| factory_material_no | A `料號` | Factory Material No; PO-stage factory-side tracking key |
+| sap_material_no | H `料號` | SAP material number; not the factory material number |
+| buy_scope | Excel row fill | `om_scope` for yellow-filled Raw Data rows; `mfg_buy` for non-yellow rows in full import mode |
+| scope_source | Import rule | `excel_yellow_fill` or `default_non_yellow`, used to audit why `buy_scope` was assigned |
+| source_fill_color | Excel row fill | Source ARGB fill color used by the importer, e.g. `FFFFFF00` for yellow |
+| ftv_code | K `FTV Code` | Customs/audit FTV mapping source |
+| normalized_item_name | Q `正規化` | Main item matching / master key candidate |
+| lv1 / lv2 / lv3 | BL / BM / BN | Category coding source for future `AABBB00001` rules |
+
+`資訊類` currently has a supplemental Lv1-Lv3 rule set for the yellow OM rows: `電腦週邊`, `顯示器`, `電腦`, and `條碼設備` map to existing `IT...` Factory Material No prefixes at exact Lv3 path level. The importer validates those paths without rewriting column A.
 
 ## 7. Attachments
 

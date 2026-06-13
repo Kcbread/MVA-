@@ -158,15 +158,28 @@ MySQL
 
 ### material_identity
 
-內部料號身份層，承接 HFCOM、PAS Material No、Factory Material No、legacy mapping reference。
+內部料號身份層，承接 HFCOM、PAS Material No、Factory Material No、SAP Material No、legacy mapping reference。
 
 | 欄位 | 說明 |
 | --- | --- |
 | id | material id |
 | item_id | item_master.id |
-| material_no | HFCOM / PAS / factory / legacy material no |
-| material_no_type | HFCOM / pas_material_no / factory_material_no / legacy_mapping |
+| material_no | HFCOM / PAS / factory / SAP / legacy material no |
+| material_no_type | HFCOM / pas_material_no / factory_material_no / sap_material_no / legacy_mapping |
 | status | active / inactive |
+
+### sap_po_import_batches / sap_po_raw_lines
+
+SAP / PO raw mirror 層保留 `Source DB regularize_0608_renumbered.xlsx` 的 `Raw Data` A-BN 欄序，供未來 SAP DB 對接與 PO history 對帳使用。核心 workflow 不直接依賴全部 raw 欄位。
+
+規則：
+
+- Raw Data A 欄 `料號` = `factory_material_no` / Factory Material No。
+- Raw Data H 欄 `料號` = `sap_material_no` / SAP Material No。
+- Raw Data K 欄 `FTV Code` 只進 FTV / customs audit mapping，不是 material identity。
+- Raw Data Q 欄 `正規化` 是 item matching / item master key 候選。
+- Raw Data BL / BM / BN 是 Lv1 / Lv2 / Lv3 category 與未來 `AABBB00001` 編碼來源。
+- PO 尚未對接前，raw/export 欄位可先保留表頭與空值；不能反向要求 requester、draft、approval 階段填 PO-only 欄位。
 
 ### purchase_route_decisions
 

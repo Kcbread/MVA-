@@ -9,6 +9,8 @@ const workflowStatus = require("../app-modules/workflow-status.js");
 const workflowStatusTable = require("../app-modules/workflow-status-table.js");
 const ftvCode = require("../app-modules/ftv-code.js");
 const roleGuards = require("../app-modules/role-guards.js");
+const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
+const sapPoRawImporter = require("../app-modules/sap-po-raw-importer.js");
 
 test("quote validity uses 10-day warning threshold", () => {
   const today = new Date("2026-06-01T00:00:00");
@@ -64,10 +66,12 @@ test("workflow status role visibility hides internal OM fields from requester", 
   assert.equal(requester.showVendor, false);
   assert.equal(requester.showPasMaterial, false);
   assert.equal(requester.showFactoryMaterial, false);
+  assert.equal(requester.showSapMaterial, false);
   assert.equal(requester.showOmAssignee, false);
   const om = workflowStatus.buildWorkflowStatus({}, { role: "omLeader" }).visibilityFlags;
   assert.equal(om.showVendor, true);
   assert.equal(om.showPasMaterial, true);
+  assert.equal(om.showSapMaterial, true);
   assert.equal(om.showOmAssignee, true);
 });
 
@@ -79,6 +83,7 @@ test("workflow status table hides internal procurement fields from requester", (
     vendor: "Hidden Vendor",
     pasMaterialNo: "PAS-MAT-001",
     factoryMaterialNo: "FM-VN-001",
+    sapMaterialNo: "7901003.0",
     assignedTo: "Giang",
     status: "Submitted",
     submittedAt: "2026-06-01T00:00:00Z",
@@ -98,8 +103,59 @@ test("workflow status table hides internal procurement fields from requester", (
   assert.equal(Object.hasOwn(view.values, "vendor"), false);
   assert.equal(Object.hasOwn(view.values, "pasMaterialNo"), false);
   assert.equal(Object.hasOwn(view.values, "factoryMaterialNo"), false);
+  assert.equal(Object.hasOwn(view.values, "sapMaterialNo"), false);
   assert.equal(Object.hasOwn(view.values, "omAssignee"), false);
   assert.equal(view.values.currentStage, "Dept DRI Review");
+});
+
+test("SAP PO raw contract separates Factory Material No from SAP Material No", () => {
+  assert.equal(sapPoRawContract.MATERIAL_NO_TYPE_FACTORY, "factory_material_no");
+  assert.equal(sapPoRawContract.MATERIAL_NO_TYPE_SAP, "sap_material_no");
+  assert.deepEqual(sapPoRawContract.MATERIAL_NO_TYPES, [
+    "factory_material_no",
+    "sap_material_no",
+    "pas_material_no",
+    "legacy_mapping",
+  ]);
+  assert.equal(sapPoRawContract.SAP_PO_RAW_DATA_COLUMNS.length, 66);
+  assert.deepEqual(sapPoRawContract.SAP_PO_RAW_DATA_COLUMNS[0], {
+    excelColumn: "A",
+    header: "料號",
+    field: "factory_material_no",
+  });
+  assert.deepEqual(sapPoRawContract.SAP_PO_RAW_DATA_COLUMNS[7], {
+    excelColumn: "H",
+    header: "料號",
+    field: "sap_material_no",
+  });
+  assert.equal(sapPoRawContract.SAP_PO_RAW_DATA_FIELD_BY_EXCEL_COLUMN.K, "ftv_code");
+  assert.equal(sapPoRawContract.SAP_PO_RAW_DATA_FIELD_BY_EXCEL_COLUMN.Q, "normalized_item_name");
+  assert.equal(sapPoRawContract.SAP_PO_RAW_DATA_FIELD_BY_EXCEL_COLUMN.BL, "lv1");
+  assert.equal(sapPoRawContract.SAP_PO_RAW_DATA_FIELD_BY_EXCEL_COLUMN.BM, "lv2");
+  assert.equal(sapPoRawContract.SAP_PO_RAW_DATA_FIELD_BY_EXCEL_COLUMN.BN, "lv3");
+});
+
+test("SAP PO export rows keep Raw Data header order and allow PO-only blanks before PO", () => {
+  const row = sapPoRawContract.poExportRow({
+    normalized_item_name: "鍵盤",
+    lv1: "資訊類",
+    lv2: "電腦週邊",
+    lv3: "鍵盤",
+  });
+
+  assert.equal(row.length, 66);
+  assert.equal(row[0], "");
+  assert.equal(row[7], "");
+  assert.equal(row[16], "鍵盤");
+  assert.equal(row[63], "資訊類");
+  assert.equal(row[64], "電腦週邊");
+  assert.equal(row[65], "鍵盤");
+
+  const rawPayload = sapPoRawContract.rawPayloadFromPoExportRow(row);
+  assert.equal(rawPayload["A:料號"], "");
+  assert.equal(rawPayload["H:料號"], "");
+  assert.equal(rawPayload["Q:正規化"], "鍵盤");
+  assert.equal(rawPayload["BL:Lv1"], "資訊類");
 });
 
 test("workflow status table gives Cost Manager owner and aging columns", () => {
@@ -169,6 +225,9 @@ test("role guards normalize legacy role names and preserve business ownership", 
   assert.equal(roleGuards.canBudgetApprove("projectDri"), true);
   assert.equal(roleGuards.canBudgetApprove("admin"), false);
   assert.equal(roleGuards.canViewCostAnalytics("manager"), true);
+  assert.equal(roleGuards.canViewCostAnalytics("dri"), false);
+  assert.equal(roleGuards.canViewCostAnalytics("dri", "priceReviewScoped"), true);
+  assert.equal(roleGuards.canViewCostAnalytics("projectDri", "priceReviewScoped"), true);
   assert.equal(roleGuards.canViewCostAnalytics("requester"), false);
 });
 
@@ -188,6 +247,7 @@ test("role guards separate OM leader controls from assigned member work", () => 
 
 test("role guards hide internal procurement fields from requester and cost owner", () => {
   const requester = roleGuards.fieldVisibility("requester");
+  assert.equal(requester.showCostPrice, false);
   assert.equal(requester.showVendor, false);
   assert.equal(requester.showPasMaterial, false);
   assert.equal(requester.showFactoryMaterial, false);
@@ -195,6 +255,7 @@ test("role guards hide internal procurement fields from requester and cost owner
 
   const costOwner = roleGuards.fieldVisibility("manager");
   assert.equal(costOwner.showCostImpact, true);
+  assert.equal(costOwner.showCostPrice, true);
   assert.equal(costOwner.showVendor, false);
   assert.equal(costOwner.showBusinessApprovalActions, false);
 
@@ -202,6 +263,24 @@ test("role guards hide internal procurement fields from requester and cost owner
   assert.equal(omMember.showVendor, true);
   assert.equal(omMember.showPasMaterial, true);
   assert.equal(omMember.showOmActions, true);
+});
+
+test("role guards expose governance role catalog, permissions, and sensitive field defaults", () => {
+  const roles = roleGuards.roleDefinitions();
+  assert.equal(roles.some((role) => role.roleKey === "admin"), true);
+
+  const modules = roleGuards.permissionModules();
+  assert.equal(modules.some((module) => module.moduleKey === "admin.audit"), true);
+  assert.equal(modules.some((module) => module.moduleKey === "admin.mapping"), true);
+  assert.equal(modules.some((module) => module.moduleKey === "admin.user_scope"), true);
+
+  assert.equal(roleGuards.canPerform("admin", "admin.users", "create"), true);
+  assert.equal(roleGuards.canPerform("admin", "admin.mapping", "update"), true);
+  assert.equal(roleGuards.canPerform("admin", "admin.user_scope", "update"), true);
+  assert.equal(roleGuards.canPerform("requester", "admin.users", "view"), false);
+
+  const fieldRules = roleGuards.defaultFieldVisibilityRules();
+  assert.equal(fieldRules.some((rule) => rule.fieldKey === "employeeSalary" && rule.reserved), true);
 });
 
 test("OM quote status separates reusable quote from waiting and expired quote", () => {
@@ -533,4 +612,140 @@ test("FTV export gate blocks required external import without code", () => {
     ftvStatus: ftvCode.FTV_REUSE_EXISTING,
     ftvCode: "HFS-ENG1-1002",
   }), true);
+});
+
+test("SAP PO Raw scope contract keeps yellow OM and MFG buy names stable", () => {
+  assert.equal(sapPoRawContract.BUY_SCOPE_OM, "om_scope");
+  assert.equal(sapPoRawContract.BUY_SCOPE_MFG_BUY, "mfg_buy");
+  assert.deepEqual(sapPoRawContract.BUY_SCOPES, ["om_scope", "mfg_buy"]);
+  assert.equal(sapPoRawContract.SCOPE_SOURCE_EXCEL_YELLOW_FILL, "excel_yellow_fill");
+  assert.equal(sapPoRawContract.SCOPE_SOURCE_DEFAULT_NON_YELLOW, "default_non_yellow");
+  assert.equal(sapPoRawContract.YELLOW_FILL_ARGB, "FFFFFF00");
+});
+
+test("SAP PO Raw importer writes scope columns before A-BN raw fields", () => {
+  const columns = sapPoRawImporter.rawLineColumns();
+  assert.deepEqual(columns.slice(0, 8), [
+    "id",
+    "import_batch_id",
+    "source_row_number",
+    "item_id",
+    "material_id",
+    "buy_scope",
+    "scope_source",
+    "source_fill_color",
+  ]);
+  assert.equal(columns[8], "factory_material_no");
+  assert.equal(columns[15], "sap_material_no");
+  assert.equal(columns[18], "ftv_code");
+  assert.equal(columns[24], "normalized_item_name");
+  assert.equal(columns.at(-4), "lv1");
+  assert.equal(columns.at(-3), "lv2");
+  assert.equal(columns.at(-2), "lv3");
+  assert.equal(columns.at(-1), "raw_payload_json");
+});
+
+test("SAP PO Raw importer commits rows in a transaction and preserves scope values", async () => {
+  const executed = [];
+  const connection = {
+    beginTransactionCalled: false,
+    commitCalled: false,
+    rollbackCalled: false,
+    async beginTransaction() { this.beginTransactionCalled = true; },
+    async commit() { this.commitCalled = true; },
+    async rollback() { this.rollbackCalled = true; },
+    release() {},
+    async execute(sql, params = []) {
+      executed.push({ sql, params });
+      if (/SELECT id FROM item_master/.test(sql)) return [[{ id: "item-existing" }]];
+      if (/SELECT id, material_no_type FROM material_identity/.test(sql)) return [[]];
+      return [{}];
+    },
+  };
+  const pool = {
+    async execute() { return [[]]; },
+    async getConnection() { return connection; },
+  };
+  const preview = {
+    id: "preview-1",
+    source_file_name: "fixture.xlsx",
+    source_sheet_name: "Raw Data",
+    header_version: "raw-data-a-bn-20260608",
+    source_checksum: "sha",
+    scope_mode: "yellow-only",
+    scope_counts: { om_scope: 1, mfg_buy: 0 },
+    errors: [],
+    warnings: [],
+    rows: [{
+      source_row_number: 2,
+      buy_scope: "om_scope",
+      scope_source: "excel_yellow_fill",
+      source_fill_color: "FFFFFF00",
+      fields: {
+        factory_material_no: "ITKEY-00001",
+        sap_material_no: "",
+        normalized_item_name: "鍵盤",
+        lv1: "資訊類",
+        lv2: "電腦週邊",
+        lv3: "鍵盤",
+      },
+      raw_payload_json: { "A:料號": "ITKEY-00001" },
+    }],
+  };
+  const receipt = await sapPoRawImporter.commitSapPoRawImport({ pool, preview, actorUserId: "admin-default" });
+  assert.equal(receipt.inserted_lines, 1);
+  assert.equal(connection.beginTransactionCalled, true);
+  assert.equal(connection.commitCalled, true);
+  assert.equal(connection.rollbackCalled, false);
+  const rawInsert = executed.find((item) => /INSERT INTO sap_po_raw_lines/.test(item.sql));
+  assert.ok(rawInsert);
+  assert.equal(rawInsert.params[5], "om_scope");
+  assert.equal(rawInsert.params[6], "excel_yellow_fill");
+  assert.equal(rawInsert.params[7], "FFFFFF00");
+});
+
+test("SAP PO Raw importer rolls back when raw line insert fails", async () => {
+  const connection = {
+    commitCalled: false,
+    rollbackCalled: false,
+    async beginTransaction() {},
+    async commit() { this.commitCalled = true; },
+    async rollback() { this.rollbackCalled = true; },
+    release() {},
+    async execute(sql) {
+      if (/SELECT id FROM item_master/.test(sql)) return [[{ id: "item-existing" }]];
+      if (/SELECT id, material_no_type FROM material_identity/.test(sql)) return [[]];
+      if (/INSERT INTO sap_po_raw_lines/.test(sql)) throw new Error("raw insert failed");
+      return [{}];
+    },
+  };
+  const pool = {
+    async execute() { return [[]]; },
+    async getConnection() { return connection; },
+  };
+  await assert.rejects(
+    sapPoRawImporter.commitSapPoRawImport({
+      pool,
+      preview: {
+        source_file_name: "fixture.xlsx",
+        source_sheet_name: "Raw Data",
+        source_checksum: "sha",
+        scope_counts: { om_scope: 1, mfg_buy: 0 },
+        errors: [],
+        warnings: [],
+        rows: [{
+          source_row_number: 2,
+          buy_scope: "om_scope",
+          scope_source: "excel_yellow_fill",
+          source_fill_color: "FFFFFF00",
+          fields: { factory_material_no: "ITKEY-00001", normalized_item_name: "鍵盤" },
+          raw_payload_json: {},
+        }],
+      },
+      actorUserId: "admin-default",
+    }),
+    /raw insert failed/,
+  );
+  assert.equal(connection.commitCalled, false);
+  assert.equal(connection.rollbackCalled, true);
 });
