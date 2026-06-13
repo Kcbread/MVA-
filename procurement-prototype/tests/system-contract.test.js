@@ -17,6 +17,9 @@ const workflowMigration = fs.existsSync("db/migrations/001_target_workflow_table
 const sapPoRawMigration = fs.existsSync("db/migrations/002_sap_po_raw_mirror.sql")
   ? fs.readFileSync("db/migrations/002_sap_po_raw_mirror.sql", "utf8")
   : "";
+const sapPoRawScopeMigration = fs.existsSync("db/migrations/003_sap_po_raw_scope.sql")
+  ? fs.readFileSync("db/migrations/003_sap_po_raw_scope.sql", "utf8")
+  : "";
 const projectDecisions = fs.existsSync("PROJECT_DECISIONS.md") ? fs.readFileSync("PROJECT_DECISIONS.md", "utf8") : "";
 const dataDictionary = fs.existsSync("docs-current/data-dictionary-en.md") ? fs.readFileSync("docs-current/data-dictionary-en.md", "utf8") : "";
 const namingRulesZh = fs.existsSync("docs-current/it-handoff/zh-TW/00-naming-rules.md")
@@ -955,6 +958,21 @@ test("Admin console surfaces live UAT feedback and screenshot downloads", () => 
   assert.match(server, /JSON\.parse\(metadata\)/);
 });
 
+test("Admin UI surfaces SAP PO Raw import preview and UAT commit controls", () => {
+  const adminView = between(html, '<section class="view" data-view="adminSetup">', '<section class="view" data-view="buyer">');
+  assert.match(adminView, /SAP PO Raw Import/);
+  assert.match(adminView, /id="sapPoRawWorkbookPath"/);
+  assert.match(adminView, /id="sapPoRawScopeMode"/);
+  assert.match(adminView, /data-action="previewSapPoRawImport"/);
+  assert.match(adminView, /data-action="commitSapPoRawImport"/);
+  assert.match(adminView, /id="sapPoRawImportSummary"/);
+  assert.match(adminView, /id="sapPoRawImportRows"/);
+  assert.match(app, /function renderSapPoRawImportPanel/);
+  assert.match(app, /function previewSapPoRawImportFromForm/);
+  assert.match(app, /function commitSapPoRawImportFromPreview/);
+  assert.match(app, /refreshSapPoRawImportStatus\(\{ silent: true \}\)/);
+});
+
 test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(server, /\/api\/login/);
   assert.match(server, /function findUserByIdentifier/);
@@ -993,12 +1011,19 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(schema, /header_version VARCHAR\(80\) NOT NULL DEFAULT 'raw-data-a-bn-20260608'/);
   assert.match(schema, /factory_material_no VARCHAR\(120\)/);
   assert.match(schema, /sap_material_no VARCHAR\(120\)/);
+  assert.match(schema, /buy_scope VARCHAR\(40\) NOT NULL DEFAULT 'mfg_buy'/);
+  assert.match(schema, /scope_source VARCHAR\(80\) NOT NULL DEFAULT 'default_non_yellow'/);
+  assert.match(schema, /source_fill_color VARCHAR\(40\)/);
   assert.match(schema, /normalized_item_name VARCHAR\(240\)/);
   assert.match(schema, /raw_payload_json JSON/);
   assert.match(schema, /INDEX idx_sap_po_raw_factory_material \(factory_material_no\)/);
   assert.match(schema, /INDEX idx_sap_po_raw_sap_material \(sap_material_no\)/);
+  assert.match(schema, /INDEX idx_sap_po_raw_scope \(buy_scope, scope_source\)/);
   assert.match(sapPoRawMigration, /CREATE TABLE IF NOT EXISTS sap_po_import_batches/);
   assert.match(sapPoRawMigration, /CREATE TABLE IF NOT EXISTS sap_po_raw_lines/);
+  assert.match(sapPoRawScopeMigration, /003_sap_po_raw_scope/);
+  assert.match(sapPoRawScopeMigration, /information_schema\.columns/);
+  assert.match(sapPoRawScopeMigration, /idx_sap_po_raw_scope/);
   assert.match(schema, /route_type VARCHAR\(40\) NOT NULL/);
   assert.match(schema, /quote_owner VARCHAR\(40\) NOT NULL/);
   assert.match(schema, /demand_department VARCHAR\(120\) NOT NULL/);
@@ -1010,6 +1035,8 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(fs.readFileSync("app-modules/ftv-code.js", "utf8"), /ROUTE_EXTERNAL_IMPORT/);
   assert.match(html, /app-modules\/sap-po-raw-contract\.js/);
   assert.match(sapPoRawContractModule, /MATERIAL_NO_TYPE_FACTORY = "factory_material_no"/);
+  assert.match(sapPoRawContractModule, /BUY_SCOPE_OM = "om_scope"/);
+  assert.match(sapPoRawContractModule, /SCOPE_SOURCE_EXCEL_YELLOW_FILL = "excel_yellow_fill"/);
   assert.match(sapPoRawContractModule, /\["A", "料號", "factory_material_no"\]/);
   assert.match(sapPoRawContractModule, /\["H", "料號", "sap_material_no"\]/);
   assert.match(sapPoRawContractModule, /\["Q", "正規化", "normalized_item_name"\]/);
@@ -1023,8 +1050,13 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(namingRulesZh, /SAP Material No.*H 欄 `料號`/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/ftv-code\.js/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-contract\.js/);
+  assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-importer\.js/);
   assert.match(server, /\/api\/uat-feedback/);
   assert.match(server, /\/api\/attachments/);
+  assert.match(server, /\/api\/admin\/sap-po-raw-import\/status/);
+  assert.match(server, /\/api\/admin\/sap-po-raw-import\/preview/);
+  assert.match(server, /\/api\/admin\/sap-po-raw-import\/commit/);
+  assert.match(server, /sapPoRawImporter\.commitSapPoRawImport/);
   assert.match(server, /attachment\.uploaded/);
   assert.match(server, /UPLOAD_ROOT/);
   assert.match(server, /canTriageUatFeedback/);

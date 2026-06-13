@@ -162,6 +162,9 @@ SAP PO raw import/export keeps the Excel `Raw Data` A-BN shape as a mirror layer
 | --- | --- | --- |
 | factory_material_no | A `料號` | Factory Material No; PO-stage factory-side tracking key |
 | sap_material_no | H `料號` | SAP material number; not the factory material number |
+| buy_scope | Excel row fill | `om_scope` for yellow-filled Raw Data rows; `mfg_buy` for non-yellow rows in full import mode |
+| scope_source | Import rule | `excel_yellow_fill` or `default_non_yellow`, used to audit why `buy_scope` was assigned |
+| source_fill_color | Excel row fill | Source ARGB fill color used by the importer, e.g. `FFFFFF00` for yellow |
 | ftv_code | K `FTV Code` | Customs/audit FTV mapping source |
 | normalized_item_name | Q `正規化` | Main item matching / master key candidate |
 | lv1 / lv2 / lv3 | BL / BM / BN | Category coding source for future `AABBB00001` rules |

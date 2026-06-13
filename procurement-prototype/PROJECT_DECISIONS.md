@@ -215,6 +215,9 @@
 - `Factory Material No` is not generated during draft or approval. It is only filled after PO by Buyer/PUR, then used as the factory-side tracking key for reusable price history.
 - In `Source DB regularize_0608_renumbered.xlsx` / SAP PO `Raw Data`, column A `料號` is the official `Factory Material No` (`factory_material_no`). Column H `料號` is a separate `SAP Material No` (`sap_material_no`). They must not be merged or displayed as the same field.
 - PO/SAP export templates may include `Factory Material No`, `SAP Material No`, PO number, acceptance, settlement, and other PO-only columns before PO integration is live; those fields remain blank until PO/Buyer/SAP evidence exists and must not block quote or approval flow.
+- For SAP PO `Raw Data` imports, Excel yellow-filled rows are `OM scope` (`buy_scope = om_scope`, `scope_source = excel_yellow_fill`). Non-yellow rows are `MFG buy` (`buy_scope = mfg_buy`, `scope_source = default_non_yellow`) during full imports.
+- `Raw Data` Q pink/purple highlighting is not an OM scope signal. Import scope is determined by yellow fill on the source row across A-BN.
+- `Raw Data` BL/BM/BN must be validated against the `編碼規則` sheet before commit. Missing LV code rules are surfaced as import warnings and must not silently rewrite A-column `Factory Material No`.
 - `Reuse Item` history only includes PO issued/completed rows that have Factory Material No, item/spec, price, and PO trace. Adding from history never carries active Factory Material No into the new request; Factory Material No remains reference only until the new PO.
 - Reusable History row-level `Add` must append a new current-project draft and must not replace existing Draft Items. It resolves both static purchase records and completed request rows because completed PO rows can become reusable history sources.
 - Demand source picker has three official modes:

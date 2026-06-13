@@ -10,6 +10,7 @@ const workflowStatusTable = require("../app-modules/workflow-status-table.js");
 const ftvCode = require("../app-modules/ftv-code.js");
 const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
+const sapPoRawImporter = require("../app-modules/sap-po-raw-importer.js");
 
 test("quote validity uses 10-day warning threshold", () => {
   const today = new Date("2026-06-01T00:00:00");
@@ -611,4 +612,140 @@ test("FTV export gate blocks required external import without code", () => {
     ftvStatus: ftvCode.FTV_REUSE_EXISTING,
     ftvCode: "HFS-ENG1-1002",
   }), true);
+});
+
+test("SAP PO Raw scope contract keeps yellow OM and MFG buy names stable", () => {
+  assert.equal(sapPoRawContract.BUY_SCOPE_OM, "om_scope");
+  assert.equal(sapPoRawContract.BUY_SCOPE_MFG_BUY, "mfg_buy");
+  assert.deepEqual(sapPoRawContract.BUY_SCOPES, ["om_scope", "mfg_buy"]);
+  assert.equal(sapPoRawContract.SCOPE_SOURCE_EXCEL_YELLOW_FILL, "excel_yellow_fill");
+  assert.equal(sapPoRawContract.SCOPE_SOURCE_DEFAULT_NON_YELLOW, "default_non_yellow");
+  assert.equal(sapPoRawContract.YELLOW_FILL_ARGB, "FFFFFF00");
+});
+
+test("SAP PO Raw importer writes scope columns before A-BN raw fields", () => {
+  const columns = sapPoRawImporter.rawLineColumns();
+  assert.deepEqual(columns.slice(0, 8), [
+    "id",
+    "import_batch_id",
+    "source_row_number",
+    "item_id",
+    "material_id",
+    "buy_scope",
+    "scope_source",
+    "source_fill_color",
+  ]);
+  assert.equal(columns[8], "factory_material_no");
+  assert.equal(columns[15], "sap_material_no");
+  assert.equal(columns[18], "ftv_code");
+  assert.equal(columns[24], "normalized_item_name");
+  assert.equal(columns.at(-4), "lv1");
+  assert.equal(columns.at(-3), "lv2");
+  assert.equal(columns.at(-2), "lv3");
+  assert.equal(columns.at(-1), "raw_payload_json");
+});
+
+test("SAP PO Raw importer commits rows in a transaction and preserves scope values", async () => {
+  const executed = [];
+  const connection = {
+    beginTransactionCalled: false,
+    commitCalled: false,
+    rollbackCalled: false,
+    async beginTransaction() { this.beginTransactionCalled = true; },
+    async commit() { this.commitCalled = true; },
+    async rollback() { this.rollbackCalled = true; },
+    release() {},
+    async execute(sql, params = []) {
+      executed.push({ sql, params });
+      if (/SELECT id FROM item_master/.test(sql)) return [[{ id: "item-existing" }]];
+      if (/SELECT id, material_no_type FROM material_identity/.test(sql)) return [[]];
+      return [{}];
+    },
+  };
+  const pool = {
+    async execute() { return [[]]; },
+    async getConnection() { return connection; },
+  };
+  const preview = {
+    id: "preview-1",
+    source_file_name: "fixture.xlsx",
+    source_sheet_name: "Raw Data",
+    header_version: "raw-data-a-bn-20260608",
+    source_checksum: "sha",
+    scope_mode: "yellow-only",
+    scope_counts: { om_scope: 1, mfg_buy: 0 },
+    errors: [],
+    warnings: [],
+    rows: [{
+      source_row_number: 2,
+      buy_scope: "om_scope",
+      scope_source: "excel_yellow_fill",
+      source_fill_color: "FFFFFF00",
+      fields: {
+        factory_material_no: "ITKEY-00001",
+        sap_material_no: "",
+        normalized_item_name: "鍵盤",
+        lv1: "資訊類",
+        lv2: "電腦週邊",
+        lv3: "鍵盤",
+      },
+      raw_payload_json: { "A:料號": "ITKEY-00001" },
+    }],
+  };
+  const receipt = await sapPoRawImporter.commitSapPoRawImport({ pool, preview, actorUserId: "admin-default" });
+  assert.equal(receipt.inserted_lines, 1);
+  assert.equal(connection.beginTransactionCalled, true);
+  assert.equal(connection.commitCalled, true);
+  assert.equal(connection.rollbackCalled, false);
+  const rawInsert = executed.find((item) => /INSERT INTO sap_po_raw_lines/.test(item.sql));
+  assert.ok(rawInsert);
+  assert.equal(rawInsert.params[5], "om_scope");
+  assert.equal(rawInsert.params[6], "excel_yellow_fill");
+  assert.equal(rawInsert.params[7], "FFFFFF00");
+});
+
+test("SAP PO Raw importer rolls back when raw line insert fails", async () => {
+  const connection = {
+    commitCalled: false,
+    rollbackCalled: false,
+    async beginTransaction() {},
+    async commit() { this.commitCalled = true; },
+    async rollback() { this.rollbackCalled = true; },
+    release() {},
+    async execute(sql) {
+      if (/SELECT id FROM item_master/.test(sql)) return [[{ id: "item-existing" }]];
+      if (/SELECT id, material_no_type FROM material_identity/.test(sql)) return [[]];
+      if (/INSERT INTO sap_po_raw_lines/.test(sql)) throw new Error("raw insert failed");
+      return [{}];
+    },
+  };
+  const pool = {
+    async execute() { return [[]]; },
+    async getConnection() { return connection; },
+  };
+  await assert.rejects(
+    sapPoRawImporter.commitSapPoRawImport({
+      pool,
+      preview: {
+        source_file_name: "fixture.xlsx",
+        source_sheet_name: "Raw Data",
+        source_checksum: "sha",
+        scope_counts: { om_scope: 1, mfg_buy: 0 },
+        errors: [],
+        warnings: [],
+        rows: [{
+          source_row_number: 2,
+          buy_scope: "om_scope",
+          scope_source: "excel_yellow_fill",
+          source_fill_color: "FFFFFF00",
+          fields: { factory_material_no: "ITKEY-00001", normalized_item_name: "鍵盤" },
+          raw_payload_json: {},
+        }],
+      },
+      actorUserId: "admin-default",
+    }),
+    /raw insert failed/,
+  );
+  assert.equal(connection.commitCalled, false);
+  assert.equal(connection.rollbackCalled, true);
 });
