@@ -159,6 +159,8 @@ def parse_lv_rules(wb):
         lv2_lv1_code = normalize_text(row[3] if len(row) > 3 else None)
         lv2_code = normalize_text(row[4] if len(row) > 4 else None)
         lv2_name = normalize_text(row[5] if len(row) > 5 else None)
+        if not any([lv1_code, lv1_name, lv2_lv1_code, lv2_code, lv2_name]):
+            break
         if lv1_code and lv1_name:
             lv1_by_name[lv1_name] = lv1_code
         if lv2_lv1_code and lv2_code and lv2_name:
