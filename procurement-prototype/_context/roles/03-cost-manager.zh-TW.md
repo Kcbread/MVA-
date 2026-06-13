@@ -2,21 +2,27 @@
 
 ## 商業定位
 
-Cost Manager 是高階成本與 P&L owner。它看全域成本、phase/unit spend、carryover savings、effective cost 與 station drilldown，並在 Dept DRI approve 後做 final authorization。
+Cost Manager 是 Dept DRI 後的下一層成本授權者。它不需要獨立 top-level `Demand Analysis`、`Authorized Analysis`、`Progress Tracking` 或 `Project Setup` 入口；`Demand Analysis` 必須嵌入 `Cost Review` 作為主要 evidence，並以既有 `Demand Cost Dashboard` 與 `Station Matrix` 表格作 protected baseline，不重排欄位、不改 Excel-like 密度與計算語意。決策畫面保留 review queue 與 Cost Manager authorize / reject 權限。
 
 ## 可看資訊
 
-- Cost Dashboard：project / stage / unit / department 的成本與數量。
-- Station Matrix：Excel-like station-level demand detail。
-- Carryover / Warehouse locked impact：original、saving、effective。
-- Submission Monitor：pending owner、current stage、days pending、quote status、next action、risk。
-- price exception 與 Temporary Budget 的成本影響摘要。
+- Dept DRI 已 approve、等待 Cost Manager 授權的 rows。
+- Cost Review 內嵌 Demand Analysis evidence：
+  - `Demand Cost Dashboard`：以現有 `managerDemandCostTable` 欄位、密度、金額/數量呈現為基準。
+  - `Station Matrix`：以現有 `managerQuantityMatrixTable` 欄位、密度、phase/station/unit 計算呈現為基準。
+  - `Line` filter：由 `stationBreakdown[].requestLine` 產生 `All / Line 1 / Line 2...`，用來切 request line scope。
+  - `Line Count`：仍是既有成本計算乘數，不代表 requester line scope。
+- Cost Manager 自己的 authorize / reject 歷史。
+- 必要的 item/spec、qty、phase、requester、Dept DRI decision context、next owner。
+- Carryover 只作 secondary evidence；主畫面不顯示大型 carryover card、line impact strip 或空 ledger。
 
 ## 可操作功能
 
-- Final authorization / reject Dept DRI approved requester submission。
-- 查看 Cost Dashboard / Station Matrix / Submission Monitor。
-- 查看 carryover ledger 與 effective cost impact。
+- Authorize Dept DRI approved requester submission。
+- Reject 回 Requester Action Required，必須填 reason。
+- 先看 Cost Review queue，再在下方 Demand Analysis baseline 表格檢查 Dashboard / Station Matrix；點 row 或 dashboard cell 可同步 highlight / drill-in，但 selected row 不重新定義 baseline 表格欄位。
+- 在 Item Quantity Review popup 直接 add / edit / delete 正式 stationBreakdown qty，並寫入 audit metadata。
+- 查看 Cost Review History。
 
 ## 不可看 / 不可做
 
@@ -24,38 +30,49 @@ Cost Manager 是高階成本與 P&L owner。它看全域成本、phase/unit spen
 - 不操作 warehouse lock。
 - 不操作 OM quote、PAS Demand No、Export Package。
 - 不派工 OM。
-- 不改 supplier/vendor/FTV/Buyer PR/PO 作業資料。
+- 不維護 project setup。
+- 不提供獨立 top-level `Demand Analysis` / `Authorized Analysis` tab。
+- 不把 `Line Count` 當作 `Line 1 / Line 2` scope。
+- 不把 carryover 作為主視覺或第一眼決策資訊。
 
 ## 主要 UI / 模組
 
-- Demand Analysis
-  - Cost Dashboard
-  - Station Matrix
-- Submission Monitor
-- Final Authorization Queue
-- Carryover Ledger / Cost Compare
+- Cost Review
+  - Review Queue / Authorize / Reject
+  - Demand Analysis evidence
+    - Demand Cost Dashboard
+    - Station Matrix
+    - Line filter / Line Count / Phase / View Mode
+  - Item Quantity Review popup
+- Review History
 
 ## 資料輸入 / 輸出
 
-- 輸入：final authorization decision、reject reason。
+- 輸入：Cost Manager authorize / reject decision、reject reason、direct quantity edit note。
 - 輸出：
-  - approved -> OM Leader intake / assignment。
+  - authorized -> OM Leader intake / assignment。
   - rejected -> Requester Action Required。
-  - Cost Dashboard / Station Matrix 只輸出 view state，不改需求資料。
+  - direct quantity edit -> 更新正式 stationBreakdown / phase qty / total qty，並保留 itemQuantityReviewHistory audit。
 
 ## 常見風險
 
-- `Demand Analysis > Cost Dashboard / Station Matrix` 是 protected baseline；狀態表或 UI refactor 不可污染。
-- Cost Manager 看到的是成本決策資訊，不是 OM operation form。
-- Carryover pending 與 applied 必須分清楚：只有 locked/applied 才是正式 cost impact。
+- Cost Manager UI 不可回到多 top-level tab global analysis 架構；Demand Analysis 是 Cost Review 內嵌 evidence。
+- Demand Cost Dashboard 與 Station Matrix 是 protected baseline；只能改外層 placement、filters、visibility、scope wiring，不可重排主欄位或改掉既有數字語意。
+- Dashboard 預設依 filter scope；selected row 只做 highlight / drill-in sync，不把 baseline 表格改成另一套 Project Context/Quantity Dashboard copy。
+- Direct edit 會改正式需求數量；必須保留 audit note、actor、time、before/after changes。
+- Carryover pending 與 applied 必須分清楚；只有 locked/applied 才可能作 secondary evidence。
+- Cost Manager 看到的是成本授權資訊，不是 OM operation form。
 
 ## 測試 / QA 重點
 
-- Cost Dashboard / Station Matrix render 不因 workflow refactor 改變。
-- Cost Manager 沒有 Requester / OM / warehouse 操作權。
-- Dept DRI approve 後才出現在 Cost Manager final authorization。
-- Cost Manager approve 後才進 OM Leader intake。
+- Cost Manager 只看到 top-level `Cost Review / Review History`。
+- Cost Review 內必須有 review queue/actions，並嵌入 `Demand Cost Dashboard / Station Matrix` baseline tables。
+- `Line` filter 必須可切 P26 `Line 1 / Line 2`；`Line Count` 仍維持乘數行為。
+- 不顯示 `Authorized Analysis`、`Demand Analysis`、`Progress Tracking`、`Project Setup` tab。
+- Carryover 作 secondary evidence；當 Line filter 有值時只顯示 matching target/request line。
+- Dept DRI approve 後才出現在 Cost Manager。
+- Cost Manager authorize 後才進 OM Leader intake；reject 回 Requester Action Required。
 
 ## Compact Handoff
 
-Cost Manager owns P&L-level visibility and final authorization. Its Demand Analysis is a protected baseline; it can approve/reject after Dept DRI but cannot edit demand, lock warehouse, or operate OM rows.
+Cost Manager is the scoped decision layer after Dept DRI. It has only Cost Review / Review History top-level tabs; Cost Review embeds the protected Demand Analysis baseline (`Demand Cost Dashboard` + `Station Matrix`) below the queue/actions, with a formal Line filter sourced from `stationBreakdown[].requestLine` while Line Count remains the cost multiplier.

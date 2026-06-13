@@ -27,12 +27,14 @@
 - 大版流程或 UI 結構調整時，必須新增或更新 `_doc/vx.y.md`。
 - Browser smoke skipped 必須明確說明原因，不能當成隱形通過。
 - UI 結構或文案調整時，必須用 `procurement-ui-quality-review` skill 做質化評估。
-- Manager B `Cost Dashboard` 不得回到錯誤 summary-card 視角；必須符合 Excel Dashboard 欄位邏輯。
+- Cost Manager 的 scoped `Dashboard` 不得回到錯誤 summary-card 視角；必須符合 Excel Dashboard 欄位邏輯。
 
 ## 目前專案 Guardrails
 
-- Manager B tabs 固定為 `Approval / Demand Analysis / Progress Tracking / Project Setup`。
-- Manager `Demand Analysis` 第一層固定為 `Cost Dashboard`，第二層才是 `Station Matrix`。
+- Dept DRI tabs 固定為 `Review Queue / Project Review / Review History`。
+- Cost Manager tabs 固定為 `Cost Review / Review History`，不得出現獨立 `Authorized Analysis / Demand Analysis / Progress Tracking / Project Setup`。
+- Budget Approver tabs 固定為 `Review Queue / Project Review / Review History`。
+- Dept DRI、Cost Manager、Budget Approver 的 Project Review evidence 都採 `Dashboard / MFG Station Detail / Non-MFG Department Detail` 三分頁，不顯示 carryover 主區塊或 queue table 主畫面。
 - OM Purchasing tabs 固定為 `Submission Dashboard / PAS Demand No / PAS Quote Result / Export Package`。
 - Contact 是右上角 popup 輔助工具，不是 top-level tab。
 - Temporary Budget input 只能出現在 OPM/User A `New Request`。

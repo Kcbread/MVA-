@@ -210,15 +210,9 @@ async function run() {
 
   await switchRole(page, "manager", "manager");
   await page.evaluate(() => window.setManagerTab?.("review"));
-  await auditVisiblePage(page, "manager-approval");
-  await page.evaluate(() => { window.setManagerTab?.("analysis"); window.setDemandAnalysisTab?.("costDashboard"); });
-  await auditVisiblePage(page, "manager-demand-analysis-cost-dashboard");
-  await page.evaluate(() => { window.setManagerTab?.("analysis"); window.setDemandAnalysisTab?.("quantity"); });
-  await auditVisiblePage(page, "manager-demand-analysis-station-matrix");
-  await page.evaluate(() => window.setManagerTab?.("demand"));
-  await auditVisiblePage(page, "manager-progress-tracking");
-  await page.evaluate(() => window.setManagerTab?.("setup"));
-  await auditVisiblePage(page, "manager-project-setup");
+  await auditVisiblePage(page, "manager-cost-review");
+  await page.evaluate(() => window.setManagerTab?.("history"));
+  await auditVisiblePage(page, "manager-review-history");
 
   for (const role of ["omLeader", "omMember"]) {
     await switchRole(page, role, "om");
@@ -231,8 +225,12 @@ async function run() {
   for (const role of ["dri", "projectDri"]) {
     await switchRole(page, role, "priceReview");
     await auditVisiblePage(page, `${role}-pending-price-review`);
+    await page.evaluate(() => window.setPriceReviewTab?.("approved"));
+    await auditVisiblePage(page, `${role}-approved-analysis`);
     await page.evaluate(() => window.setPriceReviewTab?.("history"));
     await auditVisiblePage(page, `${role}-review-history`);
+    await page.evaluate(() => window.setPriceReviewTab?.("pending"));
+    await auditVisiblePage(page, `${role}-inline-analysis`);
   }
 
   await switchRole(page, "admin", "adminSetup");

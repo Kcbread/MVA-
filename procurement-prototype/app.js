@@ -289,13 +289,13 @@ const MATERIAL_STANDARD_NAME_REQUESTED = "Standard Name Requested";
 
 const roleProfiles = {
   requester: { name: "Requester", dept: "MFG", functionName: "Demand Requester", defaultView: "department" },
-  manager: { name: "Cost Manager", dept: "MFG", functionName: "Cost / P&L Review + Final Authorization", defaultView: "manager" },
+  manager: { name: "Cost Manager", dept: "MFG", functionName: "Cost Review", defaultView: "manager" },
   procurement: { name: "MFG Coordinator", dept: "MFG", functionName: "MFG Demand Coordination", defaultView: "procurement" },
   om: { name: "OM Purchasing", dept: "Operations", functionName: "Quotation & Export Package", defaultView: "om" },
   omLeader: { name: "OM Leader", dept: "Operations", functionName: "Exchange Rate / Package Owner", defaultView: "om" },
   omMember: { name: "OM Purchasing", dept: "Operations", functionName: "PAS / Quote / Export Operator", defaultView: "om" },
-  dri: { name: "Dept DRI", dept: "MFG", functionName: "Department Price Review", defaultView: "priceReview" },
-  projectDri: { name: "Budget Approver", dept: "PMO", functionName: "Budget Approval", defaultView: "priceReview" },
+  dri: { name: "Dept DRI", dept: "MFG", functionName: "Dept Review", defaultView: "priceReview" },
+  projectDri: { name: "Budget Approver", dept: "PMO", functionName: "Budget Exception Approval", defaultView: "priceReview" },
   sourcing: { name: "Sourcing", dept: "Supply Chain", functionName: "RFQ Quotation", defaultView: "sourcing" },
   buyer: { name: "Buyer", dept: "Supply Chain", functionName: "External PR / PO Tracking", defaultView: "buyer" },
   admin: { name: "Admin", dept: "IT", functionName: "System Admin", defaultView: "adminSetup" },
@@ -322,7 +322,7 @@ const roleCapabilityMatrix = [
     role: "Cost Manager",
     owns: "P&L cost visibility and final authorization",
     canApprove: "Authorize / reject after Dept DRI",
-    canOperate: "Review Submission Monitor, Cost Dashboard, Station Matrix, carryover impact",
+    canOperate: "Authorize or reject Dept DRI approved rows with scoped evidence",
     visibility: "Cost, qty, phase/unit/station analysis; no OM quote operation forms",
     nextAction: "Authorize, reject with reason, or inspect Station Matrix",
   },
@@ -360,17 +360,17 @@ const roleCapabilityMatrix = [
   },
   {
     role: "Admin",
-    owns: "Prototype setup and UAT configuration",
+    owns: "Governance setup, account lifecycle, RBAC, sensitive field access, audit",
     canApprove: "No business approval by role",
-    canOperate: "Maintain test user roles, thresholds, approver mapping",
-    visibility: "All prototype setup views for testing",
-    nextAction: "Keep setup aligned with locked decisions",
+    canOperate: "Create / activate / deactivate users, manage role permissions, export audit",
+    visibility: "Global governance views and sensitive setup only",
+    nextAction: "Keep setup aligned with locked decisions and maintain audit traceability",
   },
 ];
 
 const pageTitles = {
   department: "Requester Workspace",
-  manager: "Cost Manager Dashboard",
+  manager: "Cost Manager Workspace",
   procurement: "MFG Demand Coordination",
   om: "OM Purchasing",
   uatFeedbackReview: "UAT Feedback Review",
@@ -379,6 +379,181 @@ const pageTitles = {
   buyer: "Buyer PR / PO",
   adminSetup: "Access & Approval Setup",
 };
+
+const roleWorkspaceConfigs = {
+  requester: {
+    mainViews: ["department"],
+  },
+  manager: {
+    mainViews: ["manager"],
+    defaultManagerTab: "review",
+    managerTabs: ["review", "history"],
+    managerTabLabels: {
+      review: "Cost Review",
+      history: "Review History",
+    },
+  },
+  omLeader: {
+    mainViews: ["om"],
+    defaultOmTab: "submission",
+    omTabs: ["submission", "pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"],
+    omTabLabels: {
+      submission: "Intake Monitor",
+      pasRequest: "PAS Demand No",
+      quoteConfirm: "Quote Result",
+      quoteExpiry: "Quote Monitor",
+      finalExport: "Export Package",
+    },
+    showOmRateUtility: true,
+    showOmSubmissionSummary: true,
+    showOmSubmissionTriage: true,
+    showOmSubmissionExpiryMonitor: false,
+  },
+  omMember: {
+    mainViews: ["om"],
+    defaultOmTab: "pasRequest",
+    omTabs: ["pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"],
+    omTabLabels: {
+      pasRequest: "My Intake",
+      quoteConfirm: "My Quotes",
+      quoteExpiry: "Quote Monitor",
+      finalExport: "My Exports",
+    },
+    showOmRateUtility: false,
+    showOmSubmissionSummary: false,
+    showOmSubmissionTriage: false,
+    showOmSubmissionExpiryMonitor: false,
+  },
+  dri: {
+    mainViews: ["priceReview"],
+    defaultPriceReviewTab: "pending",
+    priceReviewTabs: ["pending", "projectReview", "history"],
+    priceReviewTabLabels: {
+      pending: "Review Queue",
+      projectReview: "Project Review",
+      history: "Review History",
+    },
+  },
+  projectDri: {
+    mainViews: ["priceReview"],
+    defaultPriceReviewTab: "pending",
+    priceReviewTabs: ["pending", "projectReview", "history"],
+    priceReviewTabLabels: {
+      pending: "Review Queue",
+      projectReview: "Project Review",
+      history: "Review History",
+    },
+  },
+  buyer: {
+    mainViews: ["buyer"],
+  },
+  admin: {},
+};
+
+function approvalReviewSurfaceModule() {
+  return window.ProcurementApp?.modules?.approvalReviewSurface || null;
+}
+
+function approvalReviewConfigForRole(role = currentRole) {
+  return approvalReviewSurfaceModule()?.configForRole?.(role) || null;
+}
+
+function approvalReviewStateForRole(role = currentRole) {
+  return approvalReviewSurfaceModule()?.stateForRole?.(role) || null;
+}
+
+function updateApprovalReviewState(role = currentRole, patch = {}) {
+  return approvalReviewSurfaceModule()?.updateState?.(role, patch) || null;
+}
+
+function approvalReviewRoleForMode(mode = "inline") {
+  return mode === "managerAuthorized" ? "manager" : currentRole;
+}
+
+function approvalReviewTabFromManagerTab(tab = currentManagerTab) {
+  return tab === "history" ? "history" : "pending";
+}
+
+function workspaceConfigForRole(role = currentRole) {
+  return approvalReviewSurfaceModule()?.workspaceConfig?.(role) || roleWorkspaceConfigs[role] || {};
+}
+
+function firstVisibleDatasetValue(selector, datasetKey) {
+  const element = [...document.querySelectorAll(selector)].find((node) => !node.hidden);
+  return element?.dataset?.[datasetKey] || "";
+}
+
+function syncMainNavigation(role = currentRole) {
+  const config = workspaceConfigForRole(role);
+  const visibleViews = new Set(config.mainViews || []);
+  document.querySelectorAll(".tabs .tab").forEach((tab) => {
+    const allowedRoles = (tab.dataset.roles || "").split(" ").filter(Boolean);
+    const roleAllowed = allowedRoles.includes(role);
+    const showForRole = role === "admin" || !visibleViews.size ? roleAllowed : (roleAllowed && visibleViews.has(tab.dataset.view));
+    tab.hidden = !showForRole;
+  });
+}
+
+function syncManagerWorkspaceUi(role = currentRole) {
+  const config = workspaceConfigForRole(role);
+  const visibleTabs = new Set(config.managerTabs || ["review", "history"]);
+  document.querySelectorAll("[data-manager-tab]").forEach((tab) => {
+    const label = config.managerTabLabels?.[tab.dataset.managerTab];
+    if (label) tab.textContent = label;
+    tab.hidden = !visibleTabs.has(tab.dataset.managerTab);
+  });
+  if (!visibleTabs.has(currentManagerTab)) currentManagerTab = config.defaultManagerTab || firstVisibleDatasetValue("[data-manager-tab]", "managerTab") || "review";
+  document.querySelectorAll("[data-manager-panel]").forEach((panel) => {
+    const panelName = panel.dataset.managerPanel;
+    const isEmbeddedDemandAnalysis = currentManagerTab === "review" && panelName === "analysis";
+    const isActive = panelName === currentManagerTab || isEmbeddedDemandAnalysis;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
+  });
+}
+
+function syncOmWorkspaceUi(role = currentRole) {
+  const config = workspaceConfigForRole(role);
+  const visibleTabs = new Set(config.omTabs || ["submission", "pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"]);
+  document.querySelectorAll("[data-om-tab]").forEach((tab) => {
+    const label = config.omTabLabels?.[tab.dataset.omTab];
+    if (label) tab.textContent = label;
+    tab.hidden = !visibleTabs.has(tab.dataset.omTab);
+  });
+  if (!visibleTabs.has(currentOmTab)) currentOmTab = config.defaultOmTab || firstVisibleDatasetValue("[data-om-tab]", "omTab") || "submission";
+  document.querySelectorAll("[data-om-panel]").forEach((panel) => {
+    const isActive = panel.dataset.omPanel === currentOmTab;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
+  });
+  const submissionPanel = document.querySelector('[data-om-panel="submission"]');
+  if (submissionPanel) {
+    const rateUtility = submissionPanel.querySelector(".om-rate-utility");
+    const summary = submissionPanel.querySelector("#omSubmissionSummary");
+    const triage = submissionPanel.querySelector("#omSubmissionTriage");
+    const expiryMonitor = submissionPanel.querySelector(".om-expiry-monitor-panel");
+    if (rateUtility) rateUtility.hidden = config.showOmRateUtility === false;
+    if (summary) summary.hidden = config.showOmSubmissionSummary === false;
+    if (triage) triage.hidden = config.showOmSubmissionTriage === false;
+    if (expiryMonitor) expiryMonitor.hidden = config.showOmSubmissionExpiryMonitor === false;
+  }
+}
+
+function syncPriceReviewWorkspaceUi(role = currentRole) {
+  const config = workspaceConfigForRole(role);
+  const visibleTabs = new Set(config.priceReviewTabs || ["pending", "history", "costDashboard", "stationMatrix"]);
+  document.querySelectorAll("[data-price-review-tab]").forEach((tab) => {
+    const label = config.priceReviewTabLabels?.[tab.dataset.priceReviewTab];
+    if (label) tab.textContent = label;
+    tab.hidden = !visibleTabs.has(tab.dataset.priceReviewTab);
+  });
+  if (!visibleTabs.has(currentPriceReviewTab)) currentPriceReviewTab = config.defaultPriceReviewTab || firstVisibleDatasetValue("[data-price-review-tab]", "priceReviewTab") || "pending";
+  document.querySelectorAll("[data-price-review-panel]").forEach((panel) => {
+    const isActive = panel.dataset.priceReviewPanel === currentPriceReviewTab;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
+  });
+}
 
 const testLoginRoleAccounts = {
   requester: "V1524505",
@@ -390,6 +565,33 @@ const testLoginRoleAccounts = {
   buyer: "buyer-handoff",
   admin: "admin",
 };
+
+const DEFAULT_OM_ASSIGNMENT_RULES = [
+  {
+    id: "om-rule-p27-f27-linh",
+    name: "P27/F27 -> Linh",
+    active: true,
+    priority: 10,
+    projectCodes: ["P27", "F27"],
+    projectFamilies: [],
+    departmentScopes: [],
+    assigneeUserId: "om-member-linh",
+    isFallback: false,
+    note: "Default OM assignment for P27 and F27.",
+  },
+  {
+    id: "om-rule-fallback-giang",
+    name: "Fallback -> Giang",
+    active: true,
+    priority: 999,
+    projectCodes: [],
+    projectFamilies: [],
+    departmentScopes: [],
+    assigneeUserId: "om-member-giang",
+    isFallback: true,
+    note: "Fallback OM assignment when no higher-priority rule matches.",
+  },
+];
 
 const HANDOFF_READY = "Ready for Handoff";
 const HANDOFF_EXPORTED = "Exported";
@@ -419,28 +621,87 @@ const COST_MANAGER_AUTH_REJECTED = "Cost Manager Rejected";
 const OM_PREPARING_EXPORT = "Preparing Export Package";
 const OM_READY_FOR_CFA = "Ready for CFA";
 const OM_READY_FOR_ECS = "Ready for ECS";
+const LEGACY_DRI_STOCK_QUEUE_LABEL = "Stock / Carryover Review";
+
+function adminRoleGuards() {
+  return globalThis.ProcurementApp?.roleGuards || {};
+}
+
+function adminRoleDefinitions() {
+  return adminRoleGuards().roleDefinitions?.() || [
+    { roleKey: "requester", label: "Requester", appRole: "requester", roleLevel: "business", isSystem: true },
+    { roleKey: "costOwner", label: "Cost Owner", appRole: "manager", roleLevel: "business", isSystem: true },
+    { roleKey: "omLeader", label: "OM Leader", appRole: "omLeader", roleLevel: "operations", isSystem: true },
+    { roleKey: "omMember", label: "OM Purchasing", appRole: "omMember", roleLevel: "operations", isSystem: true },
+    { roleKey: "deptDri", label: "Dept DRI", appRole: "dri", roleLevel: "approval", isSystem: true },
+    { roleKey: "budgetApprover", label: "Budget Approver", appRole: "projectDri", roleLevel: "approval", isSystem: true },
+    { roleKey: "admin", label: "System Admin", appRole: "admin", roleLevel: "governance", isSystem: true },
+  ];
+}
+
+function adminPermissionModules() {
+  return adminRoleGuards().permissionModules?.() || [
+    { moduleKey: "admin.users", label: "User Lifecycle" },
+    { moduleKey: "admin.roles", label: "Role & Permission" },
+    { moduleKey: "admin.fields", label: "Sensitive Field Access" },
+    { moduleKey: "admin.audit", label: "Audit Log" },
+  ];
+}
+
+function defaultAdminRolePermissions() {
+  return adminRoleGuards().defaultRolePermissions?.() || {};
+}
+
+function defaultAdminFieldVisibilityRules() {
+  return adminRoleGuards().defaultFieldVisibilityRules?.() || [];
+}
 
 let adminApprovalSetup = {
   thresholds: { historyPriceDeltaUsd: 0.4 },
   approvalChain: ["Dept DRI", "Budget Approver"],
   users: [
-    { id: "user-a", name: "Requester", email: "steven@fih-foxconn.com", department: "MFG", role: "requester" },
-    { id: "cost-manager", name: "Cost Manager", email: "cost-manager@fih-foxconn.com", department: "MFG", role: "manager" },
-    { id: "om-leader-mai", name: "Mai", email: "maint5@fih-foxconn.com", department: "Operations", role: "omLeader" },
-    { id: "om-member-giang", name: "Giang", email: "giangth1@fih-foxconn.com", department: "Operations", role: "omMember" },
-    { id: "om-member-linh", name: "Linh", email: "linhnp@fih-foxconn.com", department: "Operations", role: "omMember" },
-    { id: "dri-default", name: "Dept DRI", email: "dri@fih-foxconn.com", department: "MFG", role: "dri" },
-    { id: "project-dri-default", name: "Budget Approver", email: "budget-approver@fih-foxconn.com", department: "PMO", role: "projectDri" },
-    { id: "admin-default", name: "Admin", email: "admin@fih-foxconn.com", department: "IT", role: "admin" },
+    { id: "user-a", employeeId: "V1524505", name: "Requester", email: "steven@fih-foxconn.com", department: "MFG", role: "requester", status: "active", scopeType: "department", scopeValue: "MFG", createdBy: "system-seed", createdAt: "2026-06-01T00:00:00.000Z", lastLoginAt: "" },
+    { id: "cost-manager", employeeId: "cost-owner", name: "Cost Manager", email: "cost-manager@fih-foxconn.com", department: "MFG", role: "manager", status: "active", scopeType: "global", scopeValue: "All cost scope", createdBy: "system-seed", createdAt: "2026-06-01T00:00:00.000Z", lastLoginAt: "" },
+    { id: "om-leader-mai", employeeId: "maint5", name: "Mai", email: "maint5@fih-foxconn.com", department: "Operations", role: "omLeader", status: "active", scopeType: "global", scopeValue: "All OM", createdBy: "system-seed", createdAt: "2026-06-01T00:00:00.000Z", lastLoginAt: "" },
+    { id: "om-member-giang", employeeId: "giangth1", name: "Giang", email: "giangth1@fih-foxconn.com", department: "Operations", role: "omMember", status: "active", scopeType: "project-mapping", scopeValue: "Assigned OM rows", createdBy: "system-seed", createdAt: "2026-06-01T00:00:00.000Z", lastLoginAt: "" },
+    { id: "om-member-linh", employeeId: "linhnp", name: "Linh", email: "linhnp@fih-foxconn.com", department: "Operations", role: "omMember", status: "active", scopeType: "project-mapping", scopeValue: "Assigned OM rows", createdBy: "system-seed", createdAt: "2026-06-01T00:00:00.000Z", lastLoginAt: "" },
+    { id: "dri-default", employeeId: "dept-dri", name: "Dept DRI", email: "dri@fih-foxconn.com", department: "MFG", role: "dri", status: "active", scopeType: "department", scopeValue: "MFG", createdBy: "system-seed", createdAt: "2026-06-01T00:00:00.000Z", lastLoginAt: "" },
+    { id: "project-dri-default", employeeId: "budget-approver", name: "Budget Approver", email: "budget-approver@fih-foxconn.com", department: "PMO", role: "projectDri", status: "active", scopeType: "project-mapping", scopeValue: "Temporary Budget", createdBy: "system-seed", createdAt: "2026-06-01T00:00:00.000Z", lastLoginAt: "" },
+    { id: "admin-default", employeeId: "admin", name: "Admin", email: "admin@fih-foxconn.com", department: "IT", role: "admin", status: "active", scopeType: "global", scopeValue: "All", createdBy: "system-seed", createdAt: "2026-06-01T00:00:00.000Z", lastLoginAt: "" },
+  ],
+  roles: adminRoleDefinitions().map((role) => ({
+    roleKey: role.roleKey,
+    roleName: role.label,
+    appRole: role.appRole,
+    roleLevel: role.roleLevel,
+    isSystem: Boolean(role.isSystem),
+  })),
+  permissionModules: adminPermissionModules(),
+  rolePermissions: defaultAdminRolePermissions(),
+  fieldVisibilityRules: defaultAdminFieldVisibilityRules().reduce((acc, rule) => {
+    if (!acc[rule.fieldKey]) acc[rule.fieldKey] = { fieldKey: rule.fieldKey, label: rule.label, reserved: Boolean(rule.reserved), visibilityByRole: {} };
+    acc[rule.fieldKey].visibilityByRole[rule.roleKey] = "visible";
+    return acc;
+  }, {}),
+  sapPoRawImport: {
+    status: null,
+    preview: null,
+    receipt: null,
+  },
+  importJobs: [],
+  auditLog: [
+    { id: "audit-admin-seed", createdAt: "2026-06-08T08:00:00.000Z", eventType: "admin.role_updated", actorUserId: "admin-default", actorRole: "admin", entityType: "role", entityId: "admin", ipAddress: "127.0.0.1", metadata: { source: "prototype-seed" } },
   ],
   approverMap: [
     { scope: "MFG", dri: "Dept DRI", projectDri: "Budget Approver" },
     { scope: "Computer / IT", dri: "Dept DRI", projectDri: "Budget Approver" },
     { scope: "Temporary Budget", dri: "Dept DRI", projectDri: "Budget Approver" },
   ],
+  omAssignmentRules: DEFAULT_OM_ASSIGNMENT_RULES.map((rule) => ({ ...rule })),
   updatedBy: "System",
   updatedAt: "",
 };
+let adminAuditFilters = { actorUserId: "", actorRole: "", eventType: "", module: "", from: "", to: "" };
 const OM_EXPORTED_CFA = "Exported to CFA";
 const OM_EXPORTED_ECS = "Exported to ECS";
 const USER_CANCELLED_REQUEST = "Cancelled by Requester";
@@ -603,6 +864,7 @@ let omAssignees = [
   { id: "om-member-linh", employeeId: "linhnp", name: "Linh", email: "linhnp@fih-foxconn.com", department: "Operations", role: "omMember" },
 ];
 let omAssignmentMap = new Map();
+let selectedOmOperatorId = "om-member-giang";
 let uatFeedbackRows = [];
 let localUatFeedbackRows = [];
 let activeUatFeedbackContext = null;
@@ -635,6 +897,7 @@ const expandedDemandEditorCarryoverRows = new Set();
 let currentHandoffTab = "queue";
 let currentOmTab = "submission";
 let currentPriceReviewTab = "pending";
+let currentPriceReviewQueue = "submission";
 let currentDeptDemandMode = "mfg";
 let currentDeptDemandPhase = nextBuyStageForProject(currentProject) || currentStageForProject(currentProject);
 let lastRequestProject = currentProject;
@@ -650,12 +913,16 @@ let requestWorksheetLine = "Line 1";
 let requestWorksheetAddQuery = "";
 let requestWorksheetSelectedSource = "";
 let requestWorksheetAddPhase = currentDeptDemandPhase;
+let requestWorksheetVisiblePhase = STAGES[0];
+let requestWorksheetActiveCell = { requestId: "", phase: "", column: "" };
+const requestNeedDateByScope = new Map();
 let requestItemPickerQuery = "";
 let requestItemPickerSourceMode = "catalog";
 let requestItemPickerLevel1 = "";
 let requestItemPickerLevel2 = "";
 let requestItemPickerLevel3 = "";
 let currentDeptDemandDepartment = "";
+let priceReviewAnalysisRowsOverride = null;
 let requestSequence = 1;
 let newItemSequence = 1;
 let masterSequence = 1;
@@ -665,6 +932,14 @@ let omHistorySequence = 1;
 let dispatchHistorySequence = 1;
 let externalProgressSequence = 1;
 let selectedManagerRequestId = null;
+let selectedManagerAuthorizedRequestId = null;
+let selectedPriceReviewRequestId = null;
+let selectedManagerProjectContext = "";
+let selectedPriceReviewProjectContext = "";
+let shouldScrollPriceReviewInlineAnalysis = false;
+let activeItemQuantityReview = null;
+let approvalQuantityReviewMode = DEMAND_TYPE_MFG;
+let approvalQuantityReviewTab = "dashboard";
 let selectedNewItemId = null;
 let activeDemandRequestId = "";
 let searchResults = [];
@@ -675,6 +950,7 @@ let historySelections = new Set();
 let currentReuseMode = "catalog";
 let newItemSelections = new Set();
 let omSelections = new Set();
+let approvalViewportState = { manager: null, priceReview: null };
 let requests = [];
 let newItemSuggestions = [];
 
@@ -779,6 +1055,41 @@ function requesterPersonas() {
 
 function currentRequesterPersona() {
   return requesterPersonas().find((item) => item.id === currentRequesterPersonaId) || null;
+}
+
+function currentRequesterDepartment() {
+  const persona = currentRequesterPersona();
+  const session = currentSessionUser?.role === "requester" ? currentSessionUser : sessionUserFromRole("requester");
+  return persona?.department || session?.department || roleProfiles.requester?.dept || "";
+}
+
+function rowDemandDepartment(row = {}, fallback = "") {
+  return row.department || row.requesterDept || row.demandDepartment || fallback || "";
+}
+
+function normalizeRequestDemandDepartment(row = {}, fallback = currentRequesterDepartment()) {
+  const demandDepartment = rowDemandDepartment(row, fallback);
+  const stationBreakdown = Array.isArray(row.stationBreakdown)
+    ? row.stationBreakdown.map((entry) => {
+      const demandType = demandTypeFor(entry);
+      const entryDemandDepartment = rowDemandDepartment(entry, demandDepartment);
+      return {
+        ...entry,
+        demandType,
+        station: demandType === DEMAND_TYPE_MFG ? (entry.station || STATION_MASTER[0]) : "",
+        demandUnit: demandType === DEMAND_TYPE_MFG ? "" : demandUnitFor(entry),
+        requesterDept: entry.requesterDept || entryDemandDepartment,
+        demandDepartment: entry.demandDepartment || entryDemandDepartment,
+      };
+    })
+    : row.stationBreakdown;
+  return {
+    ...row,
+    department: demandDepartment,
+    requesterDept: row.requesterDept || demandDepartment,
+    demandDepartment: row.demandDepartment || demandDepartment,
+    stationBreakdown,
+  };
 }
 
 function findRequesterPersonaByIdentifier(identifier) {
@@ -1456,6 +1767,46 @@ function isOmLeaderRole(role = currentRole) {
     ?? ["omLeader", "admin"].includes(role);
 }
 
+function normalizeAdminRoleKey(role = "") {
+  return adminRoleGuards().normalizeRole?.(role) || ({
+    manager: "costOwner",
+    dri: "deptDri",
+    projectDri: "budgetApprover",
+  }[role] || role || "");
+}
+
+function appRoleForAdminRoleKey(roleKey = "") {
+  return adminApprovalSetup.roles.find((role) => role.roleKey === roleKey)?.appRole || roleKey;
+}
+
+function adminRoleLabelByAppRole(role = "") {
+  const roleKey = normalizeAdminRoleKey(role);
+  return adminApprovalSetup.roles.find((item) => item.roleKey === roleKey)?.roleName || roleProfiles[role]?.name || roleKey || "-";
+}
+
+function adminPermissionFor(role = "", moduleKey = "") {
+  const roleKey = normalizeAdminRoleKey(role);
+  return adminApprovalSetup.rolePermissions?.[roleKey]?.[moduleKey] || { canCreate: false, canUpdate: false, canDelete: false, canView: false, canExport: false };
+}
+
+function pushAdminAuditEvent(eventType, entityType, entityId, metadata = {}) {
+  const actor = sessionUserFromRole("admin");
+  adminApprovalSetup.auditLog = [
+    {
+      id: `${eventType}-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      eventType,
+      actorUserId: actor.id || "admin-default",
+      actorRole: actor.role || "admin",
+      entityType,
+      entityId,
+      ipAddress: apiModeEnabled() ? window.location.hostname || "127.0.0.1" : "prototype-local",
+      metadata,
+    },
+    ...(adminApprovalSetup.auditLog || []),
+  ];
+}
+
 function apiModeEnabled() {
   return window.location.protocol !== "file:";
 }
@@ -1526,7 +1877,7 @@ function sessionUserFromRole(role = currentRole) {
   if (currentSessionUser) return currentSessionUser;
   const fallbackByRole = {
     omLeader: omAssignees.find((user) => user.role === "omLeader"),
-    omMember: omAssignees.find((user) => user.role === "omMember"),
+    omMember: selectedOmOperator() || omAssignees.find((user) => user.role === "omMember"),
     om: omAssignees.find((user) => user.role === "omLeader"),
   };
   const fallback = fallbackByRole[role] || { id: role, role, ...(roleProfiles[role] || roleProfiles.requester) };
@@ -1577,15 +1928,119 @@ function applyAssignmentsToRequests(assignments = []) {
   });
 }
 
-async function hydrateOmAssignmentState() {
-  if (!apiModeEnabled() || !isOmRole()) return;
+function splitRuleValues(value = "") {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeOmAssignmentRule(rule = {}) {
+  return {
+    id: rule.id || `om-rule-${Date.now()}`,
+    name: String(rule.name || "OM Assignment Rule").trim(),
+    active: Boolean(rule.active ?? rule.is_active ?? true),
+    priority: Number(rule.priority ?? 999) || 999,
+    projectCodes: splitRuleValues(rule.projectCodes ?? rule.project_codes),
+    projectFamilies: splitRuleValues(rule.projectFamilies ?? rule.project_families),
+    departmentScopes: splitRuleValues(rule.departmentScopes ?? rule.department_scopes),
+    assigneeUserId: String(rule.assigneeUserId || rule.assignee_user_id || "").trim(),
+    isFallback: Boolean(rule.isFallback ?? rule.is_fallback),
+    note: String(rule.note || "").trim(),
+  };
+}
+
+function activeOmMembers() {
+  const localUsers = (adminApprovalSetup.users || [])
+    .map(normalizeAdminUserRow)
+    .filter((user) => user.role === "omMember" && user.status === "active");
+  const merged = [...localUsers, ...omAssignees.filter((user) => user.role === "omMember")];
+  return Array.from(new Map(merged.map((user) => [user.id, user])).values())
+    .sort((left, right) => String(left.name || "").localeCompare(String(right.name || "")));
+}
+
+function omOperatorSelectOptions(selectedId = "") {
+  const options = activeOmMembers();
+  const preferredId = selectedId || options[0]?.id || "";
+  return options.map((user) => `<option value="${htmlAttr(user.id)}" ${user.id === preferredId ? "selected" : ""}>${htmlText(`${user.name} · ${user.employeeId || user.email || user.id}`)}</option>`).join("");
+}
+
+function selectedOmOperator() {
+  const options = activeOmMembers();
+  const selector = document.getElementById("omOperatorSelect");
+  const selectedId = selector?.value || selectedOmOperatorId;
+  return options.find((user) => user.id === selectedId) || options[0] || null;
+}
+
+function syncOmOperatorField(role = document.getElementById("roleSelect")?.value || currentRole) {
+  const field = document.getElementById("omOperatorField");
+  const selector = document.getElementById("omOperatorSelect");
+  if (!field || !selector) return;
+  const options = activeOmMembers();
+  const nextSelected = options.find((user) => user.id === selectedOmOperatorId)?.id || options[0]?.id || "";
+  if (selector.innerHTML !== omOperatorSelectOptions(nextSelected)) selector.innerHTML = omOperatorSelectOptions(nextSelected);
+  if (nextSelected) {
+    selector.value = nextSelected;
+    selectedOmOperatorId = nextSelected;
+  }
+  field.hidden = role !== "omMember";
+  field.style.display = role === "omMember" ? "" : "none";
+}
+
+function omAssignmentRuleAssignee(rule = {}) {
+  return activeOmMembers().find((user) => user.id === rule.assigneeUserId)
+    || omAssignees.find((user) => user.id === rule.assigneeUserId)
+    || null;
+}
+
+function validOmAssignmentRule(rule = {}) {
+  const assignee = omAssignmentRuleAssignee(rule);
+  return Boolean(assignee && assignee.role === "omMember");
+}
+
+function omAssignmentRuleMatch(rule = {}, row = {}) {
+  if (!rule.active || rule.isFallback || !validOmAssignmentRule(rule)) return false;
+  const projectCode = String(row.project || "").trim().toUpperCase();
+  const projectFamily = String(row.projectType || projectTypeFor(row.project || "") || "").trim();
+  const departmentScope = canonicalDemandUnit(row.department || row.demandUnit || row.process || "");
+  if (rule.projectCodes.length && !rule.projectCodes.some((item) => item.toUpperCase() === projectCode)) return false;
+  if (rule.projectFamilies.length && !rule.projectFamilies.some((item) => normalize(item) === normalize(projectFamily))) return false;
+  if (rule.departmentScopes.length && !rule.departmentScopes.some((item) => normalize(canonicalDemandUnit(item)) === normalize(departmentScope))) return false;
+  return true;
+}
+
+function sortedOmAssignmentRules() {
+  return (adminApprovalSetup.omAssignmentRules || [])
+    .map(normalizeOmAssignmentRule)
+    .sort((left, right) => left.priority - right.priority || Number(left.isFallback) - Number(right.isFallback) || left.name.localeCompare(right.name));
+}
+
+function defaultOmAssigneeForRuleRow(row = {}) {
+  const rules = sortedOmAssignmentRules().filter((rule) => rule.active && validOmAssignmentRule(rule));
+  const matched = rules.find((rule) => omAssignmentRuleMatch(rule, row));
+  if (matched) return omAssignmentRuleAssignee(matched);
+  const fallback = rules.find((rule) => rule.isFallback);
+  return fallback ? omAssignmentRuleAssignee(fallback) : null;
+}
+
+async function hydrateOmAssignmentState(role = currentRole) {
+  if (!apiModeEnabled() || !isOmRole(role)) return;
   try {
-    const [assigneePayload, assignmentPayload] = await Promise.all([
+    const [assigneePayload, assignmentPayload, rulePayload] = await Promise.all([
       apiRequest("/api/om/assignees"),
       apiRequest("/api/om/assignments"),
+      apiRequest("/api/om/assignment-rules").catch(() => ({ rules: adminApprovalSetup.omAssignmentRules || [] })),
     ]);
     if (Array.isArray(assigneePayload.assignees)) omAssignees = assigneePayload.assignees;
+    if (Array.isArray(rulePayload.rules)) {
+      adminApprovalSetup = {
+        ...adminApprovalSetup,
+        omAssignmentRules: rulePayload.rules.map(normalizeOmAssignmentRule),
+      };
+    }
     applyAssignmentsToRequests(assignmentPayload.assignments || []);
+    syncOmOperatorField();
   } catch (error) {
     showToast(`OM assignment API unavailable: ${error.message}`, "error");
   }
@@ -1845,8 +2300,61 @@ function renderOmFeedbackUtility() {
   const scope = document.getElementById("omFeedbackScope");
   if (!scope) return;
   const openCount = uatFeedbackRows.filter((row) => row.status !== "resolved" && row.status !== "dismissed").length;
-  const ownerText = isUatFeedbackReviewer() ? "Review all UAT feedback" : "Submit feedback and track your own status";
+  const ownerText = currentRole === "omMember"
+    ? "Assigned execution workspace; submit page feedback when flow blocks your work"
+    : isUatFeedbackReviewer()
+      ? "Review all UAT feedback"
+      : "Submit feedback and track your own status";
   scope.textContent = `${omTabLabel()} · ${ownerText}${openCount ? ` · ${openCount} open` : ""}`;
+}
+
+function renderOmWorkspaceBanner() {
+  const host = document.getElementById("omWorkspaceBanner");
+  if (!host) return;
+  const pasRows = omPasRequestRows().length;
+  const quoteRows = omQuoteConfirmRows().length;
+  const exportRows = omFinalExportRows().length;
+  const expiringRows = omQuoteExpiryRows().filter((row) => omQuoteExpiryStatusLabel(row) === "Expiring Soon" || omQuoteExpiryStatusLabel(row) === "Expired / Requote Required").length;
+  if (currentRole === "omMember") {
+    host.innerHTML = `
+      <section class="work-panel">
+        <div class="panel-title section-head-tight">
+          <div>
+            <h3>Assigned OM Workbench</h3>
+            <p class="panel-subcopy">Work from left to right: claim intake, complete quote package, watch expiring quotes, then finish export. Monitoring and assignment governance stay with OM Leader.</p>
+          </div>
+        </div>
+        <div class="summary-grid">
+          ${summaryCardsHtml([
+            { label: "My Intake", value: pasRows, helper: "Need PAS Demand No", variant: pasRows ? "hero" : "" },
+            ["My Quotes", quoteRows, "Need quote result / requester confirmation"],
+            ["Quote Risk", expiringRows, "Expiring soon or expired"],
+            ["My Exports", exportRows, "Requester confirmed rows"],
+          ])}
+        </div>
+      </section>`;
+    return;
+  }
+  const submissionGroups = omSubmissionRows();
+  const waitingOm = submissionGroups.filter((group) => omPendingOwnerForGroup(group) === "OM Purchasing").length;
+  const waitingPas = submissionGroups.filter((group) => omPendingOwnerForGroup(group) === "PAS / Bidding").length;
+  host.innerHTML = `
+    <section class="work-panel">
+      <div class="panel-title section-head-tight">
+        <div>
+          <h3>OM Intake And Monitoring</h3>
+          <p class="panel-subcopy">Start from intake monitoring and assignment visibility. Leader view keeps exchange rate, queue triage, and downstream export readiness together because this role owns orchestration.</p>
+        </div>
+      </div>
+      <div class="summary-grid">
+        ${summaryCardsHtml([
+          { label: "Waiting OM", value: waitingOm, helper: "Need assignment or OM action", variant: waitingOm ? "hero" : "" },
+          ["Waiting PAS", waitingPas, "Bidding result pending"],
+          ["Quote Work", quoteRows, "Rows in quote result stage"],
+          ["Export Ready", exportRows, "Requester confirmed rows"],
+        ])}
+      </div>
+    </section>`;
 }
 
 function renderUatFeedbackSummary(rows = feedbackReviewRows()) {
@@ -1983,22 +2491,36 @@ function testLoginAccountForRole(role) {
 }
 
 function syncLoginAccountForRole(role) {
-  const account = testLoginAccountForRole(role);
+  const operator = role === "omMember" ? selectedOmOperator() : null;
+  const account = role === "omMember"
+    ? (operator?.employeeId || operator?.email || operator?.id || "")
+    : testLoginAccountForRole(role);
   const accountInput = document.getElementById("loginAccountInput") || document.getElementById("loginEmailInput") || document.querySelector('#loginForm input[type="text"]') || document.querySelector('#loginForm input[type="email"]');
   const passwordInput = document.querySelector('#loginForm input[type="password"]');
+  syncOmOperatorField(role);
   if (accountInput && account) accountInput.value = account;
   if (passwordInput && !passwordInput.value) passwordInput.value = "123";
   return account || accountInput?.value || "";
 }
 
 async function loginWithApi(identifier, password, role = "") {
+  const operator = role === "omMember" ? selectedOmOperator() : null;
   const payload = await apiRequest("/api/login", {
     method: "POST",
-    body: { identifier, account: identifier, email: identifier, role, loginRole: role, password },
+    body: {
+      identifier,
+      account: identifier,
+      email: identifier,
+      role,
+      loginRole: role,
+      operatorUserId: operator?.id || "",
+      operatorEmployeeId: operator?.employeeId || "",
+      password,
+    },
   });
   setSessionUser(payload.user);
   apiSessionReady = true;
-  await hydrateOmAssignmentState();
+  await hydrateOmAssignmentState(payload.user?.role || role);
   await refreshUatFeedback({ review: ["omLeader", "admin"].includes(payload.user?.role), silent: true });
   return payload.user;
 }
@@ -2025,10 +2547,12 @@ async function restoreApiSession() {
     const payload = await apiRequest("/api/me");
     setSessionUser(payload.user);
     apiSessionReady = true;
-    await hydrateOmAssignmentState();
+    await hydrateOmAssignmentState(payload.user?.role);
     await refreshUatFeedback({ review: ["omLeader", "admin"].includes(payload.user?.role), silent: true });
     setScreen("workspace");
     if (roleSelect && payload.user?.role) roleSelect.value = payload.user.role;
+    if (payload.user?.role === "omMember" && payload.user?.id) selectedOmOperatorId = payload.user.id;
+    syncOmOperatorField(payload.user?.role || roleSelect?.value || "requester");
     applyRole(payload.user.role);
   } catch {
     setScreen("login");
@@ -2405,21 +2929,16 @@ function renderRequesterInputContext() {
   root.innerHTML = `
     <div class="request-input-context-copy">
       <strong>${htmlText(currentProject)} / ${htmlText(requestWorksheetLine)}</strong>
-      <span>${isMfg ? "MFG station worksheet" : "Non-MFG department worksheet"}</span>
+      <span>${isMfg ? "MFG station worksheet" : "Non-MFG department worksheet"} · ${columns.length} input columns</span>
     </div>
     <div class="request-input-context-controls">
-      <label>
-        <span>Project</span>
-        <input type="text" value="${htmlAttr(currentProject)}" readonly />
-      </label>
       <label>
         <span>Line</span>
         <select id="requestWorksheetLine">
           ${["Line 1", "Line 2", "Line 3", "Line 4"].map((line) => `<option value="${line}" ${line === requestWorksheetLine ? "selected" : ""}>${line}</option>`).join("")}
         </select>
       </label>
-      <span class="status-pill info">${isMfg ? "12 station columns" : "11 department columns"}</span>
-      <span class="record-count">${columns.join(" / ")}</span>
+      <span class="status-pill info">${isMfg ? "Station Qty Input" : "Department Qty Input"}</span>
     </div>`;
 }
 
@@ -2610,6 +3129,7 @@ function demandTypeFor(row = {}) {
   const raw = String(row.demandType || row.type || "").trim().toLowerCase();
   if (raw === "non-mfg" || raw === "non mfg" || raw === "nonmfg" || raw === "unit") return DEMAND_TYPE_NON_MFG;
   if (raw === "mfg" || raw === "station") return DEMAND_TYPE_MFG;
+  if (row.demandUnit && normalizeQuantityDashboardUnit(row.demandUnit) !== "MFG") return DEMAND_TYPE_NON_MFG;
   if (row.station && STATION_MASTER.includes(row.station)) return DEMAND_TYPE_MFG;
   if (Object.prototype.hasOwnProperty.call(row, "station") && !row.station) return DEMAND_TYPE_NON_MFG;
   return DEMAND_TYPE_MFG;
@@ -2691,6 +3211,7 @@ function stationBreakdownStatusHtml(row) {
 function createStationBreakdownEntry(source = {}, overrides = {}) {
   const phase = overrides.phase || source.phase || source.defaultPhase || currentStageForProject(source.project || currentProject);
   const demandType = demandTypeFor({ ...source, ...overrides });
+  const demandDepartment = rowDemandDepartment({ ...source, ...overrides }, currentRequesterDepartment());
   return {
     id: overrides.id || `SBD-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
     demandType,
@@ -2699,6 +3220,8 @@ function createStationBreakdownEntry(source = {}, overrides = {}) {
     station: demandType === DEMAND_TYPE_MFG ? (overrides.station || stationOptionFor(source.station || source.process || "")) : "",
     qty: clampQty(overrides.qty ?? 0),
     requestLine: overrides.requestLine || source.requestLine || "",
+    requesterDept: overrides.requesterDept || source.requesterDept || demandDepartment,
+    demandDepartment: overrides.demandDepartment || source.demandDepartment || demandDepartment,
     carryoverFrom: overrides.carryoverFrom || source.carryoverFrom || "",
     carryoverQty: clampQty(overrides.carryoverQty ?? source.carryoverQty),
     carryoverReason: overrides.carryoverReason || source.carryoverReason || "",
@@ -3824,6 +4347,33 @@ function managerStageAggregates(projectFilter = "") {
 function renderManagerStageTracking() {
   syncManagerProgressFilters();
   const rows = managerProgressRows();
+  const trackingBanner = document.getElementById("managerTrackingBanner");
+  if (trackingBanner) {
+    const waitingDeptDri = rows.filter((row) => managerProgressPendingOwnerForGroup(row) === "Dept DRI").length;
+    const waitingBudget = rows.filter((row) => managerProgressPendingOwnerForGroup(row) === "Budget Approver").length;
+    const waitingOm = rows.filter((row) => managerProgressPendingOwnerForGroup(row) === "OM Purchasing").length;
+    const quoteRisk = rows.filter((row) => {
+      const status = managerProgressQuoteStatusForGroup(row);
+      return ["Expired / Requote Required", "Expiring Soon"].includes(status);
+    }).length;
+    trackingBanner.innerHTML = `
+      <section class="work-panel">
+        <div class="panel-title section-head-tight">
+          <div>
+            <h3>Cross-Role Blocker Monitor</h3>
+            <p class="panel-subcopy">Use this view only when final authorization is blocked by another role. It is a monitor for ownership, aging, and next action, not a second workbench.</p>
+          </div>
+        </div>
+        <div class="summary-grid">
+          ${summaryCardsHtml([
+            { label: "Waiting Dept DRI", value: waitingDeptDri, helper: "Submission gate not cleared", variant: waitingDeptDri ? "hero" : "" },
+            ["Waiting Budget", waitingBudget, "Escalated exception pending release"],
+            ["Waiting OM", waitingOm, "PAS / quote / export still blocked"],
+            ["Quote Risk", quoteRisk, "Expired or expiring soon"],
+          ])}
+        </div>
+      </section>`;
+  }
   const summaryHost = document.getElementById("managerStageSummary")?.parentElement;
   if (summaryHost && !document.getElementById("managerProgressBudgetToolbar")) {
     const toolbar = document.createElement("div");
@@ -3884,8 +4434,6 @@ function renderManagerStageTracking() {
       <th>Year Project</th>
       <th>Project</th>
       <th>Item</th>
-      <th>Department</th>
-      <th>Quantity</th>
       <th>Submitted / Received Date</th>
       <th>Pending Owner</th>
       <th>Current Stage</th>
@@ -3906,9 +4454,7 @@ function renderManagerStageTracking() {
       <tr class="${row.lateRows || row.pendingRows || row.notArrivedRows ? "pivot-risk-row" : ""}">
         <td>${row.yearProject}</td>
         <td>${row.project}</td>
-        <td><div class="item-primary">${row.item}</div><div class="reason-text">${row.rows.length} raw row${row.rows.length === 1 ? "" : "s"}</div></td>
-        <td>${row.department}</td>
-        <td><strong>${row.quantity}</strong></td>
+        <td><div class="item-primary">${row.item}</div><div class="reason-text">${row.department} · ${row.rows.length} raw row${row.rows.length === 1 ? "" : "s"}</div></td>
         <td><strong>${receivedAt ? compactDateTime(receivedAt) : "-"}</strong><div class="reason-text">${receivedAt ? "First submitted / received" : "No timestamp"}</div></td>
         <td><span class="status-pill ${statusClass(pendingOwner)}">${pendingOwner}</span><div class="reason-text">Current blocker</div></td>
         <td><span class="status-pill ${statusClass(currentStage)}">${currentStage}</span><div class="reason-text">${row.department || "-"}</div></td>
@@ -3919,17 +4465,27 @@ function renderManagerStageTracking() {
         <td><button class="mini return" data-manager-progress-detail="${row.keyId}">Detail</button></td>
       </tr>`;
     }).join("")
-    : `<tr><td colspan="13" class="empty-cell">No progress rows match the selected filters.</td></tr>`;
+    : `<tr><td colspan="11" class="empty-cell">No blocker rows match the selected filters.</td></tr>`;
 }
 
 function managerQuantitySourceRows() {
-  return requests.filter((row) => {
+  const sourceRows = Array.isArray(priceReviewAnalysisRowsOverride) ? priceReviewAnalysisRowsOverride : requests;
+  return sourceRows.filter((row) => {
     const status = row.status || "";
     return status
       && !["Draft", "Rejected", USER_CANCELLED_REQUEST, "Cancelled"].includes(status)
       && !isSupersededRequest(row)
       && stationBreakdownHasDemand(row);
   });
+}
+
+function managerQuantityRequestLine(entry = {}, request = {}) {
+  const line = String(entry.requestLine || entry.line || request.requestLine || request.line || "Line 1").trim();
+  return line || "Line 1";
+}
+
+function managerRequestLineSort(left = "", right = "") {
+  return requestLineNumber(left) - requestLineNumber(right) || String(left).localeCompare(String(right));
 }
 
 function managerQuantityFlattenRows(rawRows = managerQuantitySourceRows()) {
@@ -3944,6 +4500,7 @@ function managerQuantityFlattenRows(rawRows = managerQuantitySourceRows()) {
           phase: stationBreakdownPhaseKey(breakdown),
           station: demandType === DEMAND_TYPE_MFG ? (breakdown.station || STATION_MASTER[0]) : "",
           demandUnit: demandType === DEMAND_TYPE_MFG ? "" : (breakdown.demandUnit || DEMAND_UNIT_FALLBACK),
+          requestLine: managerQuantityRequestLine(breakdown, request),
           qty,
           remark: breakdown.remark || "",
         }] : [];
@@ -3955,6 +4512,7 @@ function managerQuantityFlattenRows(rawRows = managerQuantitySourceRows()) {
           phase: stage,
           station: demandTypeFor(breakdown) === DEMAND_TYPE_MFG ? (breakdown.station || STATION_MASTER[0]) : "",
           demandUnit: demandTypeFor(breakdown) === DEMAND_TYPE_MFG ? "" : (breakdown.demandUnit || DEMAND_UNIT_FALLBACK),
+          requestLine: managerQuantityRequestLine(breakdown, request),
           qty: clampQty(breakdown[stage]),
           remark: breakdown.remark || "",
         }))
@@ -3967,10 +4525,17 @@ function managerQuantityEntryUnit(entry = {}) {
   return normalizeQuantityDashboardUnit(entry.demandUnit) || entry.demandUnit || "";
 }
 
+function managerQuantityEntryMatchesStationFilter(entry = {}, stationFilter = "") {
+  if (!stationFilter) return true;
+  if (demandTypeFor(entry) === DEMAND_TYPE_NON_MFG) return managerQuantityEntryUnit(entry) === stationFilter;
+  return entry.station === stationFilter;
+}
+
 function syncManagerQuantityFilters() {
   const entries = managerQuantityFlattenRows();
   const controls = [
     ["managerQuantityProjectFilter", "All projects", (entry) => entry.request.project],
+    ["managerQuantityLineFilter", "All lines", (entry) => entry.requestLine],
     ["managerQuantityItemFilter", "All items", (entry) => entry.request.name],
     ["managerQuantityPhaseFilter", "All phases", (entry) => entry.phase],
     ["managerQuantityStationFilter", "All stations", (entry) => entry.station],
@@ -3987,7 +4552,9 @@ function syncManagerQuantityFilters() {
         ? STATION_MASTER.filter((station) => unsortedValues.includes(station))
         : id === "managerQuantityUnitFilter"
           ? DEMAND_UNIT_OPTIONS.filter((unit) => unsortedValues.includes(unit))
-          : unsortedValues.sort((left, right) => String(left).localeCompare(String(right)));
+          : id === "managerQuantityLineFilter"
+            ? unsortedValues.sort(managerRequestLineSort)
+            : unsortedValues.sort((left, right) => String(left).localeCompare(String(right)));
     select.innerHTML = `<option value="">${allLabel}</option>${values.map((value) => (
       id === "managerQuantityPhaseFilter"
         ? `<option value="${value}" ${value === currentValue ? "selected" : ""}>${STAGE_LABELS[value]}</option>`
@@ -4000,6 +4567,7 @@ function syncManagerQuantityFilters() {
 function managerQuantityFilters() {
   return {
     project: document.getElementById("managerQuantityProjectFilter")?.value || "",
+    requestLine: document.getElementById("managerQuantityLineFilter")?.value || "",
     item: document.getElementById("managerQuantityItemFilter")?.value || "",
     phase: document.getElementById("managerQuantityPhaseFilter")?.value || "",
     station: document.getElementById("managerQuantityStationFilter")?.value || "",
@@ -4012,9 +4580,10 @@ function managerQuantityFilteredEntries() {
   const filters = managerQuantityFilters();
   return managerQuantityFlattenRows().filter((entry) =>
     (!filters.project || entry.request.project === filters.project)
+    && (!filters.requestLine || entry.requestLine === filters.requestLine)
     && (!filters.item || entry.request.name === filters.item)
     && (!filters.phase || entry.phase === filters.phase)
-    && (!filters.station || entry.station === filters.station)
+    && managerQuantityEntryMatchesStationFilter(entry, filters.station)
     && (!filters.demandUnit || managerQuantityEntryUnit(entry) === filters.demandUnit)
   );
 }
@@ -4066,9 +4635,10 @@ function managerQuantityUnitDashboardData() {
   const { phase, lineCount, viewMode } = managerUnitSplitSettings();
   const entries = managerQuantityFlattenRows().filter((entry) =>
     (!filters.project || entry.request.project === filters.project)
+    && (!filters.requestLine || entry.requestLine === filters.requestLine)
     && (!filters.item || entry.request.name === filters.item)
     && entry.phase === phase
-    && (!filters.station || entry.station === filters.station)
+    && managerQuantityEntryMatchesStationFilter(entry, filters.station)
     && (!filters.demandUnit || managerQuantityEntryUnit(entry) === filters.demandUnit)
   );
   const rows = new Map();
@@ -4132,8 +4702,9 @@ function managerQuantityTopItems(limit = 8) {
   managerQuantityFlattenRows()
     .filter((entry) =>
       (!filters.project || entry.request.project === filters.project)
+      && (!filters.requestLine || entry.requestLine === filters.requestLine)
       && (!filters.phase || entry.phase === filters.phase)
-      && (!filters.station || entry.station === filters.station)
+      && managerQuantityEntryMatchesStationFilter(entry, filters.station)
       && (!filters.demandUnit || managerQuantityEntryUnit(entry) === filters.demandUnit)
     )
     .forEach((entry) => {
@@ -4282,6 +4853,7 @@ function managerDemandCostFilters() {
   const phaseValue = document.getElementById("managerDemandCostPhaseFilter")?.value || "";
   return {
     project: document.getElementById("managerDemandCostProjectFilter")?.value || "",
+    requestLine: document.getElementById("managerDemandCostLineFilter")?.value || "",
     phase: STAGES.includes(phaseValue) ? phaseValue : "",
     lineCount: Math.max(1, clampQty(document.getElementById("managerDemandCostLineCount")?.value || 1)),
     viewMode: document.getElementById("managerDemandCostViewMode")?.value || "amount",
@@ -4292,6 +4864,7 @@ function syncManagerDemandCostFilters() {
   const entries = managerQuantityFlattenRows();
   [
     ["managerDemandCostProjectFilter", "All projects", (entry) => entry.request.project],
+    ["managerDemandCostLineFilter", "All lines", (entry) => entry.requestLine],
     ["managerDemandCostPhaseFilter", "", (entry) => entry.phase],
   ].forEach(([id, allLabel, getter]) => {
     const select = document.getElementById(id);
@@ -4300,6 +4873,8 @@ function syncManagerDemandCostFilters() {
     const rawValues = [...new Set(entries.map(getter).filter(Boolean))];
     const values = id === "managerDemandCostPhaseFilter"
       ? STAGES.filter((stage) => rawValues.includes(stage) || stage === STAGES[0])
+      : id === "managerDemandCostLineFilter"
+        ? rawValues.sort(managerRequestLineSort)
       : rawValues.sort((left, right) => String(left).localeCompare(String(right)));
     const allOption = id === "managerDemandCostPhaseFilter"
       ? `<option value="">All stages</option>`
@@ -4319,6 +4894,7 @@ function managerDemandCostRows() {
   managerQuantityFlattenRows()
     .filter((entry) =>
       (!filters.project || entry.request.project === filters.project)
+      && (!filters.requestLine || entry.requestLine === filters.requestLine)
       && (!filters.phase || entry.phase === filters.phase)
     )
     .forEach((entry) => {
@@ -4329,6 +4905,8 @@ function managerDemandCostRows() {
         itemGroups.set(key, {
           key,
           keyId: key.replace(/[^a-z0-9]+/gi, "-"),
+          requestId: entry.request.id,
+          request: entry.request,
           project: entry.request.project || "-",
           item: entry.request.name || "-",
           cnEngName: userVisibleItemDetail(entry.request) || itemDetail(entry.request) || "-",
@@ -4393,6 +4971,185 @@ function managerDemandCostTotalDisplay(total, viewMode) {
   return total.effectiveQty;
 }
 
+function quantityReviewModeValue(value = approvalQuantityReviewMode) {
+  return value === DEMAND_TYPE_NON_MFG ? DEMAND_TYPE_NON_MFG : DEMAND_TYPE_MFG;
+}
+
+function quantityReviewModeLabel(value = approvalQuantityReviewMode) {
+  return quantityReviewModeValue(value) === DEMAND_TYPE_NON_MFG ? "Non-MFG" : "MFG";
+}
+
+function approvalQuantityReviewTabValue(value = approvalQuantityReviewTab) {
+  return ["dashboard", "mfg", "nonMfg"].includes(value) ? value : "dashboard";
+}
+
+function approvalQuantityReviewModeForRow(row = null) {
+  const breakdown = stationBreakdownRowsForDetail(row);
+  if (breakdown.some((entry) => demandTypeFor(entry) === DEMAND_TYPE_MFG)) return DEMAND_TYPE_MFG;
+  if (breakdown.some((entry) => demandTypeFor(entry) === DEMAND_TYPE_NON_MFG)) return DEMAND_TYPE_NON_MFG;
+  return demandTypeFor(row);
+}
+
+function approvalQuantityReviewModeFromScope(scope = null, fallbackRow = null) {
+  if (scope?.reviewMode) return quantityReviewModeValue(scope.reviewMode);
+  if (scope?.station) return DEMAND_TYPE_MFG;
+  if (scope?.demandUnit && scope.demandUnit !== "MFG") return DEMAND_TYPE_NON_MFG;
+  if (scope?.unit && scope.unit !== "MFG") return DEMAND_TYPE_NON_MFG;
+  return approvalQuantityReviewModeForRow(scope?.row || fallbackRow);
+}
+
+function setApprovalQuantityReviewMode(mode = DEMAND_TYPE_MFG, { preserveDashboard = true } = {}) {
+  approvalQuantityReviewMode = quantityReviewModeValue(mode);
+  if (!preserveDashboard || approvalQuantityReviewTab !== "dashboard") {
+    approvalQuantityReviewTab = approvalQuantityReviewMode === DEMAND_TYPE_NON_MFG ? "nonMfg" : "mfg";
+  }
+}
+
+function syncApprovalQuantityReviewTabState() {
+  approvalQuantityReviewTab = approvalQuantityReviewTabValue(approvalQuantityReviewTab);
+  if (approvalQuantityReviewTab === "mfg") approvalQuantityReviewMode = DEMAND_TYPE_MFG;
+  if (approvalQuantityReviewTab === "nonMfg") approvalQuantityReviewMode = DEMAND_TYPE_NON_MFG;
+  updateApprovalReviewState(currentView === "manager" ? "manager" : currentRole, { quantityTab: approvalQuantityReviewTab });
+  document.querySelectorAll("[data-approval-quantity-tab]").forEach((tab) => {
+    const active = tab.dataset.approvalQuantityTab === approvalQuantityReviewTab;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  document.querySelectorAll("[data-approval-quantity-panel='dashboard']").forEach((panel) => {
+    panel.hidden = approvalQuantityReviewTab !== "dashboard";
+  });
+  document.querySelectorAll("[data-approval-quantity-panel='matrix']").forEach((panel) => {
+    panel.hidden = approvalQuantityReviewTab === "dashboard";
+  });
+}
+
+function approvalQuantityDetailLabel(tab = approvalQuantityReviewTab) {
+  return tab === "nonMfg" ? "Non-MFG Department Detail" : "MFG Station Detail";
+}
+
+function detailScopeLabel(scope = null, tab = approvalQuantityReviewTab) {
+  if (!scope) return "Select an item";
+  return [
+    scope.project || "No project",
+    scope.item || "No item",
+    "All phases",
+    tab === "nonMfg" ? (scope.demandUnit || "All Non-MFG departments") : "All MFG stations",
+  ].filter(Boolean).join(" / ");
+}
+
+function priceReviewDetailScopeForTab(scope = null, tab = approvalQuantityReviewTab) {
+  if (!scope) return null;
+  const nextTab = approvalQuantityReviewTabValue(tab);
+  if (nextTab === "dashboard") return scope;
+  const isNonMfg = nextTab === "nonMfg";
+  return {
+    ...scope,
+    phase: "",
+    station: "",
+    demandUnit: "",
+    reviewMode: isNonMfg ? DEMAND_TYPE_NON_MFG : DEMAND_TYPE_MFG,
+    label: detailScopeLabel({
+      ...scope,
+      phase: "",
+      station: "",
+      demandUnit: isNonMfg ? "" : "MFG",
+    }, nextTab),
+  };
+}
+
+function syncPriceReviewDetailTitle(mode = "inline") {
+  const ids = priceReviewAnalysisDomIds(mode);
+  const title = document.getElementById(ids.quantity.title);
+  const helper = document.getElementById(ids.quantity.helper);
+  if (title) title.textContent = approvalQuantityDetailLabel(approvalQuantityReviewTab);
+  if (helper) {
+    helper.textContent = approvalQuantityReviewTab === "nonMfg"
+      ? "Selected item by phase and Non-MFG department. Use Dashboard cells to focus one department."
+      : "Selected item by phase and MFG station. Use Dashboard MFG to open this station view.";
+  }
+}
+
+function quantityReviewColumnsForMode(value = approvalQuantityReviewMode) {
+  return quantityReviewModeValue(value) === DEMAND_TYPE_NON_MFG
+    ? QUANTITY_DASHBOARD_UNITS.filter((unit) => unit !== "MFG")
+    : STATION_MASTER;
+}
+
+function minDemandUnitKind(row = {}) {
+  return approvalQuantityReviewModeForRow(row) === DEMAND_TYPE_NON_MFG ? "department" : "station";
+}
+
+function minDemandUnitLabel(row = {}) {
+  return minDemandUnitKind(row) === "department" ? "Department" : "Station";
+}
+
+function minDemandUnitValues(row = {}) {
+  const kind = minDemandUnitKind(row);
+  const values = stationBreakdownRowsForDetail(row)
+    .filter((entry) => stationBreakdownRowTotal(entry) > 0)
+    .filter((entry) => kind === "station" ? demandTypeFor(entry) === DEMAND_TYPE_MFG : demandTypeFor(entry) === DEMAND_TYPE_NON_MFG)
+    .map((entry) => kind === "station" ? (entry.station || STATION_MASTER[0]) : managerQuantityEntryUnit(entry))
+    .filter(Boolean);
+  return [...new Set(values)];
+}
+
+function minDemandUnitValue(row = {}) {
+  const values = minDemandUnitValues(row);
+  if (!values.length) return "-";
+  return values.length > 2 ? `${values.slice(0, 2).join(" / ")} +${values.length - 2}` : values.join(" / ");
+}
+
+function minDemandUnitSummary(row = {}) {
+  return `${minDemandUnitLabel(row)}: ${minDemandUnitValue(row)}`;
+}
+
+function quantityReviewEntryColumn(entry, row) {
+  return demandTypeFor(entry) === DEMAND_TYPE_MFG
+    ? (entry.station || STATION_MASTER[0])
+    : managerQuantityEntryUnit({ ...entry, request: row });
+}
+
+function quantityReviewScopeRows(filters = managerDemandCostFilters(), mode = approvalQuantityReviewMode) {
+  const reviewMode = quantityReviewModeValue(mode);
+  return managerQuantityFlattenRows()
+    .filter((entry) =>
+      (!filters.project || entry.request.project === filters.project)
+      && (!filters.requestLine || entry.requestLine === filters.requestLine)
+      && (!filters.phase || entry.phase === filters.phase)
+      && demandTypeFor(entry) === reviewMode);
+}
+
+function quantityReviewSummaryTotals(filters = managerDemandCostFilters(), mode = approvalQuantityReviewMode) {
+  const columns = quantityReviewColumnsForMode(mode);
+  const totals = Object.fromEntries(columns.map((column) => [column, {
+    originalQty: 0,
+    actualNeedQty: 0,
+    carryoverQty: 0,
+    effectiveQty: 0,
+    originalAmount: 0,
+    actualNeedAmount: 0,
+    savingAmount: 0,
+    effectiveAmount: 0,
+    carryoverRows: [],
+    row: null,
+  }]));
+  quantityReviewScopeRows(filters, mode).forEach((entry) => {
+    const column = quantityReviewEntryColumn(entry, entry.request);
+    if (!totals[column]) return;
+    const qty = stationBreakdownRowTotal(entry);
+    const price = managerQuantityResolvePrice([managerQuantityPriceCandidate(entry.request)]).unitPrice || 0;
+    const amount = price ? managerDemandCostAmount({ unitPrice: price }, qty, filters.lineCount) : 0;
+    totals[column].originalQty += qty;
+    totals[column].actualNeedQty += qty;
+    totals[column].effectiveQty += qty;
+    totals[column].originalAmount += amount;
+    totals[column].actualNeedAmount += amount;
+    totals[column].effectiveAmount += amount;
+    totals[column].row ||= entry.request;
+  });
+  return totals;
+}
+
 function managerCarryoverRows() {
   return window.ProcurementCarryover?.readLedger?.() || [];
 }
@@ -4442,8 +5199,12 @@ function managerCarryoverStatusBucket(rows = []) {
   return "";
 }
 
-function managerCarryoverMatchesScope(row, { project = "", phase = "", item = "", unit = "" } = {}) {
+function managerCarryoverMatchesScope(row, { project = "", requestLine = "", phase = "", item = "", unit = "" } = {}) {
   if (project && row.project !== project) return false;
+  if (requestLine) {
+    const targetLine = String(row.targetLine || row.requestLine || row.line || "").trim();
+    if (targetLine !== requestLine) return false;
+  }
   if (phase && managerCarryoverPhaseKey(row.phase) !== managerCarryoverPhaseKey(phase)) return false;
   if (item && normalize(row.item) !== normalize(item)) return false;
   if (unit && managerCarryoverEventUnit(row) !== unit) return false;
@@ -4480,6 +5241,7 @@ function managerDemandCostCellImpact(row, unit, filters) {
   const baseQty = managerDemandCostCellQty(row, unit, filters);
   const carryoverRows = managerCarryoverRowsForScope({
     project: filters.project,
+    requestLine: filters.requestLine,
     phase: filters.phase,
     item: row.item,
     unit,
@@ -4600,6 +5362,7 @@ function renderManagerDemandCostValue(impact, viewMode, { hasPrice = true, butto
 function managerDemandCostScopeLabel(filters) {
   return [
     filters.project || "All projects",
+    filters.requestLine || "All lines",
     filters.phase ? STAGE_LABELS[filters.phase] : "All stages",
     `${filters.lineCount} line count`,
   ].join(" / ");
@@ -4616,17 +5379,17 @@ function renderManagerDemandCostCarryoverCompare(impact, filters) {
   const hasSaving = impact.savingAmount > 0;
   container.innerHTML = `
     <div class="carryover-cost-strip" aria-label="Carryover cost compare">
-      <div class="carryover-cost-card">
+      <div class="carryover-cost-card shared-total-highlight shared-total-highlight--band">
         <span>Original Cost</span>
         <strong title="${htmlAttr(formatMoneyFromUsd(impact.originalAmount))}">${formatCompactCurrencyFromUsd(impact.originalAmount)}</strong>
         <small>Before applied carryover</small>
       </div>
-      <div class="carryover-cost-card saving">
+      <div class="carryover-cost-card saving shared-total-highlight shared-total-highlight--band">
         <span>Confirmed Carryover Saving</span>
         <strong title="${htmlAttr(formatMoneyFromUsd(impact.savingAmount))}">-${formatCompactCurrencyFromUsd(impact.savingAmount)}</strong>
         <small>${hasSaving ? `${managerDemandCostSavingPercent(impact)} saved` : "No confirmed carryover"}</small>
       </div>
-      <div class="carryover-cost-card effective">
+      <div class="carryover-cost-card effective shared-total-highlight shared-total-highlight--band">
         <span>Effective Cost</span>
         <strong title="${htmlAttr(formatMoneyFromUsd(impact.effectiveAmount))}">${formatCompactCurrencyFromUsd(impact.effectiveAmount)}</strong>
         <small>After applied carryover</small>
@@ -4727,6 +5490,7 @@ function renderManagerCarryoverLedger(containerId, filters = {}, item = "") {
   if (!container) return;
   const rows = managerCarryoverRowsForScope({
     project: filters.project || "",
+    requestLine: filters.requestLine || "",
     phase: filters.phase || "",
     item,
   }, true);
@@ -4786,36 +5550,75 @@ function renderManagerDemandCostUnitSummary(unitTotals, filters, overallImpact) 
   const container = document.getElementById("managerDemandCostUnitSummary");
   if (!container) return;
   const modeLabel = filters.viewMode === "amount" ? "Amount" : "Qty";
+  const dashboardMode = approvalQuantityReviewTab === "dashboard";
+  const reviewMode = quantityReviewModeValue();
+  const reviewLabel = dashboardMode ? "Dashboard" : `${quantityReviewModeLabel(reviewMode)} Detail`;
+  const columns = dashboardMode ? QUANTITY_DASHBOARD_UNITS : quantityReviewColumnsForMode(reviewMode);
+  const reviewTotals = dashboardMode ? unitTotals : quantityReviewSummaryTotals(filters, reviewMode);
   const overallRows = managerCarryoverRowsForScope(filters, true);
   const overallDisplay = {
-    ...overallImpact,
+    ...columns.reduce((acc, column) => {
+      const total = reviewTotals[column] || {};
+      acc.originalQty += total.originalQty || 0;
+      acc.actualNeedQty += total.actualNeedQty || 0;
+      acc.carryoverQty += total.carryoverQty || 0;
+      acc.effectiveQty += total.effectiveQty || 0;
+      acc.originalAmount += total.originalAmount || 0;
+      acc.actualNeedAmount += total.actualNeedAmount || 0;
+      acc.savingAmount += total.savingAmount || 0;
+      acc.effectiveAmount += total.effectiveAmount || 0;
+      acc.row ||= total.row || null;
+      return acc;
+    }, {
+      originalQty: 0,
+      actualNeedQty: 0,
+      carryoverQty: 0,
+      effectiveQty: 0,
+      originalAmount: 0,
+      actualNeedAmount: 0,
+      savingAmount: 0,
+      effectiveAmount: 0,
+      row: null,
+      carryoverRows: [],
+    }),
     status: managerCarryoverStatusBucket(overallRows),
     flowLabels: managerCarryoverFlowLabels(overallRows),
   };
+  const toggleButtons = dashboardMode
+    ? `<span class="quantity-dashboard-legend">MFG = all station total · Non-MFG departments continue right</span>`
+    : [DEMAND_TYPE_MFG, DEMAND_TYPE_NON_MFG].map((mode) => `
+      <button type="button" class="segmented-btn ${reviewMode === mode ? "active" : ""}" data-approval-quantity-mode="${htmlAttr(mode)}" aria-pressed="${reviewMode === mode ? "true" : "false"}">${mode}</button>
+    `).join("");
   container.innerHTML = `
-    <div class="demand-cost-summary-head">
-      <strong>Selected Department Effective Total</strong>
-      <span>${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · ${filters.project || "All projects"} · ${filters.lineCount} line count · ${modeLabel}</span>
+    <div class="demand-cost-summary-head shared-total-highlight shared-total-highlight--band">
+      <strong>${reviewLabel} Quantity Review</strong>
+      <span>${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · ${filters.project || "All projects"} · single-request qty · ${modeLabel}</span>
+      <span class="segmented-control quantity-review-mode-switch" role="group" aria-label="Quantity review mode">${toggleButtons}</span>
     </div>
     <div class="table-wrap demand-cost-summary-wrap">
       <table class="data-table demand-cost-summary-table">
         <thead>
-          <tr>${QUANTITY_DASHBOARD_UNITS.map((unit) => `<th>${unit}</th>`).join("")}<th>Total</th></tr>
+          <tr>${columns.map((column) => `<th>${htmlText(column)}</th>`).join("")}<th class="shared-total-highlight shared-total-highlight--cell">Total</th></tr>
         </thead>
         <tbody>
           <tr>
-            ${QUANTITY_DASHBOARD_UNITS.map((unit) => {
-              const total = unitTotals[unit];
-              const scopedRows = managerCarryoverRowsForScope({ ...filters, unit }, true);
+            ${columns.map((column) => {
+              const total = reviewTotals[column];
+              const dashboardUnit = dashboardMode ? column : reviewMode === DEMAND_TYPE_NON_MFG ? column : "MFG";
+              const scopedRows = managerCarryoverRowsForScope({ ...filters, unit: dashboardUnit }, true);
               const impact = {
                 ...total,
                 status: managerCarryoverStatusBucket(scopedRows),
                 flowLabels: managerCarryoverFlowLabels(scopedRows),
               };
-              const buttonAttrs = `data-manager-demand-cost-unit="${htmlAttr(unit)}" data-manager-demand-cost-phase="${filters.phase}"`;
+              const row = total.row || overallDisplay.row || {};
+              const scopeAttrs = row.id
+                ? `data-item-quantity-cell="quantity-review" data-item-quantity-review-mode="${htmlAttr(reviewMode)}" data-item-quantity-request="${htmlAttr(row.id)}" data-item-quantity-project="${htmlAttr(row.project || "")}" data-item-quantity-item="${htmlAttr(row.name || "")}" data-item-quantity-phase="${htmlAttr(filters.phase || "")}" ${reviewMode === DEMAND_TYPE_MFG ? `data-item-quantity-station="${htmlAttr(column)}"` : `data-item-quantity-unit="${htmlAttr(column)}"`}`
+                : "";
+              const buttonAttrs = `${scopeAttrs} data-manager-demand-cost-unit="${htmlAttr(dashboardUnit)}" data-manager-demand-cost-phase="${filters.phase}" data-manager-demand-cost-project="${htmlAttr(row.project || "")}"`;
               return `<td class="${total.originalQty ? managerDemandCostCellClass(impact, "demand-cost-number") : "muted-cell"}" title="${htmlAttr(managerDemandCostImpactTitle(impact))}">${renderManagerDemandCostValue(impact, filters.viewMode, { hasPrice: Boolean(total.effectiveAmount || !total.originalQty), buttonAttrs })}</td>`;
             }).join("")}
-            <td class="${managerDemandCostCellClass(overallDisplay)}" title="${htmlAttr(managerDemandCostImpactTitle(overallDisplay))}">${renderManagerDemandCostValue(overallDisplay, filters.viewMode, { hasPrice: true })}</td>
+            <td class="shared-total-highlight shared-total-highlight--cell ${managerDemandCostCellClass(overallDisplay)}" title="${htmlAttr(managerDemandCostImpactTitle(overallDisplay))}">${renderManagerDemandCostValue(overallDisplay, filters.viewMode, { hasPrice: true, buttonAttrs: overallDisplay.row?.id ? `data-item-quantity-cell="quantity-review-total" data-item-quantity-review-mode="${htmlAttr(reviewMode)}" data-item-quantity-request="${htmlAttr(overallDisplay.row.id)}" data-item-quantity-project="${htmlAttr(overallDisplay.row.project || "")}" data-item-quantity-item="${htmlAttr(overallDisplay.row.name || "")}" data-item-quantity-phase="${htmlAttr(filters.phase || "")}"` : "" })}</td>
           </tr>
         </tbody>
       </table>
@@ -4828,9 +5631,12 @@ function renderManagerDemandCostHead() {
   const colgroup = document.getElementById("managerDemandCostColgroup");
   if (colgroup) {
     colgroup.innerHTML = `
+      <col class="demand-cost-col-actions">
+      <col class="demand-cost-col-request">
       <col class="demand-cost-col-eng">
       <col class="demand-cost-col-cn">
       <col class="demand-cost-col-vn">
+      <col class="demand-cost-col-changes">
       <col class="demand-cost-col-price">
       ${QUANTITY_DASHBOARD_UNITS.map(() => `<col class="demand-cost-col-unit">`).join("")}
       <col class="demand-cost-col-total">
@@ -4838,17 +5644,20 @@ function renderManagerDemandCostHead() {
   }
   head.innerHTML = `
     <tr>
-      <th colspan="4" class="demand-cost-phase-head">Item Master</th>
-      <th colspan="${QUANTITY_DASHBOARD_UNITS.length}" class="demand-cost-phase-head">Department / Unit Cost by Selected Phase</th>
-      <th colspan="2" class="demand-cost-phase-head">Total</th>
+      <th colspan="6" class="demand-cost-phase-head">Item Master</th>
+      <th colspan="${QUANTITY_DASHBOARD_UNITS.length}" class="demand-cost-phase-head">MFG Total / Non-MFG Department Cost by Selected Phase</th>
+      <th colspan="2" class="demand-cost-phase-head shared-total-highlight shared-total-highlight--head">Total</th>
     </tr>
-    <tr>
-      <th>ENG Name</th>
-      <th>CN-ENG Name</th>
-      <th>VN Name</th>
-      <th>Price</th>
-      ${QUANTITY_DASHBOARD_UNITS.map((unit) => `<th class="demand-cost-unit-head">${unit}</th>`).join("")}
-      <th class="demand-cost-total-head">Total</th>
+        <tr>
+          <th>Actions</th>
+          <th>Request ID</th>
+          <th>ENG Name</th>
+          <th>CN-ENG Name</th>
+          <th>VN Name</th>
+          <th>Changes</th>
+          <th>Price</th>
+      ${QUANTITY_DASHBOARD_UNITS.map((unit) => `<th class="demand-cost-unit-head" data-demand-cost-unit-group="${htmlAttr(unit)}">${unit}</th>`).join("")}
+      <th class="demand-cost-total-head shared-total-highlight shared-total-highlight--head" data-demand-cost-unit-group="total">Total</th>
       <th class="demand-cost-detail-head">Detail</th>
     </tr>`;
 }
@@ -4856,13 +5665,13 @@ function renderManagerDemandCostHead() {
 function syncManagerDemandCostTableWidth() {
   const table = document.getElementById("managerDemandCostTable");
   if (!table) return;
-  const width = 590 + (QUANTITY_DASHBOARD_UNITS.length * 108) + 236;
+  const width = 864 + (QUANTITY_DASHBOARD_UNITS.length * 108) + 236;
   table.style.minWidth = `${width}px`;
   table.style.width = `${width}px`;
 }
 
 function clearManagerDemandCostFilters() {
-  ["managerDemandCostProjectFilter"].forEach((id) => {
+  ["managerDemandCostProjectFilter", "managerDemandCostLineFilter"].forEach((id) => {
     const control = document.getElementById(id);
     if (control) control.value = "";
   });
@@ -4877,18 +5686,848 @@ function clearManagerDemandCostFilters() {
   renderManagerQuantityMatrix();
 }
 
+function clearPriceReviewDemandCostFilters() {
+  ["priceReviewDemandCostProjectFilter"].forEach((id) => {
+    const control = document.getElementById(id);
+    if (control) control.value = "";
+  });
+  const phase = document.getElementById("priceReviewDemandCostPhaseFilter");
+  if (phase) phase.value = "";
+  const lineCount = document.getElementById("priceReviewDemandCostLineCount");
+  if (lineCount) lineCount.value = "1";
+  const viewMode = document.getElementById("priceReviewDemandCostViewMode");
+  if (viewMode) viewMode.value = "amount";
+  renderPriceReviewAnalysis();
+}
+
 function syncManagerQuantityScopeFromDemandCost() {
   const filters = managerDemandCostFilters();
   setManagerQuantitySelectValue("managerQuantityProjectFilter", filters.project);
+  setManagerQuantitySelectValue("managerQuantityLineFilter", filters.requestLine);
   setManagerQuantitySelectValue("managerQuantityPhaseFilter", filters.phase);
 }
 
-function drillManagerDemandCost(unit, phase = "", item = "") {
+function isPriceReviewAnalysisRole(role = currentRole) {
+  const config = workspaceConfigForRole(role);
+  if (Array.isArray(config.priceReviewTabs)) {
+    return config.priceReviewTabs.includes("projectReview")
+      || config.priceReviewTabs.includes("approved")
+      || isPriceReviewInlineAnalysisRole(role);
+  }
+  return ["dri", "projectDri"].includes(role);
+}
+
+function isPriceReviewInlineAnalysisRole(role = currentRole) {
+  return ["dri", "projectDri"].includes(role);
+}
+
+function priceReviewAnalysisDomIds(mode = "tab") {
+  const inline = mode === "inline";
+  const managerAuthorized = mode === "managerAuthorized";
+  const prefix = managerAuthorized ? "managerAuthorized" : inline ? "priceReviewInline" : "priceReview";
+  return {
+    scopeNodes: managerAuthorized
+      ? ["managerAuthorizedAnalysisScopeBadge", "managerAuthorizedDemandCostScope", "managerAuthorizedQuantityScope"]
+      : inline
+      ? ["priceReviewInlineAnalysisScopeBadge", "priceReviewInlineDemandCostScope", "priceReviewInlineQuantityScope"]
+      : ["priceReviewAnalysisScope", "priceReviewDemandCostScope", "priceReviewAnalysisScopeSecondary"],
+    demandCost: {
+      projectFilter: `${prefix}DemandCostProjectFilter`,
+      lineFilter: `${prefix}DemandCostLineFilter`,
+      phaseFilter: `${prefix}DemandCostPhaseFilter`,
+      lineCount: `${prefix}DemandCostLineCount`,
+      viewMode: `${prefix}DemandCostViewMode`,
+      currencyMeta: `${prefix}DemandCostCurrencyMeta`,
+      explain: `${prefix}DemandCostExplain`,
+      unitSummary: `${prefix}DemandCostUnitSummary`,
+      carryoverCompare: `${prefix}DemandCostCarryoverCompare`,
+      lineCompare: `${prefix}DemandCostLineCompare`,
+      colgroup: `${prefix}DemandCostColgroup`,
+      head: `${prefix}DemandCostHead`,
+      rows: `${prefix}DemandCostRows`,
+      carryoverLedger: `${prefix}DemandCostCarryoverLedger`,
+      table: `${prefix}DemandCostTable`,
+    },
+    quantity: {
+      title: `${prefix}QuantityTitle`,
+      helper: `${prefix}QuantityHelper`,
+      projectFilter: `${prefix}QuantityProjectFilter`,
+      lineFilter: `${prefix}QuantityLineFilter`,
+      itemFilter: `${prefix}QuantityItemFilter`,
+      phaseFilter: `${prefix}QuantityPhaseFilter`,
+      stationFilter: `${prefix}QuantityStationFilter`,
+      unitFilter: `${prefix}QuantityUnitFilter`,
+      sortFilter: `${prefix}QuantitySortFilter`,
+      head: `${prefix}QuantityHead`,
+      rows: `${prefix}QuantityRows`,
+      carryoverLedger: `${prefix}QuantityCarryoverLedger`,
+      table: `${prefix}QuantityMatrixTable`,
+    },
+  };
+}
+
+function priceReviewAnalysisFilterPairs(mode = "tab", kind = "demandCost") {
+  const ids = priceReviewAnalysisDomIds(mode);
+  if (kind === "demandCost") {
+    return [
+      [ids.demandCost.projectFilter, "managerDemandCostProjectFilter"],
+      [ids.demandCost.lineFilter, "managerDemandCostLineFilter"],
+      [ids.demandCost.phaseFilter, "managerDemandCostPhaseFilter"],
+      [ids.demandCost.lineCount, "managerDemandCostLineCount"],
+      [ids.demandCost.viewMode, "managerDemandCostViewMode"],
+    ];
+  }
+  return [
+    [ids.quantity.projectFilter, "managerQuantityProjectFilter"],
+    [ids.quantity.lineFilter, "managerQuantityLineFilter"],
+    [ids.quantity.itemFilter, "managerQuantityItemFilter"],
+    [ids.quantity.phaseFilter, "managerQuantityPhaseFilter"],
+    [ids.quantity.stationFilter, "managerQuantityStationFilter"],
+    [ids.quantity.unitFilter, "managerQuantityUnitFilter"],
+    [ids.quantity.sortFilter, "managerQuantitySortFilter"],
+  ];
+}
+
+function syncManagerFiltersFromAnalysis(mode = "tab", kind = "demandCost") {
+  priceReviewAnalysisFilterPairs(mode, kind).forEach(([sourceId, targetId]) => {
+    const source = document.getElementById(sourceId);
+    const target = document.getElementById(targetId);
+    if (!source || !target) return;
+    if (target.tagName === "SELECT") ensureSelectValue(targetId, source.value);
+    else target.value = source.value;
+  });
+}
+
+function syncAnalysisFiltersFromManager(mode = "tab", kind = "demandCost") {
+  priceReviewAnalysisFilterPairs(mode, kind).forEach(([targetId, sourceId]) => {
+    const source = document.getElementById(sourceId);
+    const target = document.getElementById(targetId);
+    if (!source || !target) return;
+    if (target.tagName === "SELECT") ensureSelectValue(targetId, source.value);
+    else target.value = source.value;
+  });
+}
+
+function priceReviewSelectedRow(rows = priceReviewQueueRows()) {
+  return rows.find((row) => row.id === selectedPriceReviewRequestId) || null;
+}
+
+function priceReviewSelectedRowPhaseKey(row) {
+  if (!row) return "";
+  if (isPriceReviewStockRow(row)) return phaseKeyFromInput(row.targetStage || row.phase);
+  const breakdownPhase = stationBreakdownRowsForDetail(row)
+    .map((item) => stationBreakdownPhaseKey(item) || phaseKeyFromInput(item.phase))
+    .find(Boolean);
+  return breakdownPhase || phaseKeyFromInput(row.phase) || currentStageForProject(row.project);
+}
+
+function priceReviewSelectedRowLineKey(row) {
+  if (!row) return "";
+  if (isPriceReviewStockRow(row)) return row.targetLine || row.requestLine || "";
+  const lines = [...new Set(stationBreakdownRowsForDetail(row)
+    .map((item) => managerQuantityRequestLine(item, row))
+    .filter(Boolean))];
+  return lines.length === 1 ? lines[0] : "";
+}
+
+function priceReviewSelectedRowStationOrUnit(row) {
+  if (!row) return "";
+  if (isPriceReviewStockRow(row)) return row.targetStationOrUnit || row.targetStation || "";
+  const firstBreakdown = stationBreakdownRowsForDetail(row)[0] || {};
+  return firstBreakdown.station || firstBreakdown.demandUnit || "";
+}
+
+function priceReviewSelectedRowDemandUnit(row) {
+  const stationOrUnit = priceReviewSelectedRowStationOrUnit(row);
+  if (!stationOrUnit) return "";
+  if (STATION_MASTER.includes(stationOrUnit)) return "MFG";
+  return normalizeQuantityDashboardUnit(stationOrUnit) || "";
+}
+
+function priceReviewSelectedRowItemName(row) {
+  return row?.name || row?.item || "";
+}
+
+function ensureSelectValue(selectId, value, label = value) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  if (!value) {
+    select.value = "";
+    return;
+  }
+  const exists = [...select.options].some((option) => option.value === value);
+  if (!exists) select.insertAdjacentHTML("beforeend", `<option value="${htmlAttr(value)}">${htmlText(label, "")}</option>`);
+  select.value = value;
+}
+
+function priceReviewMatchesScopedAnalysisRow(row, scope = {}) {
+  if (!row) return false;
+  const scopedProject = scope.project || "";
+  const scopedLine = scope.requestLine || "";
+  const scopedItem = normalize(priceReviewSelectedRowItemName(scope.row || scope));
+  const scopedPhase = scope.phase || "";
+  const rowItem = normalize(priceReviewSelectedRowItemName(row));
+  if (scopedProject && row.project !== scopedProject) return false;
+  if (scopedLine) {
+    const rowLineMatches = isPriceReviewStockRow(row)
+      ? [row.targetLine, row.requestLine, row.line].filter(Boolean).includes(scopedLine)
+      : stationBreakdownRowsForDetail(row).some((entry) => managerQuantityRequestLine(entry, row) === scopedLine);
+    if (!rowLineMatches) return false;
+  }
+  if (scopedItem && rowItem !== scopedItem) return false;
+  if (scopedPhase && requestStageQty(row, scopedPhase) <= 0) return false;
+  return true;
+}
+
+function priceReviewSelectedRowScope(row = priceReviewSelectedRow()) {
+  if (!row) return null;
+  const phase = priceReviewSelectedRowPhaseKey(row);
+  const stationOrUnit = priceReviewSelectedRowStationOrUnit(row);
+  const demandUnit = priceReviewSelectedRowDemandUnit(row);
+  const isStock = isPriceReviewStockRow(row);
+  const requestLine = priceReviewSelectedRowLineKey(row);
+  const station = STATION_MASTER.includes(stationOrUnit) ? stationOrUnit : "";
+  const reviewMode = approvalQuantityReviewModeForRow(row);
+  return {
+    row,
+    isStock,
+    reviewMode,
+    project: row.project || row.targetProject || "",
+    requestLine,
+    item: priceReviewSelectedRowItemName(row),
+    phase,
+    station,
+    demandUnit,
+    sourceLabel: isStock ? warehouseSourceLabel(row) : "",
+    targetLabel: isStock ? warehouseTargetLabel(row) : "",
+    label: [
+      row.project || row.targetProject || "No project",
+      requestLine,
+      priceReviewSelectedRowItemName(row) || "No item",
+      phase ? stageLabel(phase) : "All phases",
+      stationOrUnit || "",
+    ].filter(Boolean).join(" / "),
+  };
+}
+
+function priceReviewScopedAnalysisRows(scope = priceReviewSelectedRowScope(), role = currentRole) {
+  const baseRows = priceReviewAnalysisRows(role);
+  if (!scope?.row) return baseRows;
+  return baseRows.filter((row) => priceReviewMatchesScopedAnalysisRow(row, scope));
+}
+
+function scopedRowsForAnalysis(baseRows = [], scope = null) {
+  if (!scope?.row) return baseRows;
+  return baseRows.filter((row) => priceReviewMatchesScopedAnalysisRow(row, scope));
+}
+
+function approvedRowsForRole(role = currentRole) {
+  if (role === "dri") {
+    const approvedRequests = priceReviewAnalysisRows("dri")
+      .filter((row) => Boolean(row.driApprovedAt || row.deptDriSubmissionApprovedAt))
+      .filter((row) => !isPriceReviewReworkRequired(row) && row.status !== "Rejected");
+    const lockedStock = warehouseStockRecords
+      .filter((row) => isWarehouseLockedUse(row) && warehouseOwnerForTransaction(row) === ITEM_OWNER_UNIT)
+      .map((row) => ({
+        ...row,
+        workbenchType: "stockCarryover",
+        project: row.targetProject || row.sourceProject || "-",
+        name: row.item,
+      }));
+    return [...approvedRequests, ...lockedStock];
+  }
+  if (role === "projectDri") {
+    return priceReviewAnalysisRows("projectDri")
+      .filter((row) => Boolean(row.projectDriApprovedAt))
+      .filter((row) => !isPriceReviewReworkRequired(row) && row.status !== "Rejected");
+  }
+  if (role === "manager") {
+    return requests
+      .filter((row) => Boolean(row.costManagerAuthorizedAt) || row.costManagerAuthorizationStatus === COST_MANAGER_AUTH_APPROVED)
+      .filter((row) => row.status !== "Rejected" && !isSupersededRequest(row));
+  }
+  return [];
+}
+
+function priceReviewProjectRowsForRole(role = currentRole) {
+  const rows = [
+    ...priceReviewPendingRowsForRole(),
+    ...priceReviewAnalysisRows(role),
+    ...approvedRowsForRole(role),
+  ];
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = isPriceReviewStockRow(row)
+      ? `stock:${row.id || row.targetRequestId || row.item || ""}:${row.month || ""}`
+      : `request:${row.id || ""}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizePriceReviewScopeValue(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function priceReviewAnalysisScopeUser(role = currentRole) {
+  return adminApprovalSetup.users.find((user) => user.role === role)
+    || adminApprovalSetup.users.find((user) => normalizeAdminRoleKey(user.role) === normalizeAdminRoleKey(role))
+    || sessionUserFromRole(role);
+}
+
+function priceReviewAnalysisBaseRows(role = currentRole) {
+  if (role === "dri") {
+    return requests.filter((row) =>
+      isDeptDriSubmissionPending(row)
+      || Boolean(row.driApprovedAt)
+      || Boolean(row.deptDriReviewStatus)
+      || row.priceDecisionStatus === PRICE_ESCALATION_REQUIRED
+      || Boolean(row.priceApprovalStatus)
+    );
+  }
+  if (role === "projectDri") {
+    return requests.filter((row) =>
+      priceReviewRequiresBudgetApprover(row)
+      && (Boolean(row.driApprovedAt) || Boolean(row.projectDriApprovedAt) || Boolean(row.priceEscalationRejectedAt) || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_PROJECT_DRI)
+    );
+  }
+  return [];
+}
+
+function priceReviewAnalysisRows(role = currentRole) {
+  const user = priceReviewAnalysisScopeUser(role);
+  const scopeType = user?.scopeType || user?.scope_type || "global";
+  const scopeValue = String(user?.scopeValue || user?.scope_value || user?.department || "").trim();
+  const normalizedScope = normalizePriceReviewScopeValue(scopeValue);
+  const baseRows = priceReviewAnalysisBaseRows(role);
+  return baseRows.filter((row) => {
+    if (scopeType === "global" || !scopeValue || scopeValue === "All") return true;
+    if (scopeType === "department") {
+      return normalizePriceReviewScopeValue(rowDemandDepartment(row)) === normalizedScope;
+    }
+    if (scopeType === "project-mapping") {
+      if (scopeValue === "Temporary Budget") return priceReviewRequiresBudgetApprover(row);
+      const normalizedProject = normalizePriceReviewScopeValue(row.project || "");
+      const normalizedDepartment = normalizePriceReviewScopeValue(rowDemandDepartment(row));
+      const normalizedCategory = normalizePriceReviewScopeValue(row.priceThresholdCategory || "");
+      return normalizedProject.includes(normalizedScope)
+        || normalizedDepartment.includes(normalizedScope)
+        || normalizedCategory.includes(normalizedScope);
+    }
+    return true;
+  });
+}
+
+function priceReviewAnalysisScopeLabel(role = currentRole) {
+  const user = priceReviewAnalysisScopeUser(role);
+  const scopeType = user?.scopeType || user?.scope_type || "global";
+  const scopeValue = user?.scopeValue || user?.scope_value || user?.department || "All";
+  const roleLabel = roleProfiles[role]?.name || role;
+  const typeLabel = {
+    global: "Global",
+    department: "Department",
+    "project-mapping": "Project Mapping",
+  }[scopeType] || scopeType;
+  return `${roleLabel} · ${typeLabel}: ${scopeValue}`;
+}
+
+function syncManagerDemandCostFiltersFromPriceReview() {
+  syncManagerFiltersFromAnalysis("tab", "demandCost");
+}
+
+function syncPriceReviewDemandCostFiltersFromManager() {
+  syncAnalysisFiltersFromManager("tab", "demandCost");
+}
+
+function syncManagerQuantityFiltersFromPriceReview() {
+  syncManagerFiltersFromAnalysis("tab", "quantity");
+}
+
+function syncPriceReviewQuantityFiltersFromManager() {
+  syncAnalysisFiltersFromManager("tab", "quantity");
+}
+
+function copyAnalysisNodeContent(sourceId, targetId) {
+  const source = document.getElementById(sourceId);
+  const target = document.getElementById(targetId);
+  if (!source || !target) return;
+  target.innerHTML = source.innerHTML;
+}
+
+function copyAnalysisText(sourceId, targetId) {
+  const source = document.getElementById(sourceId);
+  const target = document.getElementById(targetId);
+  if (!source || !target) return;
+  target.textContent = source.textContent || "";
+}
+
+function clearNodeContent(...ids) {
+  ids.forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) node.innerHTML = "";
+  });
+}
+
+function projectContextRowProject(row = {}) {
+  return String(row?.project || row?.targetProject || "").trim();
+}
+
+function projectContextProjectOptions(rows = []) {
+  return [...new Set((Array.isArray(rows) ? rows : []).map(projectContextRowProject).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function projectContextSelectedProject(mode = "inline") {
+  const role = approvalReviewRoleForMode(mode);
+  const stateProject = approvalReviewStateForRole(role)?.selectedProject;
+  if (stateProject) return stateProject;
+  return mode === "managerAuthorized" ? selectedManagerProjectContext : selectedPriceReviewProjectContext;
+}
+
+function setProjectContextSelectedProject(mode = "inline", project = "") {
+  const nextProject = project || "";
+  if (mode === "managerAuthorized") selectedManagerProjectContext = nextProject;
+  else selectedPriceReviewProjectContext = nextProject;
+  updateApprovalReviewState(approvalReviewRoleForMode(mode), { selectedProject: nextProject });
+}
+
+function syncProjectContextFromRow(mode = "inline", row = null) {
+  const project = projectContextRowProject(row);
+  if (project) setProjectContextSelectedProject(mode, project);
+  return project;
+}
+
+function activeProjectContext({ mode = "inline", scope = null, rows = [] } = {}) {
+  const options = projectContextProjectOptions(rows);
+  const selectedProject = projectContextSelectedProject(mode);
+  if (selectedProject && options.includes(selectedProject)) return selectedProject;
+  const scopedProject = projectContextRowProject(scope?.row || scope);
+  if (scopedProject && options.includes(scopedProject)) return scopedProject;
+  return options[0] || "";
+}
+
+function projectContextRowsForProject(rows = [], project = "") {
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  return project ? sourceRows.filter((row) => projectContextRowProject(row) === project) : sourceRows;
+}
+
+function projectContextSwitcherHtml({ mode = "inline", rows = [], activeProject = "" } = {}) {
+  const projects = projectContextProjectOptions(rows);
+  if (projects.length <= 1) return "";
+  return `
+    <div class="project-context-switcher" role="group" aria-label="Project Context project switcher">
+      <strong>Project</strong>
+      <div class="project-context-switcher-list">
+        ${projects.map((project) => `
+          <button class="project-context-chip ${project === activeProject ? "active" : ""}" type="button" data-project-context-mode="${htmlAttr(mode)}" data-project-context-project="${htmlAttr(project)}" aria-pressed="${project === activeProject ? "true" : "false"}">
+            ${htmlText(project)}
+          </button>
+        `).join("")}
+      </div>
+    </div>`;
+}
+
+function firstProjectContextRow(rows = [], project = "") {
+  return (Array.isArray(rows) ? rows : []).find((row) => !project || projectContextRowProject(row) === project) || null;
+}
+
+function applyProjectContextSwitch(mode = "inline", project = "") {
+  const nextProject = String(project || "").trim();
+  setProjectContextSelectedProject(mode, nextProject);
+  approvalQuantityReviewTab = "dashboard";
+  syncApprovalQuantityReviewTabState();
+  if (mode === "managerAuthorized" || currentView === "manager") {
+    const rows = managerRows();
+    if (nextProject) {
+      const current = rows.find((row) => row.id === selectedManagerRequestId);
+      if (!current || projectContextRowProject(current) !== nextProject) {
+        selectedManagerRequestId = firstProjectContextRow(rows, nextProject)?.id || selectedManagerRequestId;
+      }
+    }
+    renderManager();
+    return;
+  }
+  const rows = priceReviewProjectRowsForRole(currentRole);
+  if (nextProject) {
+    const current = rows.find((row) => row.id === selectedPriceReviewRequestId);
+    if (!current || projectContextRowProject(current) !== nextProject) {
+      selectedPriceReviewRequestId = firstProjectContextRow(rows, nextProject)?.id || selectedPriceReviewRequestId;
+    }
+  }
+  shouldScrollPriceReviewInlineAnalysis = currentPriceReviewTab === "pending" && currentRole === "dri";
+  renderPriceReview();
+}
+
+function updatePriceReviewAnalysisScopeLabel() {
+  const label = priceReviewAnalysisScopeLabel();
+  ["priceReviewAnalysisScope", "priceReviewAnalysisScopeSecondary"].forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = label;
+  });
+}
+
+function updatePriceReviewInlineScopeLabel(scope) {
+  const label = scope?.label || "Dashboard / All review rows";
+  priceReviewAnalysisDomIds("inline").scopeNodes.forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = label;
+  });
+  const helper = document.getElementById("priceReviewInlineAnalysisHelper");
+  if (helper) {
+    helper.hidden = currentRole === "dri";
+    helper.textContent = scope?.isStock
+      ? `Target ${scope.targetLabel || "-"} · Source ${scope.sourceLabel || "-"}`
+      : scope
+        ? `Project ${scope.project || "-"} · Item ${scope.item || "-"} · ${scope.phase ? stageLabel(scope.phase) : "All phases"}`
+        : "Dashboard shows all review rows. Select a row or click a dashboard cell to open station/department detail.";
+  }
+}
+
+function setApprovalQuantityDashboardScopeLabel(mode = "inline", label = "All review rows") {
+  const ids = priceReviewAnalysisDomIds(mode);
+  const node = document.getElementById(ids.demandCost.projectFilter) ? document.getElementById(ids.demandCost.rows) : null;
+  const scopeId = ids.scopeNodes.find((id) => id.toLowerCase().includes("demandcost"));
+  const scopeNode = scopeId ? document.getElementById(scopeId) : null;
+  if (scopeNode) scopeNode.textContent = label;
+  return Boolean(node);
+}
+
+function setPriceReviewScopedDemandCostFilters(scope, mode = "tab") {
+  const ids = priceReviewAnalysisDomIds(mode).demandCost;
+  const lineCount = document.getElementById(ids.lineCount);
+  const viewMode = document.getElementById(ids.viewMode);
+  ensureSelectValue(ids.projectFilter, scope?.project || "");
+  ensureSelectValue(ids.lineFilter, scope?.requestLine || "");
+  ensureSelectValue(ids.phaseFilter, scope?.phase || "", scope?.phase ? stageLabel(scope.phase) : "");
+  if (lineCount) lineCount.value = "1";
+  if (viewMode && !viewMode.value) viewMode.value = "amount";
+}
+
+function setPriceReviewScopedQuantityFilters(scope, mode = "tab") {
+  const ids = priceReviewAnalysisDomIds(mode).quantity;
+  const sort = document.getElementById(ids.sortFilter);
+  ensureSelectValue(ids.projectFilter, scope?.project || "");
+  ensureSelectValue(ids.lineFilter, scope?.requestLine || "");
+  ensureSelectValue(ids.itemFilter, scope?.item || "");
+  ensureSelectValue(ids.phaseFilter, scope?.phase || "", scope?.phase ? stageLabel(scope.phase) : "");
+  ensureSelectValue(ids.stationFilter, scope?.station || "");
+  ensureSelectValue(ids.unitFilter, scope?.demandUnit || "");
+  if (sort && !sort.value) sort.value = "";
+}
+
+function decoratePriceReviewDemandCostCopy(mode = "tab", scope = null) {
+  const ids = priceReviewAnalysisDomIds(mode).demandCost;
+  const explain = document.getElementById(ids.explain);
+  if (!explain) return;
+  explain.innerHTML = scope
+    ? `<div><strong>Project Context</strong><span>Dashboard remains visible for the active project; the selected item row is highlighted for review.</span></div>`
+    : `<div><strong>Project Context</strong><span>MFG combines all station demand; Non-MFG departments continue to the right. Select a cell to drill into detail.</span></div>`;
+}
+
+function renderPriceReviewCostDashboard({ mode = "tab", scope = null, role = currentRole, rows = null, showCarryoverEvidence = false } = {}) {
+  const ids = priceReviewAnalysisDomIds(mode);
+  const baseRows = Array.isArray(rows) ? rows : priceReviewAnalysisRows(role);
+  const activeProject = mode === "managerAuthorized"
+    ? activeProjectContext({ mode, scope, rows: baseRows })
+    : projectContextRowProject(scope) || "";
+  if (mode === "managerAuthorized" && activeProject) setProjectContextSelectedProject(mode, activeProject);
+  const dashboardScope = mode === "managerAuthorized" && activeProject
+    ? { ...(scope || {}), project: activeProject, phase: "" }
+    : scope;
+  priceReviewAnalysisRowsOverride = dashboardScope ? scopedRowsForAnalysis(baseRows, dashboardScope) : baseRows;
+  setPriceReviewScopedDemandCostFilters(dashboardScope, mode);
+  syncManagerFiltersFromAnalysis(mode, "demandCost");
+  if (!dashboardScope?.requestLine) setManagerQuantitySelectValue("managerDemandCostLineFilter", "");
+  renderManagerDemandCostDashboard({ showCarryoverEvidence });
+  syncAnalysisFiltersFromManager(mode, "demandCost");
+  copyAnalysisText("managerDemandCostCurrencyMeta", ids.demandCost.currencyMeta);
+  copyAnalysisNodeContent("managerDemandCostUnitSummary", ids.demandCost.unitSummary);
+  copyAnalysisNodeContent("managerDemandCostColgroup", ids.demandCost.colgroup);
+  copyAnalysisNodeContent("managerDemandCostHead", ids.demandCost.head);
+  copyAnalysisNodeContent("managerDemandCostRows", ids.demandCost.rows);
+  const managerTable = document.getElementById("managerDemandCostTable");
+  const targetTable = document.getElementById(ids.demandCost.table);
+  if (managerTable && targetTable) {
+    targetTable.style.width = managerTable.style.width;
+    targetTable.style.minWidth = managerTable.style.minWidth;
+  }
+  if (mode !== "inline") {
+    copyAnalysisNodeContent("managerDemandCostCarryoverCompare", ids.demandCost.carryoverCompare);
+    copyAnalysisNodeContent("managerDemandCostLineCompare", ids.demandCost.lineCompare);
+    copyAnalysisNodeContent("managerDemandCostCarryoverLedger", ids.demandCost.carryoverLedger);
+  }
+  if (mode === "managerAuthorized") {
+    const unitSummary = document.getElementById(ids.demandCost.unitSummary);
+    if (unitSummary) {
+      unitSummary.insertAdjacentHTML("afterbegin", projectContextSwitcherHtml({ mode, rows: baseRows, activeProject }));
+    }
+  }
+  if (mode === "inline" || mode === "managerAuthorized") decoratePriceReviewDemandCostCopy(mode, scope);
+  else copyAnalysisNodeContent("managerDemandCostExplain", ids.demandCost.explain);
+  updatePriceReviewAnalysisScopeLabel();
+}
+
+function approvalQuantityMatrixRows(sourceRows = []) {
+  const groups = new Map();
+  managerQuantityFlattenRows(sourceRows).forEach((entry) => {
+    const request = entry.request || {};
+    const key = managerQuantityGroupKey(request);
+    if (!groups.has(key)) {
+      const price = managerQuantityResolvePrice([managerQuantityPriceCandidate(request)]);
+      const pipeline = approvalPipelineStatus(request, currentRole);
+      groups.set(key, {
+        id: request.id || key,
+        requestId: request.id || "-",
+        request,
+        project: request.project || "-",
+        item: request.name || request.item || "-",
+        itemMeta: approvalQuantityLineSummary(request),
+        spec: userVisibleItemDetail(request) || itemDetail(request) || "-",
+        cells: Object.fromEntries(QUANTITY_DASHBOARD_UNITS.map((unit) => [unit, 0])),
+        totalQty: 0,
+        unitPriceUsd: price.unitPrice || 0,
+        priceSource: price.source || "Price Pending",
+        totalAmountUsd: 0,
+        price: price.unitPrice ? formatMoneyFromUsd(price.unitPrice) : "Price Pending",
+        priceHtml: price.unitPrice
+          ? `${formatMoneyFromUsd(price.unitPrice)}<div class="reason-text">${htmlText(price.source || "Price")}</div>`
+          : `<span class="status-pill pending">Price Pending</span>`,
+        changesHtml: itemReviewChangeBadge(request),
+        actionHtml: "",
+        detailHtml: "",
+        requestMeta: priceReviewPendingOwner(request),
+        pipeline,
+      });
+    }
+    const group = groups.get(key);
+    const unit = managerQuantityEntryUnit(entry);
+    if (QUANTITY_DASHBOARD_UNITS.includes(unit)) {
+      group.cells[unit] += entry.qty;
+      group.totalQty += entry.qty;
+    }
+  });
+  return [...groups.values()]
+    .map((row) => ({
+      ...row,
+      totalAmountUsd: row.unitPriceUsd ? row.totalQty * row.unitPriceUsd : 0,
+    }))
+    .sort((left, right) => right.totalQty - left.totalQty || `${left.project} ${left.item}`.localeCompare(`${right.project} ${right.item}`));
+}
+
+function renderPriceReviewItemUnitMatrix({ mode = "inline", scope = null, rows = [] } = {}) {
+  const ids = priceReviewAnalysisDomIds(mode);
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  const selectedSourceRow = scope?.row || priceReviewSelectedRow(sourceRows) || sourceRows[0] || null;
+  const activeProject = activeProjectContext({ mode, scope: scope || selectedSourceRow, rows: sourceRows });
+  if (activeProject) setProjectContextSelectedProject(mode, activeProject);
+  const dashboardSourceRows = projectContextRowsForProject(sourceRows, activeProject);
+  const dashboardRows = approvalQuantityMatrixRows(dashboardSourceRows);
+  const selectedId = selectedSourceRow?.id || selectedPriceReviewRequestId || dashboardRows[0]?.id || "";
+  const parts = approvalQuantityReviewModule().renderDashboardParts?.({
+    rows: dashboardRows,
+    selectedId,
+    units: QUANTITY_DASHBOARD_UNITS,
+    currency: currencyDisplay,
+    formatMoney: formatMoneyFromUsd,
+    formatCompactCurrency: formatCompactCurrencyFromUsd,
+  });
+  if (!parts) return;
+  const currencyMeta = document.getElementById(ids.demandCost.currencyMeta);
+  const unitSummary = document.getElementById(ids.demandCost.unitSummary);
+  const explain = document.getElementById(ids.demandCost.explain);
+  const colgroup = document.getElementById(ids.demandCost.colgroup);
+  const head = document.getElementById(ids.demandCost.head);
+  const body = document.getElementById(ids.demandCost.rows);
+  const table = document.getElementById(ids.demandCost.table);
+  if (currencyMeta) currencyMeta.textContent = `${currencyDisplay} view`;
+  if (unitSummary) {
+    unitSummary.innerHTML = `
+      ${projectContextSwitcherHtml({ mode, rows: sourceRows, activeProject })}
+      ${parts.summaryHtml || ""}`;
+  }
+  if (explain) {
+    explain.innerHTML = dashboardRows.length
+      ? `<div><strong>Dashboard</strong><span>Project switcher changes the active project; row selection only changes the highlighted item and detail target.</span></div>`
+      : `<div><strong>Dashboard</strong><span>Select a project or review row to load the active project dashboard.</span></div>`;
+  }
+  if (colgroup) colgroup.innerHTML = parts.colgroup || "";
+  if (head) head.innerHTML = parts.head || "";
+  if (body) body.innerHTML = parts.rows || "";
+  if (table) {
+    table.style.width = `${parts.tableWidth}px`;
+    table.style.minWidth = `${parts.tableWidth}px`;
+  }
+  setApprovalQuantityDashboardScopeLabel(mode, activeProject ? `${activeProject} / ${dashboardRows.length} item${dashboardRows.length === 1 ? "" : "s"}` : "Select a project");
+}
+
+function renderPriceReviewStationMatrix({ mode = "tab", scope = null, role = currentRole, rows = null, showCarryoverEvidence = false } = {}) {
+  syncPriceReviewDetailTitle(mode);
+  const ids = priceReviewAnalysisDomIds(mode);
+  const baseRows = Array.isArray(rows) ? rows : priceReviewAnalysisRows(role);
+  priceReviewAnalysisRowsOverride = scope ? scopedRowsForAnalysis(baseRows, scope) : baseRows;
+  if (scope) {
+    if (approvalQuantityReviewTab === "dashboard") {
+      setApprovalQuantityReviewMode(approvalQuantityReviewModeFromScope(scope), { preserveDashboard: true });
+    }
+    syncApprovalQuantityReviewTabState();
+  }
+  setPriceReviewScopedQuantityFilters(scope, mode);
+  syncManagerFiltersFromAnalysis(mode, "quantity");
+  if (!scope?.requestLine) setManagerQuantitySelectValue("managerQuantityLineFilter", "");
+  if (!scope?.station) setManagerQuantitySelectValue("managerQuantityStationFilter", "");
+  if (!scope?.demandUnit) setManagerQuantitySelectValue("managerQuantityUnitFilter", "");
+  renderManagerQuantityMatrix({ showCarryoverEvidence });
+  syncAnalysisFiltersFromManager(mode, "quantity");
+  copyAnalysisNodeContent("managerQuantityHead", ids.quantity.head);
+  copyAnalysisNodeContent("managerQuantityRows", ids.quantity.rows);
+  if (mode !== "inline") copyAnalysisNodeContent("managerQuantityCarryoverLedger", ids.quantity.carryoverLedger);
+  const managerTable = document.getElementById("managerQuantityMatrixTable");
+  const targetTable = document.getElementById(ids.quantity.table);
+  if (managerTable && targetTable) {
+    targetTable.querySelector("colgroup")?.remove();
+    const managerColgroup = managerTable.querySelector("colgroup");
+    if (managerColgroup) targetTable.insertAdjacentHTML("afterbegin", managerColgroup.outerHTML.replace(/managerQuantityTableColgroup/g, `${ids.quantity.table}Colgroup`));
+    targetTable.style.width = managerTable.style.width;
+    targetTable.style.minWidth = managerTable.style.minWidth;
+  }
+  updatePriceReviewAnalysisScopeLabel();
+}
+
+function renderPriceReviewInlineAnalysis(scope = priceReviewSelectedRowScope()) {
+  const container = document.getElementById("priceReviewInlineAnalysis");
+  if (!container) return;
+  const visible = isPriceReviewInlineAnalysisRole() && currentPriceReviewTab === "pending";
+  container.hidden = !visible;
+  if (!visible) return;
+  const detailScope = approvalQuantityReviewTab === "dashboard"
+    ? scope
+    : priceReviewDetailScopeForTab(scope, approvalQuantityReviewTab);
+  updatePriceReviewInlineScopeLabel(detailScope);
+  syncPriceReviewDetailTitle("inline");
+  const inlineRows = priceReviewProjectRowsForRole(currentRole);
+  if (!scope) {
+    const quantityRows = document.getElementById("priceReviewInlineQuantityRows");
+    const quantityHead = document.getElementById("priceReviewInlineQuantityHead");
+    const quantityTable = document.getElementById("priceReviewInlineQuantityMatrixTable");
+    renderPriceReviewItemUnitMatrix({ mode: "inline", scope: null, rows: inlineRows });
+    if (quantityHead) quantityHead.innerHTML = "";
+    quantityTable?.querySelector("colgroup")?.remove();
+    if (quantityRows) quantityRows.innerHTML = `<tr class="quantity-empty-row"><td colspan="${managerQuantityColumnCount()}" class="empty-cell">Select a review item, then click MFG or a Non-MFG department to load detail.</td></tr>`;
+    return;
+  }
+  renderPriceReviewItemUnitMatrix({ mode: "inline", scope, rows: inlineRows });
+  if (approvalQuantityReviewTab === "dashboard") {
+    const quantityRows = document.getElementById("priceReviewInlineQuantityRows");
+    const quantityHead = document.getElementById("priceReviewInlineQuantityHead");
+    const quantityTable = document.getElementById("priceReviewInlineQuantityMatrixTable");
+    if (quantityHead) quantityHead.innerHTML = "";
+    quantityTable?.querySelector("colgroup")?.remove();
+    if (quantityRows) quantityRows.innerHTML = `<tr class="quantity-empty-row"><td colspan="${managerQuantityColumnCount()}" class="empty-cell">Click MFG or a Non-MFG department in Dashboard to load item detail.</td></tr>`;
+  } else {
+    renderPriceReviewStationMatrix({ mode: "inline", scope: detailScope, role: currentRole, rows: inlineRows });
+  }
+  if (shouldScrollPriceReviewInlineAnalysis) {
+    container.scrollIntoView({ behavior: "smooth", block: "start" });
+    shouldScrollPriceReviewInlineAnalysis = false;
+  }
+}
+
+function setApprovalQuantityDetailTabForUnit(unit = "") {
+  const isMfgAggregate = normalizeQuantityDashboardUnit(unit) === "MFG";
+  approvalQuantityReviewMode = isMfgAggregate ? DEMAND_TYPE_MFG : DEMAND_TYPE_NON_MFG;
+  approvalQuantityReviewTab = isMfgAggregate ? "mfg" : "nonMfg";
+  syncApprovalQuantityReviewTabState();
+}
+
+function renderPriceReviewAnalysis() {
+  priceReviewAnalysisRowsOverride = null;
+}
+
+function drillManagerDemandCost(unit, phase = "", item = "", project = "", requestId = "") {
+  if (currentView === "priceReview" && isPriceReviewAnalysisRole()) {
+    const mode = currentPriceReviewTab === "projectReview" ? "tab" : "inline";
+    const availableRows = priceReviewProjectRowsForRole(currentRole);
+    const selectedDrillRow = requestId ? availableRows.find((row) => row.id === requestId) : null;
+    if (selectedDrillRow) {
+      selectedPriceReviewRequestId = selectedDrillRow.id;
+      syncProjectContextFromRow(mode, selectedDrillRow);
+      syncPriceReviewSelectionMarkers(selectedDrillRow.id);
+    }
+    setApprovalQuantityDetailTabForUnit(unit);
+    const scope = priceReviewSelectedRowScope(selectedDrillRow || priceReviewSelectedRow(availableRows));
+    const desired = QUANTITY_DASHBOARD_UNITS.includes(unit) ? unit : "";
+    const demandLine = document.getElementById(priceReviewAnalysisDomIds(mode).demandCost.lineFilter)?.value || "";
+    const drillScope = scope ? {
+      ...scope,
+      project: project || scope.project || "",
+      requestLine: demandLine || scope.requestLine || "",
+      item: item || scope.item || "",
+      phase: phase || "",
+      station: desired ? "" : (scope.station || ""),
+      demandUnit: desired === "MFG" ? "" : (desired || scope.demandUnit || ""),
+      reviewMode: desired === "MFG" ? DEMAND_TYPE_MFG : DEMAND_TYPE_NON_MFG,
+    } : null;
+    const ids = priceReviewAnalysisDomIds(mode).quantity;
+    setPriceReviewScopedQuantityFilters(drillScope, mode);
+    ensureSelectValue(ids.projectFilter, drillScope?.project || "");
+    ensureSelectValue(ids.lineFilter, drillScope?.requestLine || "");
+    if (phase) ensureSelectValue(ids.phaseFilter, phase, stageLabel(phase));
+    ensureSelectValue(ids.itemFilter, drillScope?.item || "");
+    ensureSelectValue(ids.unitFilter, drillScope?.demandUnit || "");
+    if (!desired && unit) ensureSelectValue(ids.itemFilter, item || unit);
+    ensureSelectValue(ids.stationFilter, drillScope?.station || "");
+    const sortFilter = document.getElementById(ids.sortFilter);
+    if (sortFilter) sortFilter.value = "";
+    selectedManagerQuantityKeyId = "";
+    renderPriceReviewStationMatrix({ mode, scope: drillScope, role: currentRole, rows: availableRows });
+    document.getElementById(ids.table)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (currentView === "manager") {
+    setApprovalQuantityDetailTabForUnit(unit);
+    const selectedRow = managerRows().find((row) => row.id === selectedManagerRequestId) || managerRows()[0] || null;
+    syncProjectContextFromRow("managerAuthorized", selectedRow);
+    const scope = priceReviewSelectedRowScope(selectedRow);
+    if (!scope) return;
+    const desired = QUANTITY_DASHBOARD_UNITS.includes(unit) ? unit : "";
+    const demandFilters = managerDemandCostFilters();
+    const drillScope = {
+      ...scope,
+      project: project || scope.project || "",
+      requestLine: demandFilters.requestLine || scope.requestLine || "",
+      item: item || scope.item || "",
+      phase: phase || scope.phase || "",
+      station: desired === "MFG" ? "" : (scope.station || ""),
+      demandUnit: desired === "MFG" ? "" : (desired || scope.demandUnit || ""),
+      reviewMode: desired === "MFG" ? DEMAND_TYPE_MFG : DEMAND_TYPE_NON_MFG,
+    };
+    ensureSelectValue("managerAuthorizedQuantityProjectFilter", drillScope.project || "");
+    ensureSelectValue("managerAuthorizedQuantityLineFilter", drillScope.requestLine || "");
+    if (phase) ensureSelectValue("managerAuthorizedQuantityPhaseFilter", phase, stageLabel(phase));
+    ensureSelectValue("managerAuthorizedQuantityItemFilter", drillScope.item || "");
+    ensureSelectValue("managerAuthorizedQuantityUnitFilter", drillScope.demandUnit || "");
+    if (!desired && unit) ensureSelectValue("managerAuthorizedQuantityItemFilter", item || unit);
+    ensureSelectValue("managerAuthorizedQuantityStationFilter", drillScope.station || "");
+    const sortFilter = document.getElementById("managerAuthorizedQuantitySortFilter");
+    if (sortFilter) sortFilter.value = "";
+    selectedManagerQuantityKeyId = "";
+    renderPriceReviewStationMatrix({ mode: "managerAuthorized", scope: drillScope, role: currentRole, rows: managerRows() });
+    document.getElementById("managerAuthorizedQuantityMatrixTable")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  setApprovalQuantityDetailTabForUnit(unit);
   currentDemandAnalysisTab = "quantity";
   setManagerTab("analysis");
   const filters = managerDemandCostFilters();
   setManagerQuantitySelectValue("managerQuantityProjectFilter", filters.project);
+  setManagerQuantitySelectValue("managerQuantityLineFilter", filters.requestLine);
   if (phase) setManagerQuantitySelectValue("managerQuantityPhaseFilter", phase);
+  if (project) setManagerQuantitySelectValue("managerQuantityProjectFilter", project);
   if (item) setManagerQuantitySelectValue("managerQuantityItemFilter", item);
   if (QUANTITY_DASHBOARD_UNITS.includes(unit)) setManagerQuantitySelectValue("managerQuantityUnitFilter", unit);
   else setManagerQuantitySelectValue("managerQuantityItemFilter", unit);
@@ -4896,26 +6535,26 @@ function drillManagerDemandCost(unit, phase = "", item = "") {
   renderManagerQuantityMatrix();
 }
 
-function renderManagerDemandCostDashboard() {
+function renderManagerDemandCostDashboard({ showCarryoverEvidence = false } = {}) {
   syncManagerDemandCostFilters();
   const rows = managerDemandCostRows();
   const filters = managerDemandCostFilters();
   const meta = document.getElementById("managerDemandCostCurrencyMeta");
-  if (meta) meta.textContent = `${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · ${filters.lineCount} line count · ${currencyDisplay} view`;
+  if (meta) meta.textContent = `${filters.requestLine || "All lines"} · ${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · single-request qty · ${currencyDisplay} view`;
   const explain = document.getElementById("managerDemandCostExplain");
   if (explain) {
     explain.innerHTML = `
       <div>
         <strong>Decision Formula</strong>
-        <span>Original demand - locked/applied carryover = actual need. Cost cells show ${filters.viewMode === "qty" ? "effective quantity" : `effective ${currencyDisplay} amount`} by unit.</span>
+        <span>Original demand - locked/applied carryover = actual need. Cost cells show ${filters.viewMode === "qty" ? "effective quantity" : `effective ${currencyDisplay} amount`} by unit; Line filters request scope, Line Count remains the multiplier.</span>
       </div>
       <div>
         <strong>Status Meaning</strong>
         <span>Pending carryover is evidence only; it changes cost only after owner lock. Price Pending means quantity is visible but final cost is not approved yet.</span>
       </div>
       <div>
-        <strong>Drilldown</strong>
-        <span>Use cell buttons or Open Matrix only when station-level detail is needed.</span>
+        <strong>Dashboard Columns</strong>
+        <span>MFG is all station demand combined. Non-MFG departments continue to the right; use cell buttons or Open Matrix for detail.</span>
       </div>`;
   }
   renderManagerDemandCostHead();
@@ -4924,10 +6563,14 @@ function renderManagerDemandCostDashboard() {
   if (!body) return;
   const unitTotals = managerDemandCostUnitTotals(rows, filters);
   const overallImpact = managerDemandCostOverallImpact(rows, filters);
-  renderManagerDemandCostCarryoverCompare(overallImpact, filters);
-  renderManagerDemandCostLineCompare(filters);
+  if (showCarryoverEvidence) {
+    renderManagerDemandCostCarryoverCompare(overallImpact, filters);
+    renderManagerDemandCostLineCompare(filters);
+    renderManagerCarryoverLedger("managerDemandCostCarryoverLedger", filters);
+  } else {
+    clearNodeContent("managerDemandCostCarryoverCompare", "managerDemandCostLineCompare", "managerDemandCostCarryoverLedger");
+  }
   renderManagerDemandCostUnitSummary(unitTotals, filters, overallImpact);
-  renderManagerCarryoverLedger("managerDemandCostCarryoverLedger", filters);
   body.innerHTML = rows.length ? rows.map((row) => {
     const rowImpact = QUANTITY_DASHBOARD_UNITS.reduce((acc, unit) => {
       const impact = managerDemandCostCellImpact(row, unit, filters);
@@ -4942,25 +6585,31 @@ function renderManagerDemandCostDashboard() {
     }, { originalQty: 0, carryoverQty: 0, effectiveQty: 0, originalAmount: 0, savingAmount: 0, effectiveAmount: 0, carryoverRows: [] });
     rowImpact.status = managerCarryoverStatusBucket(rowImpact.carryoverRows);
     rowImpact.flowLabels = managerCarryoverFlowLabels(rowImpact.carryoverRows);
+    const activeRowClass = row.requestId === selectedManagerRequestId ? "active-row" : "";
     return `
-      <tr>
+      <tr class="${activeRowClass}" data-manager-authorized-select-row="${htmlAttr(row.requestId || "")}">
+        <td class="cell-action item-quantity-inline-actions">${itemQuantityReviewActionButtons(row.requestId || "", row.keyId)}</td>
+        <td class="cell-identity demand-cost-request-cell"><strong>${htmlText(row.requestId || "-")}</strong><div class="reason-text">${htmlText(row.project || "-")}</div></td>
         <td title="${htmlAttr(`${row.item} / ${row.project}`)}"><strong>${row.item}</strong><div class="reason-text">${row.project}</div></td>
         <td title="${htmlAttr(row.cnEngName)}"><div class="quantity-text-clamp">${row.cnEngName}</div></td>
         <td title="${htmlAttr(row.vnName)}"><div class="quantity-text-clamp">${row.vnName}</div></td>
+        <td>${itemReviewChangeBadge(row.request || {})}</td>
         <td title="${htmlAttr(row.unitPrice ? `${formatMoneyFromUsd(row.unitPrice)} / ${row.priceSource || "Price"}` : "Price Pending")}">${row.unitPrice ? `${formatMoneyFromUsd(row.unitPrice)}<div class="reason-text">${row.priceSource || "Price"}</div>` : `<span class="status-pill pending">Price Pending</span>`}</td>
         ${QUANTITY_DASHBOARD_UNITS.map((unit) => {
           const impact = managerDemandCostCellImpact(row, unit, filters);
-          const buttonAttrs = `data-manager-demand-cost-unit="${htmlAttr(unit)}" data-manager-demand-cost-phase="${filters.phase}" data-manager-demand-cost-item="${htmlAttr(row.item)}"`;
+          const buttonAttrs = `data-item-quantity-cell="demand-cost" data-item-quantity-request="${htmlAttr(row.requestId || "")}" data-manager-demand-cost-unit="${htmlAttr(unit)}" data-manager-demand-cost-phase="${filters.phase}" data-manager-demand-cost-project="${htmlAttr(row.project)}" data-manager-demand-cost-item="${htmlAttr(row.item)}" data-item-quantity-project="${htmlAttr(row.project)}" data-item-quantity-item="${htmlAttr(row.item)}" data-item-quantity-phase="${filters.phase}" data-item-quantity-unit="${htmlAttr(unit)}"`;
           return `<td class="demand-cost-unit-cell ${impact.originalQty || impact.carryoverRows.length ? managerDemandCostCellClass(impact, "demand-cost-number") : "muted-cell"}" title="${htmlAttr(managerDemandCostImpactTitle(impact))}">${renderManagerDemandCostValue(impact, filters.viewMode, { hasPrice: Boolean(row.unitPrice), buttonAttrs })}</td>`;
         }).join("")}
-        <td class="demand-cost-total-cell ${managerDemandCostCellClass(rowImpact)}" title="${htmlAttr(managerDemandCostImpactTitle(rowImpact))}">${renderManagerDemandCostValue(rowImpact, filters.viewMode, { hasPrice: Boolean(row.unitPrice) })}</td>
+        <td class="demand-cost-total-cell shared-total-highlight shared-total-highlight--cell ${managerDemandCostCellClass(rowImpact)}" title="${htmlAttr(managerDemandCostImpactTitle(rowImpact))}">${renderManagerDemandCostValue(rowImpact, filters.viewMode, { hasPrice: Boolean(row.unitPrice) })}</td>
         <td class="demand-cost-detail-cell"><button class="mini return" type="button" data-manager-demand-cost-unit="${htmlAttr(row.item)}">Open Matrix</button></td>
       </tr>`;
-  }).join("") : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length + 6}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
+  }).join("") : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length + 9}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
+  refreshGlobalHorizontalNavigators();
 }
 
 function managerQuantityGroupKey(row) {
   return [
+    row.id,
     row.project,
     normalize(row.name),
     normalize(userVisibleItemDetail(row) || itemDetail(row) || ""),
@@ -4971,6 +6620,7 @@ function createManagerQuantityGroup(row) {
   return {
     key: managerQuantityGroupKey(row),
     project: row.project,
+    requestId: row.id || "",
     item: row.name || "-",
     spec: userVisibleItemDetail(row) || itemDetail(row) || "-",
     requests: new Map(),
@@ -5068,6 +6718,19 @@ function managerQuantityUnitSummary(group) {
   return managerQuantityInlineTotals([...group.unitTotals.entries()], DEMAND_UNIT_OPTIONS);
 }
 
+function approvalQuantityLineSummary(request = {}) {
+  const lines = new Set();
+  stationBreakdownRowsForDetail(request).forEach((entry) => {
+    const line = String(entry.requestLine || entry.line || "").trim();
+    if (line) lines.add(line);
+  });
+  const fallback = String(request.requestLine || request.line || "").trim();
+  if (!lines.size && fallback) lines.add(fallback);
+  return [...lines]
+    .sort((left, right) => requestLineNumber(left) - requestLineNumber(right) || left.localeCompare(right))
+    .join(" / ");
+}
+
 function managerQuantityActiveStationSummary(group) {
   return managerQuantityInlineTotals(managerQuantityStationTotals(group), STATION_MASTER);
 }
@@ -5089,7 +6752,10 @@ function managerQuantityColumnWidth(column) {
 
 function managerQuantityGroupDisplayLabel(label) {
   return {
-    Supporting: "Support",
+    Mainline: "MFG Mainline Station",
+    Packing: "MFG Packing Station",
+    Supporting: "MFG Support Station",
+    "Demand Unit": "Non-MFG Department",
     "Demand Calculation": "Calc",
   }[label] || label;
 }
@@ -5106,9 +6772,12 @@ function renderManagerQuantityColgroup() {
   const columns = managerQuantityPhaseColumns();
   return `
     <colgroup>
+      <col style="width:76px" />
+      <col style="width:110px" />
       <col style="width:46px" />
       <col style="width:120px" />
       <col style="width:210px" />
+      <col style="width:86px" />
       <col style="width:92px" />
       <col style="width:100px" />
       ${stages.map(() => columns.map((column) => `<col style="width:${managerQuantityColumnWidth(column)}px" />`).join("")).join("")}
@@ -5118,14 +6787,14 @@ function renderManagerQuantityColgroup() {
 }
 
 function managerQuantityTableWidth() {
-  const fixedColumnsWidth = 46 + 120 + 210 + 92 + 100 + 52 + 62;
+  const fixedColumnsWidth = 76 + 110 + 46 + 120 + 210 + 86 + 92 + 100 + 52 + 62;
   const matrixWidth = managerQuantityVisibleStages().length
     * managerQuantityPhaseColumns().reduce((sum, column) => sum + managerQuantityColumnWidth(column), 0);
   return fixedColumnsWidth + matrixWidth;
 }
 
 function managerQuantityColumnCount() {
-  const fixedLeftColumns = 5;
+  const fixedLeftColumns = 8;
   const rightColumns = 2;
   return fixedLeftColumns + (managerQuantityVisibleStages().length * managerQuantityPhaseColumns().length) + rightColumns;
 }
@@ -5149,6 +6818,12 @@ function managerQuantityVisibleStages() {
 }
 
 function managerQuantityPhaseColumns() {
+  if (quantityReviewModeValue() === DEMAND_TYPE_NON_MFG) {
+    return [
+      ...quantityReviewColumnsForMode(DEMAND_TYPE_NON_MFG).map((name) => ({ name, group: "Demand Unit", type: "station" })),
+      ...MANAGER_MFG_HEADER_MASTER.calculation.map((name) => ({ name, group: "Demand Calculation", type: "calculation" })),
+    ];
+  }
   return [
     ...MANAGER_MFG_HEADER_MASTER.mainline.map((name) => ({ name, group: "Mainline", type: "station" })),
     ...MANAGER_MFG_HEADER_MASTER.packing.map((name) => ({ name, group: "Packing", type: "station" })),
@@ -5158,6 +6833,12 @@ function managerQuantityPhaseColumns() {
 }
 
 function managerQuantityGroupColspans() {
+  if (quantityReviewModeValue() === DEMAND_TYPE_NON_MFG) {
+    return [
+      ["Demand Unit", quantityReviewColumnsForMode(DEMAND_TYPE_NON_MFG).length],
+      ["Demand Calculation", MANAGER_MFG_HEADER_MASTER.calculation.length],
+    ];
+  }
   return [
     ["Mainline", MANAGER_MFG_HEADER_MASTER.mainline.length],
     ["Packing", MANAGER_MFG_HEADER_MASTER.packing.length],
@@ -5182,6 +6863,7 @@ function managerQuantitySelectedScopeLabel() {
   const filters = managerQuantityFilters();
   return [
     filters.project || "All projects",
+    filters.requestLine || "All lines",
     filters.item || "All items",
     filters.phase ? STAGE_LABELS[filters.phase] : "All phases",
     filters.station || "All stations",
@@ -5198,7 +6880,8 @@ function managerQuantityGroups() {
     group.requests.set(entry.request.id, entry.request);
     group.statuses.add(entry.request.status);
     group.phaseTotals[entry.phase] += entry.qty;
-    group.stationTotals[entry.phase].set(entry.station, (group.stationTotals[entry.phase].get(entry.station) || 0) + entry.qty);
+    const columnKey = quantityReviewEntryColumn(entry, entry.request);
+    group.stationTotals[entry.phase].set(columnKey, (group.stationTotals[entry.phase].get(columnKey) || 0) + entry.qty);
     const unitKey = managerQuantityEntryUnit(entry);
     if (unitKey) group.unitTotals.set(unitKey, (group.unitTotals.get(unitKey) || 0) + entry.qty);
     group.totalQty += entry.qty;
@@ -5218,6 +6901,7 @@ function managerQuantityGroups() {
 }
 
 function stationGroupLabel(station) {
+  if (quantityReviewModeValue() === DEMAND_TYPE_NON_MFG) return "Demand Unit";
   if (MANAGER_MFG_HEADER_MASTER.mainline.includes(station)) return "Mainline";
   if (MANAGER_MFG_HEADER_MASTER.packing.includes(station)) return "Packing";
   if (MANAGER_MFG_HEADER_MASTER.supporting.includes(station)) return "Supporting";
@@ -5231,8 +6915,15 @@ function managerQuantityPhaseCell(group, stage) {
   }
   const stations = [...group.stationTotals[stage].entries()]
     .filter(([, qty]) => qty > 0)
-    .sort((left, right) => STATION_MASTER.indexOf(left[0]) - STATION_MASTER.indexOf(right[0]));
+    .sort((left, right) => quantityReviewColumnsForMode().indexOf(left[0]) - quantityReviewColumnsForMode().indexOf(right[0]));
   const inlineHtml = (values) => values.map(([station, qty]) => `${station} ${qty}`).join(" / ");
+  if (quantityReviewModeValue() === DEMAND_TYPE_NON_MFG) {
+    return `
+      <div class="quantity-matrix-compact">
+        <strong>Total ${total}</strong>
+        <span><b>Unit:</b> ${inlineHtml(stations)}</span>
+      </div>`;
+  }
   const lines = ["Mainline", "Packing", "Supporting"].map((label) => {
     const values = stations.filter(([station]) => stationGroupLabel(station) === label);
     if (!values.length) return "";
@@ -5246,16 +6937,20 @@ function managerQuantityPhaseCell(group, stage) {
 }
 
 function managerQuantityCarryoverQty(group, stage) {
+  const filters = managerQuantityFilters();
   return managerCarryoverQtyForScope({
     project: group.project,
+    requestLine: filters.requestLine,
     phase: stage,
     item: group.item,
   });
 }
 
 function managerQuantityCarryoverRows(group, stage) {
+  const filters = managerQuantityFilters();
   return managerCarryoverRowsForScope({
     project: group.project,
+    requestLine: filters.requestLine,
     phase: stage,
     item: group.item,
   }, true);
@@ -5303,28 +6998,687 @@ function managerQuantityExpandableText(text, lines, groupKeyId, field) {
     </div>`;
 }
 
+function itemQuantityReviewActionButtons(requestId, groupKeyId = "") {
+  return `
+    <div class="item-quantity-action-stack" data-item-quantity-action-group="${htmlAttr(groupKeyId || requestId)}">
+      <button class="mini" type="button" data-item-quantity-cell="row-review" data-item-quantity-request="${htmlAttr(requestId)}" title="Open MFG / Non-MFG quantity review">Review</button>
+    </div>`;
+}
+
+function itemReviewHistory(row = {}) {
+  return Array.isArray(row.itemQuantityReviewHistory) ? row.itemQuantityReviewHistory : [];
+}
+
+function itemReviewDraft(row = {}) {
+  return Array.isArray(row.itemQuantityProposalDraft) ? row.itemQuantityProposalDraft : [];
+}
+
+function itemReviewPendingProposal(row = {}) {
+  return itemReviewDraft(row).length > 0;
+}
+
+function itemReviewProposalCount(row = {}) {
+  return Number(row.itemQuantityProposalCount || itemReviewHistory(row).filter((entry) => entry.type === "proposal").length || 0);
+}
+
+function itemReviewRequesterRevisionCount(row = {}) {
+  return Number(row.itemQuantityRequesterRevisionCount || itemReviewHistory(row).filter((entry) => entry.type === "requester_revision").length || 0);
+}
+
+function itemReviewChangeCount(row = {}) {
+  return Number(row.itemQuantityChangeCount || 0);
+}
+
+function itemReviewChangeBadge(row = {}) {
+  const pending = itemReviewPendingProposal(row);
+  const proposalCount = itemReviewProposalCount(row);
+  const requesterRevisions = itemReviewRequesterRevisionCount(row);
+  const formalChanges = itemReviewChangeCount(row);
+  return `
+    <div class="item-review-change-stack">
+      <span class="status-pill ${pending ? "warning" : proposalCount ? "info" : "draft"}">${pending ? "Draft" : `${proposalCount} prop.`}</span>
+      <span>${formalChanges} official / ${requesterRevisions} requester</span>
+    </div>`;
+}
+
+function itemReviewActor() {
+  return roleProfiles[currentRole]?.name || currentSessionUser?.name || currentRole || "Reviewer";
+}
+
+function selectedReviewRequest() {
+  if (currentView === "manager") {
+    return requests.find((row) => row.id === selectedManagerRequestId)
+      || managerRows().find((row) => row.id === selectedManagerRequestId)
+      || managerRows()[0]
+      || null;
+  }
+  if (currentView === "priceReview") {
+    return requests.find((row) => row.id === selectedPriceReviewRequestId)
+      || priceReviewPendingRowsForRole().find((row) => row.id === selectedPriceReviewRequestId)
+      || priceReviewPendingRowsForRole()[0]
+      || null;
+  }
+  return null;
+}
+
+function itemQuantityReviewRequestFromScope(scope = {}) {
+  if (scope.requestId) {
+    const byId = requests.find((row) => row.id === scope.requestId);
+    if (byId) return byId;
+  }
+  const selected = selectedReviewRequest();
+  if (selected && (!scope.item || normalize(selected.name) === normalize(scope.item)) && (!scope.project || selected.project === scope.project)) return selected;
+  return requests.find((row) =>
+    (!scope.project || row.project === scope.project)
+    && (!scope.item || normalize(row.name) === normalize(scope.item))
+    && stationBreakdownHasDemand(row)
+  ) || null;
+}
+
+function itemQuantityReviewScopeForClick(scope = {}) {
+  const row = itemQuantityReviewRequestFromScope(scope);
+  if (!row) return null;
+  return {
+    requestId: row.id,
+    project: row.project || scope.project || "",
+    item: row.name || scope.item || "",
+    spec: userVisibleItemDetail(row) || itemDetail(row) || "",
+    phase: scope.phase || "",
+    unit: scope.unit || "",
+    station: scope.station || "",
+    source: scope.source || "",
+  };
+}
+
+function itemQuantityReviewRows(row) {
+  return stationBreakdownRowsForDetail(row)
+    .filter((entry) => stationBreakdownRowTotal(entry) > 0)
+    .sort((left, right) => `${stationBreakdownPhaseKey(left)} ${left.station || left.demandUnit || ""}`.localeCompare(`${stationBreakdownPhaseKey(right)} ${right.station || right.demandUnit || ""}`));
+}
+
+function itemQuantityReviewPhaseTotal(row, stage, stationOrUnit = "") {
+  return stationBreakdownRowsForDetail(row).reduce((sum, entry) => {
+    if (stationBreakdownPhaseKey(entry) !== stage) return sum;
+    const entryKey = demandTypeFor(entry) === DEMAND_TYPE_MFG ? entry.station : managerQuantityEntryUnit({ ...entry, request: row });
+    if (stationOrUnit && entryKey !== stationOrUnit) return sum;
+    return sum + stationBreakdownRowTotal(entry);
+  }, 0);
+}
+
+function itemQuantityReviewColumns(row) {
+  return quantityReviewColumnsForMode(itemQuantityReviewMode(row));
+}
+
+function itemQuantityReviewMode(row, scope = activeItemQuantityReview || {}) {
+  if (scope.reviewMode) return quantityReviewModeValue(scope.reviewMode);
+  if (scope.station) return DEMAND_TYPE_MFG;
+  if (scope.unit && scope.unit !== "MFG") return DEMAND_TYPE_NON_MFG;
+  const hasMfg = stationBreakdownRowsForDetail(row).some((entry) => demandTypeFor(entry) === DEMAND_TYPE_MFG);
+  return hasMfg ? DEMAND_TYPE_MFG : DEMAND_TYPE_NON_MFG;
+}
+
+function itemQuantityReviewCellEntries(row, phase, column, mode = itemQuantityReviewMode(row)) {
+  const reviewMode = quantityReviewModeValue(mode);
+  return stationBreakdownRowsForDetail(row).filter((entry) => {
+    if (stationBreakdownPhaseKey(entry) !== phase) return false;
+    if (demandTypeFor(entry) !== reviewMode) return false;
+    if (reviewMode === DEMAND_TYPE_MFG) return (entry.station || STATION_MASTER[0]) === column;
+    return managerQuantityEntryUnit({ ...entry, request: row }) === column;
+  });
+}
+
+function itemQuantityReviewCellValue(row, phase, column, mode = itemQuantityReviewMode(row)) {
+  return itemQuantityReviewCellEntries(row, phase, column, mode)
+    .reduce((sum, entry) => sum + stationBreakdownRowTotal(entry), 0);
+}
+
+function itemQuantityReviewCellTitle(row, phase, column, mode = itemQuantityReviewMode(row)) {
+  const rows = stationBreakdownRowsForDetail(row).filter((entry) => {
+    if (stationBreakdownPhaseKey(entry) !== phase) return false;
+    if (demandTypeFor(entry) !== quantityReviewModeValue(mode)) return false;
+    if (demandTypeFor(entry) === DEMAND_TYPE_MFG) return (entry.station || STATION_MASTER[0]) === column;
+    return managerQuantityEntryUnit({ ...entry, request: row }) === column;
+  });
+  if (!rows.length) return `${STAGE_LABELS[phase]} / ${column}: 0`;
+  return rows.map((entry) => `${STAGE_LABELS[phase]} / ${column}: ${stationBreakdownRowTotal(entry)} qty${entry.remark ? ` / ${entry.remark}` : ""}`).join("\n");
+}
+
+function itemQuantityReviewExcelRow(row, scope = {}) {
+  const reviewMode = itemQuantityReviewMode(row, scope);
+  const columns = quantityReviewColumnsForMode(reviewMode);
+  const highlightedPhase = scope.phase || "";
+  const highlightedKey = reviewMode === DEMAND_TYPE_MFG ? (scope.station || "") : (scope.unit || "");
+  const modeButtons = [DEMAND_TYPE_MFG, DEMAND_TYPE_NON_MFG].map((mode) => `
+    <button type="button" class="segmented-btn ${reviewMode === mode ? "active" : ""}" data-item-quantity-review-mode="${htmlAttr(mode)}" aria-pressed="${reviewMode === mode ? "true" : "false"}">${mode}</button>
+  `).join("");
+  return `
+    <div class="item-quantity-edit-toolbar">
+      <div class="segmented-control" role="group" aria-label="Item quantity review mode">${modeButtons}</div>
+      <span class="status-pill info">${quantityReviewModeLabel(reviewMode)} direct edit</span>
+    </div>
+    <div class="table-wrap table-shell item-quantity-review-shell">
+      <table class="data-table table-fixed matrix-table item-quantity-review-table" data-layout-managed="manual">
+        <colgroup>
+          <col class="item-review-col-item" />
+          ${STAGES.map(() => `<col class="item-review-col-qty" />`).join("")}
+          <col class="item-review-col-total" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="item-review-sticky item-review-item-head">${reviewMode === DEMAND_TYPE_MFG ? "Station" : "Dept / Unit"}</th>
+            ${STAGES.map((stage) => `<th class="item-review-phase-head">${STAGE_LABELS[stage]}</th>`).join("")}
+            <th>Total Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${columns.map((column) => {
+            const rowTotal = STAGES.reduce((sum, stage) => sum + itemQuantityReviewCellValue(row, stage, column, reviewMode), 0);
+            return `
+              <tr>
+                <td class="cell-identity item-review-sticky item-review-item-cell"><strong>${htmlText(column)}</strong></td>
+                ${STAGES.map((stage) => {
+                  const entries = itemQuantityReviewCellEntries(row, stage, column, reviewMode);
+                  const value = entries.reduce((sum, entry) => sum + stationBreakdownRowTotal(entry), 0);
+                  const highlighted = highlightedPhase === stage && (!highlightedKey || highlightedKey === column);
+                  return `<td class="cell-number item-review-qty-cell ${highlighted ? "active" : ""}" title="${htmlAttr(itemQuantityReviewCellTitle(row, stage, column, reviewMode))}">
+                    <input class="item-quantity-edit-input" type="number" min="0" step="1" value="${value || 0}" data-item-quantity-review-input data-before-qty="${value || 0}" data-row-ids="${htmlAttr(entries.map((entry) => entry.id || "").filter(Boolean).join(","))}" data-demand-type="${htmlAttr(reviewMode)}" data-phase="${htmlAttr(stage)}" data-station="${reviewMode === DEMAND_TYPE_MFG ? htmlAttr(column) : ""}" data-demand-unit="${reviewMode === DEMAND_TYPE_NON_MFG ? htmlAttr(column) : ""}" aria-label="${htmlAttr(`${quantityReviewModeLabel(reviewMode)} ${column} ${STAGE_LABELS[stage]} quantity`)}" />
+                  </td>`;
+                }).join("")}
+                <td class="cell-number shared-total-highlight shared-total-highlight--cell"><strong>${rowTotal || ""}</strong></td>
+              </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function itemQuantityReviewDraftRows(row) {
+  const draft = itemReviewDraft(row);
+  if (!draft.length) return `<tr><td colspan="8" class="empty-cell">No staged row action. Edit quantity cells above, then choose Save Direct Edit.</td></tr>`;
+  return draft.map((entry, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td><span class="status-pill ${entry.action === "delete" ? "rejected" : entry.action === "add" ? "approved" : "info"}">${htmlText(entry.action)}</span></td>
+      <td>${htmlText(stageLabel(entry.phase))}</td>
+      <td>${htmlText(entry.station || "-")}</td>
+      <td>${htmlText(entry.demandUnit || "-")}</td>
+      <td>${htmlText(entry.beforeQty ?? "-")} → <strong>${htmlText(entry.afterQty ?? "-")}</strong></td>
+      <td><div class="clamped-cell" title="${htmlAttr(entry.note || "")}">${htmlText(entry.note || "-")}</div></td>
+      <td><button class="mini reject" type="button" data-item-quantity-remove-draft="${index}">Del</button></td>
+    </tr>`).join("");
+}
+
+function itemQuantityReviewAuditRows(row) {
+  const history = itemReviewHistory(row);
+  if (!history.length) return `<tr><td colspan="5" class="empty-cell">No item-level direct edit or decision audit yet.</td></tr>`;
+  return history.slice().reverse().map((entry) => `
+    <tr>
+      <td>${htmlText(entry.type || "audit")}</td>
+      <td>${htmlText(entry.action || entry.decision || "-")}</td>
+      <td>${htmlText(entry.actor || "-")}</td>
+      <td>${entry.at ? compactDateTime(entry.at) : "-"}</td>
+      <td><div class="clamped-cell" title="${htmlAttr(entry.note || "")}">${htmlText(entry.note || "-")}</div></td>
+    </tr>`).join("");
+}
+
+function renderItemQuantityReviewModal() {
+  if (!activeItemQuantityReview) return;
+  const row = requests.find((item) => item.id === activeItemQuantityReview.requestId);
+  const modal = document.getElementById("itemQuantityReviewModal");
+  if (!row || !modal) return;
+  const scope = { ...activeItemQuantityReview, item: row.name, project: row.project };
+  const reviewMode = itemQuantityReviewMode(row, scope);
+  document.getElementById("itemQuantityReviewTitle").textContent = `${row.name} / ${quantityReviewModeLabel(reviewMode)} Direct Quantity Edit`;
+  document.getElementById("itemQuantityReviewSubtitle").textContent = `${row.id || "-"} · ${row.project || "-"} · ${scope.phase ? STAGE_LABELS[scope.phase] : "All phases"} · ${reviewMode === DEMAND_TYPE_MFG ? "station rows" : "department / unit rows"}`;
+  const price = managerQuantityResolvePrice([managerQuantityPriceCandidate(row)]);
+  document.getElementById("itemQuantityReviewSummary").innerHTML = `
+    <div class="item-quantity-compact-summary">
+      <span><strong>Request ID</strong>${htmlText(row.id || "-")}</span>
+      <span><strong>Demand Dept</strong>${htmlText(rowDemandDepartment(row) || "-")}</span>
+      <span><strong>Total Qty</strong>${htmlText(totalQty(row))}</span>
+      <span><strong>Est. Amount</strong>${price.unitPrice ? formatMoneyFromUsd(price.unitPrice * totalQty(row)) : "-"}</span>
+    </div>`;
+  document.getElementById("itemQuantityReviewBody").innerHTML = `
+    <section class="work-panel detail-subsection item-quantity-review-panel">
+      <div class="panel-title section-head-tight">
+        <div>
+          <h4>${quantityReviewModeLabel(reviewMode)} Editable Matrix</h4>
+	          <p class="panel-subcopy">Edit quantity cells here. Save Direct Edit writes official demand quantity and records audit metadata.</p>
+        </div>
+        <span class="status-pill ${itemReviewPendingProposal(row) ? "warning" : "info"}">${itemReviewPendingProposal(row) ? "Proposal Draft" : "Official Qty"}</span>
+      </div>
+      ${itemQuantityReviewExcelRow(row, scope)}
+    </section>
+    <section class="work-panel detail-subsection">
+      <div class="panel-title section-head-tight">
+        <div>
+	          <h4>Direct Edit Staging</h4>
+	          <p class="panel-subcopy">Current edits stay staged in this popup until Save Direct Edit is selected.</p>
+        </div>
+      </div>
+      <div class="table-wrap table-shell compact-wrap">
+        <table class="data-table item-quantity-proposal-table">
+          <thead><tr><th>#</th><th>Action</th><th>Phase</th><th>Station</th><th>Dept / Unit</th><th>Qty</th><th>Note</th><th>Remove</th></tr></thead>
+          <tbody>${itemQuantityReviewDraftRows(row)}</tbody>
+        </table>
+      </div>
+    </section>
+    <section class="work-panel detail-subsection">
+      <div class="panel-title section-head-tight"><h4>Item Audit</h4></div>
+      <div class="table-wrap table-shell compact-wrap">
+        <table class="data-table item-quantity-audit-table">
+          <thead><tr><th>Type</th><th>Action</th><th>Actor</th><th>Time</th><th>Note</th></tr></thead>
+          <tbody>${itemQuantityReviewAuditRows(row)}</tbody>
+        </table>
+      </div>
+    </section>`;
+  const approveButton = modal.querySelector('[data-action="approveItemQuantityReview"]');
+  if (approveButton) {
+    approveButton.disabled = itemReviewPendingProposal(row);
+    approveButton.title = itemReviewPendingProposal(row) ? "Return or clear the proposal before approving official quantity." : "Approve official item quantity";
+  }
+}
+
+function openItemQuantityReview(scope = {}) {
+  const nextScope = itemQuantityReviewScopeForClick(scope);
+  if (!nextScope) {
+    showToast("No item quantity row is available for this cell.", "error");
+    return;
+  }
+  activeItemQuantityReview = nextScope;
+  const modal = document.getElementById("itemQuantityReviewModal");
+  if (modal) modal.hidden = false;
+  renderItemQuantityReviewModal();
+}
+
+function closeItemQuantityReview() {
+  activeItemQuantityReview = null;
+  const modal = document.getElementById("itemQuantityReviewModal");
+  if (modal) modal.hidden = true;
+}
+
+function itemQuantityPrompt(message, fallback = "") {
+  return window.prompt ? window.prompt(message, fallback) : fallback;
+}
+
+function itemQuantityReviewInputChanges() {
+  const modal = document.getElementById("itemQuantityReviewModal");
+  if (!modal || !activeItemQuantityReview?.requestId) return [];
+  const now = new Date().toISOString();
+  return [...modal.querySelectorAll("[data-item-quantity-review-input]")]
+    .map((input) => {
+      const beforeQty = clampQty(input.dataset.beforeQty || 0);
+      const afterQty = clampQty(input.value || 0);
+      if (beforeQty === afterQty) return null;
+      const demandType = quantityReviewModeValue(input.dataset.demandType || DEMAND_TYPE_MFG);
+      return {
+        id: `IQP-INPUT-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        action: beforeQty <= 0 && afterQty > 0 ? "add" : afterQty <= 0 ? "delete" : "edit",
+        aggregateKey: true,
+        rowIds: String(input.dataset.rowIds || "").split(",").filter(Boolean),
+        demandType,
+        phase: input.dataset.phase || "",
+        station: demandType === DEMAND_TYPE_MFG ? (input.dataset.station || STATION_MASTER[0]) : "",
+        demandUnit: demandType === DEMAND_TYPE_NON_MFG ? (input.dataset.demandUnit || DEMAND_UNIT_FALLBACK) : "",
+        beforeQty,
+        afterQty,
+        note: "",
+        proposedBy: itemReviewActor(),
+        proposedAt: now,
+      };
+    })
+    .filter(Boolean);
+}
+
+function itemQuantityProposalDefaults(row, action) {
+  const scope = activeItemQuantityReview || {};
+  const rows = itemQuantityReviewRows(row);
+  const matching = rows.find((entry) => {
+    if (scope.phase && stationBreakdownPhaseKey(entry) !== scope.phase) return false;
+    if (scope.station && entry.station !== scope.station) return false;
+    if (scope.unit && managerQuantityEntryUnit({ ...entry, request: row }) !== scope.unit) return false;
+    return true;
+  }) || rows[0] || {};
+  const demandType = demandTypeFor(matching) || (scope.station ? DEMAND_TYPE_MFG : DEMAND_TYPE_NON_MFG);
+  const phase = scope.phase || stationBreakdownPhaseKey(matching) || currentStageForProject(row.project);
+  const station = demandType === DEMAND_TYPE_MFG ? (scope.station || matching.station || STATION_MASTER[0]) : "";
+  const demandUnit = demandType === DEMAND_TYPE_MFG ? "" : (scope.unit || matching.demandUnit || DEMAND_UNIT_FALLBACK);
+  const beforeQty = action === "add" ? 0 : stationBreakdownRowTotal(matching);
+  return { matching, demandType, phase, station, demandUnit, beforeQty };
+}
+
+function addItemQuantityProposalAction(requestId, action) {
+  const row = requests.find((item) => item.id === requestId);
+  if (!row || !["add", "edit", "delete"].includes(action)) return;
+  activeItemQuantityReview = itemQuantityReviewScopeForClick({ requestId }) || {
+    requestId,
+    project: row.project || "",
+    item: row.name || "",
+    spec: userVisibleItemDetail(row) || itemDetail(row) || "",
+    phase: "",
+    unit: "",
+    station: "",
+    source: "inline-action",
+  };
+  const modal = document.getElementById("itemQuantityReviewModal");
+  if (modal) modal.hidden = false;
+  const defaults = itemQuantityProposalDefaults(row, action);
+  const qtyPrompt = action === "delete" ? "0" : itemQuantityPrompt(`Proposed qty for ${action}`, String(defaults.beforeQty || 0));
+  if (qtyPrompt === null) return;
+  const note = itemQuantityPrompt("Proposal note is required.", "");
+  if (!String(note || "").trim()) {
+    showToast("Proposal note is required.", "error");
+    return;
+  }
+  const now = new Date().toISOString();
+  const proposal = {
+    id: `IQP-DRAFT-${Date.now()}`,
+    action,
+    rowId: defaults.matching.id || "",
+    demandType: defaults.demandType,
+    phase: defaults.phase,
+    station: defaults.station,
+    demandUnit: defaults.demandUnit,
+    beforeQty: defaults.beforeQty,
+    afterQty: action === "delete" ? 0 : clampQty(qtyPrompt),
+    note: String(note).trim(),
+    proposedBy: itemReviewActor(),
+    proposedAt: now,
+  };
+  requests = requests.map((item) => item.id === requestId ? {
+    ...item,
+    itemQuantityProposalDraft: [...itemReviewDraft(item), proposal],
+    itemQuantityLastChangedAt: now,
+    itemQuantityLastChangedBy: itemReviewActor(),
+    itemQuantityLastChangeNote: proposal.note,
+  } : item);
+  renderItemQuantityReviewModal();
+  renderManager();
+  renderPriceReview();
+  showToast(`${action} proposal drafted for this item.`, "success");
+}
+
+function removeItemQuantityProposalDraft(index) {
+  const requestId = activeItemQuantityReview?.requestId || "";
+  if (!requestId) return;
+  requests = requests.map((item) => {
+    if (item.id !== requestId) return item;
+    return {
+      ...item,
+      itemQuantityProposalDraft: itemReviewDraft(item).filter((_, draftIndex) => draftIndex !== index),
+    };
+  });
+  renderItemQuantityReviewModal();
+}
+
+function appendItemReviewHistory(row, entry) {
+  return [...itemReviewHistory(row), entry];
+}
+
+function updateItemReviewRow(requestId, updater) {
+  requests = requests.map((item) => item.id === requestId ? updater(item) : item);
+  return requests.find((item) => item.id === requestId);
+}
+
+function itemReviewRejectPatch(row, note, now) {
+  const actor = itemReviewActor();
+  const base = {
+    status: "Rejected",
+    itemQuantityReviewStatus: "Item Rejected",
+    itemQuantityRejectedAt: now,
+    itemQuantityRejectedBy: actor,
+    itemQuantityRejectReason: note,
+    nextStep: "Requester revise item quantity / resubmit",
+  };
+  if (currentRole === "manager") {
+    return {
+      ...base,
+      costManagerAuthorizationStatus: COST_MANAGER_AUTH_REJECTED,
+      costManagerRejectedAt: now,
+      costManagerRejectedBy: actor,
+      costManagerRejectReason: note,
+      costManagerAuthorizationReworkRequired: true,
+      managerReason: note,
+      decidedAt: now,
+    };
+  }
+  if (currentRole === "projectDri") {
+    return {
+      ...base,
+      priceApprovalStatus: PRICE_ESCALATION_REJECTED,
+      priceDecisionStatus: PRICE_ESCALATION_REJECTED,
+      priceEscalationRejectedAt: now,
+      priceEscalationRejectedBy: actor,
+      priceEscalationRejectReason: note,
+      priceReviewReworkRequired: true,
+    };
+  }
+  return {
+    ...base,
+    deptDriReviewStatus: DEPT_DRI_SUBMISSION_REJECTED,
+    deptDriReviewRejectedAt: now,
+    deptDriReviewRejectedBy: actor,
+    deptDriReviewRejectReason: note,
+    deptDriReviewReworkRequired: true,
+    decidedAt: now,
+  };
+}
+
+function returnItemQuantityReviewWithProposal() {
+  const requestId = activeItemQuantityReview?.requestId || "";
+  const row = requests.find((item) => item.id === requestId);
+  if (!row) return;
+  const draft = itemReviewDraft(row);
+  const inputChanges = itemQuantityReviewInputChanges();
+  const proposedChanges = draft.length ? draft : inputChanges;
+  if (!draft.length) {
+    if (!inputChanges.length) {
+      showToast("Edit at least one MFG / Non-MFG quantity cell before returning a proposal.", "error");
+      return;
+    }
+  }
+  if (!proposedChanges.length) {
+    showToast("Edit at least one MFG / Non-MFG quantity cell before returning a proposal.", "error");
+    return;
+  }
+  const note = itemQuantityPrompt("Return note is required.", row.itemQuantityLastChangeNote || "");
+  if (!String(note || "").trim()) {
+    showToast("Return note is required.", "error");
+    return;
+  }
+  const now = new Date().toISOString();
+  const actor = itemReviewActor();
+  const proposalEntry = {
+    type: "proposal",
+    action: "return_with_proposal",
+    actor,
+    at: now,
+    note: String(note).trim(),
+    changes: proposedChanges.map((change) => ({
+      ...change,
+      note: change.note || String(note).trim(),
+      proposedBy: change.proposedBy || actor,
+      proposedAt: change.proposedAt || now,
+    })),
+    status: "pending_requester_confirmation",
+  };
+  const latest = updateItemReviewRow(requestId, (item) => ({
+    ...item,
+    ...itemReviewRejectPatch(item, String(note).trim(), now),
+    itemQuantityReviewStatus: "Proposal Pending Requester",
+    itemQuantityProposalDraft: [],
+    itemQuantityProposalHistory: [...(item.itemQuantityProposalHistory || []), proposalEntry],
+    itemQuantityReviewHistory: appendItemReviewHistory(item, proposalEntry),
+    itemQuantityProposalCount: itemReviewProposalCount(item) + 1,
+    itemQuantityLastChangedAt: now,
+    itemQuantityLastChangedBy: actor,
+    itemQuantityLastChangeNote: String(note).trim(),
+  }));
+  addHandoffHistory(latest, "Item quantity returned with proposal", String(note).trim());
+  renderDepartment();
+  renderManager();
+  renderPriceReview();
+  closeItemQuantityReview();
+  showToast("Proposal returned to Requester Action Required.", "success");
+}
+
+function saveItemQuantityReviewDirectEdit() {
+  const requestId = activeItemQuantityReview?.requestId || "";
+  const row = requests.find((item) => item.id === requestId);
+  if (!row) return;
+  const draft = itemReviewDraft(row);
+  const inputChanges = itemQuantityReviewInputChanges();
+  const directChanges = draft.length ? draft : inputChanges;
+  if (!directChanges.length) {
+    showToast("Edit at least one MFG / Non-MFG quantity cell before saving.", "error");
+    return;
+  }
+  const note = itemQuantityPrompt("Direct edit note is required.", row.itemQuantityLastChangeNote || "Reviewer direct quantity edit.");
+  if (!String(note || "").trim()) {
+    showToast("Direct edit note is required.", "error");
+    return;
+  }
+  const now = new Date().toISOString();
+  const actor = itemReviewActor();
+  const changes = directChanges.map((change) => ({
+    ...change,
+    note: change.note || String(note).trim(),
+    editedBy: actor,
+    editedAt: now,
+  }));
+  const latest = updateItemReviewRow(requestId, (item) => {
+    const nextBreakdown = changes.reduce(
+      (rows, change) => applyItemQuantityProposalChange({ ...item, stationBreakdown: rows }, change),
+      stationBreakdownRowsForDetail(item)
+    );
+    const audit = {
+      type: "direct_edit",
+      action: "save_direct_edit",
+      actor,
+      at: now,
+      note: String(note).trim(),
+      changes,
+      scope: activeItemQuantityReview,
+      status: "applied",
+    };
+    return syncRowPhaseQtyFromStationBreakdown({
+      ...item,
+      stationBreakdown: nextBreakdown,
+      itemQuantityReviewStatus: "Direct Edit Applied",
+      itemQuantityProposalDraft: [],
+      itemQuantityReviewHistory: appendItemReviewHistory(item, audit),
+      itemQuantityChangeCount: itemReviewChangeCount(item) + changes.length,
+      itemQuantityLastChangedAt: now,
+      itemQuantityLastChangedBy: actor,
+      itemQuantityLastChangeNote: String(note).trim(),
+    });
+  });
+  addHandoffHistory(latest, "Item quantity directly edited", String(note).trim());
+  renderDepartment();
+  renderManager();
+  renderPriceReview();
+  closeItemQuantityReview();
+  showToast("Official quantity updated and audit recorded.", "success");
+}
+
+function rejectItemQuantityReview() {
+  const requestId = activeItemQuantityReview?.requestId || "";
+  const row = requests.find((item) => item.id === requestId);
+  if (!row) return;
+  const note = itemQuantityPrompt("Reject item note is required.", "");
+  if (!String(note || "").trim()) {
+    showToast("Reject item note is required.", "error");
+    return;
+  }
+  const now = new Date().toISOString();
+  const actor = itemReviewActor();
+  const audit = {
+    type: "decision",
+    decision: "reject_item",
+    actor,
+    at: now,
+    note: String(note).trim(),
+    scope: activeItemQuantityReview,
+  };
+  const latest = updateItemReviewRow(requestId, (item) => ({
+    ...item,
+    ...itemReviewRejectPatch(item, String(note).trim(), now),
+    itemQuantityReviewHistory: appendItemReviewHistory(item, audit),
+    itemQuantityProposalDraft: [],
+  }));
+  addHandoffHistory(latest, "Item rejected", String(note).trim());
+  renderDepartment();
+  renderManager();
+  renderPriceReview();
+  closeItemQuantityReview();
+  showToast("Item rejected and returned to Requester Action Required.", "success");
+}
+
+function approveItemQuantityReview() {
+  const requestId = activeItemQuantityReview?.requestId || "";
+  const row = requests.find((item) => item.id === requestId);
+  if (!row) return;
+  if (itemReviewPendingProposal(row)) {
+    showToast("Pending proposal must be returned or cleared before approving.", "error");
+    return;
+  }
+  if (itemQuantityReviewInputChanges().length) {
+    showToast("Return the edited quantity cells as a proposal before approving.", "error");
+    return;
+  }
+  const note = itemQuantityPrompt("Approval note is required.", "");
+  if (!String(note || "").trim()) {
+    showToast("Approval note is required.", "error");
+    return;
+  }
+  const now = new Date().toISOString();
+  const actor = itemReviewActor();
+  updateItemReviewRow(requestId, (item) => ({
+    ...item,
+    itemQuantityReviewStatus: "Item Approved",
+    itemQuantityReviewHistory: appendItemReviewHistory(item, {
+      type: "decision",
+      decision: "approve",
+      actor,
+      at: now,
+      note: String(note).trim(),
+      scope: activeItemQuantityReview,
+    }),
+    itemQuantityLastChangedAt: now,
+    itemQuantityLastChangedBy: actor,
+    itemQuantityLastChangeNote: String(note).trim(),
+  }));
+  if (currentRole === "manager") applyCostManagerAuthorization(requestId, "approve");
+  else if (["dri", "projectDri"].includes(currentRole)) applyPriceReviewDecision(requestId, "approve");
+  else showToast("Current role cannot approve this item quantity.", "error");
+  closeItemQuantityReview();
+}
+
 function renderManagerQuantityHead() {
   const head = document.getElementById("managerQuantityHead");
   if (!head) return;
   const stages = managerQuantityVisibleStages();
   const groupColspans = managerQuantityGroupColspans();
-  const rowSpanHeaders = ["Project", "Item", "Spec", "Unit Price", "Est. Amount"];
+  const rowSpanHeaders = ["Actions", "Request ID", "Project", "Item", "Spec", "Changes", "Unit Price", "Est. Amount"];
   head.innerHTML = `
     <tr>
       ${rowSpanHeaders.map((label) => `<th class="quantity-sticky-head" rowspan="3">${label}</th>`).join("")}
-      ${stages.map((stage) => `<th class="quantity-phase-head" colspan="${managerQuantityPhaseColumns().length}">${STAGE_LABELS[stage]}</th>`).join("")}
-      <th class="quantity-sticky-head" rowspan="3">Total Qty</th>
+      ${stages.map((stage) => `<th class="quantity-phase-head" data-quantity-phase-group="${stage}" colspan="${managerQuantityPhaseColumns().length}">${STAGE_LABELS[stage]}</th>`).join("")}
+      <th class="quantity-sticky-head shared-total-highlight shared-total-highlight--head" data-quantity-phase-group="total" rowspan="3">Total Qty</th>
       <th class="quantity-sticky-head" rowspan="3">Detail</th>
     </tr>
     <tr>
-      ${stages.map(() => groupColspans.map(([label, span]) => `<th class="quantity-group-head ${statusClass(label)}" colspan="${span}" title="${htmlAttr(label)}">${managerQuantityGroupDisplayLabel(label)}</th>`).join("")).join("")}
+      ${stages.map((stage) => groupColspans.map(([label, span]) => {
+        const displayLabel = managerQuantityGroupDisplayLabel(label);
+        return `<th class="quantity-group-head ${statusClass(label)}" data-quantity-station-group="${stage}-${htmlAttr(label)}" colspan="${span}" title="${htmlAttr(displayLabel)}">${displayLabel}</th>`;
+      }).join("")).join("")}
     </tr>
     <tr>
-      ${stages.map(() => managerQuantityPhaseColumns().map((column) => `<th class="quantity-leaf-head ${column.type === "calculation" ? "calculation" : ""}" title="${htmlAttr(column.name)}">${managerQuantityLeafDisplayLabel(column.name)}</th>`).join("")).join("")}
+      ${stages.map(() => managerQuantityPhaseColumns().map((column) => `<th class="quantity-leaf-head ${column.type === "calculation" ? "calculation shared-total-highlight shared-total-highlight--head quantity-total-head" : ""}" title="${htmlAttr(column.name)}">${managerQuantityLeafDisplayLabel(column.name)}</th>`).join("")).join("")}
     </tr>`;
 }
 
-function renderManagerQuantityMatrix() {
+function renderManagerQuantityMatrix({ showCarryoverEvidence = false } = {}) {
   syncManagerQuantityFilters();
   const groups = managerQuantityGroups();
   if (!groups.some((group) => group.keyId === selectedManagerQuantityKeyId)) {
@@ -5344,32 +7698,56 @@ function renderManagerQuantityMatrix() {
   const stages = managerQuantityVisibleStages();
   const columns = managerQuantityPhaseColumns();
   body.innerHTML = groups.length
-    ? groups.map((group) => `
-      <tr class="${expandedManagerQuantityRows.has(`${group.keyId}:item`) || expandedManagerQuantityRows.has(`${group.keyId}:spec`) ? "quantity-row-expanded" : ""}">
+    ? groups.map((group) => {
+      const representative = [...group.requests.values()][0] || {};
+      const pipeline = approvalPipelineStatus(representative, currentRole);
+      const pipelineClass = `approval-pipeline-${pipeline.tone || "pending"}`;
+      const pipelineTitle = approvalPipelineTitle(representative, currentRole);
+      return `
+      <tr class="${expandedManagerQuantityRows.has(`${group.keyId}:item`) || expandedManagerQuantityRows.has(`${group.keyId}:spec`) ? "quantity-row-expanded" : ""} ${pipelineClass}" data-approval-pipeline-status="${htmlAttr(pipeline.tone || "pending")}" title="${htmlAttr(pipelineTitle)}">
+        <td class="cell-action item-quantity-inline-actions">${itemQuantityReviewActionButtons(representative.id || "", group.keyId)}</td>
+        <td class="cell-identity manager-quantity-request-cell"><strong>${htmlText(group.requestId || representative.id || "-")}</strong><div class="reason-text">${htmlText(group.project || "-")}</div></td>
         <td>${group.project}</td>
         <td>${managerQuantityExpandableText(group.item, 2, group.keyId, "item")}</td>
         <td>${managerQuantityExpandableText(group.spec, 3, group.keyId, "spec")}</td>
+        <td>${itemReviewChangeBadge(representative)}</td>
         <td>${managerQuantityPriceHtml(group, "unit")}</td>
         <td>${managerQuantityPriceHtml(group, "amount")}</td>
         ${stages.map((stage) => columns.map((column) => {
           const value = managerQuantityCellValue(group, stage, column);
           const carryoverClass = managerQuantityCarryoverClass(group, stage, column);
-          return `<td class="quantity-number-cell ${column.type === "calculation" ? "calculation" : ""} ${carryoverClass}">${value}</td>`;
+          const cellAttrs = column.type === "station"
+            ? `data-item-quantity-cell="station" data-item-quantity-request="${htmlAttr(representative.id || "")}" data-item-quantity-project="${htmlAttr(group.project)}" data-item-quantity-item="${htmlAttr(group.item)}" data-item-quantity-phase="${stage}" data-item-quantity-review-mode="${htmlAttr(quantityReviewModeValue())}" data-approval-pipeline-status="${htmlAttr(pipeline.tone || "pending")}" ${quantityReviewModeValue() === DEMAND_TYPE_NON_MFG ? `data-item-quantity-unit="${htmlAttr(column.name)}"` : `data-item-quantity-station="${htmlAttr(column.name)}"`}`
+            : "";
+          const title = [
+            `${STAGE_LABELS[stage]} / ${column.name}`,
+            value ? `Qty ${String(value).replace(/<[^>]+>/g, "")}` : "No qty",
+            pipelineTitle,
+          ].filter(Boolean).join(" / ");
+          return `<td class="quantity-number-cell ${column.type === "calculation" ? "calculation shared-total-highlight shared-total-highlight--cell quantity-total-cell" : ""} ${carryoverClass} ${pipelineClass}" ${cellAttrs} title="${htmlAttr(title)}">${value}</td>`;
         }).join("")).join("")}
-        <td><strong>${group.totalQty}</strong></td>
+        <td class="shared-total-highlight shared-total-highlight--cell ${pipelineClass}" data-approval-pipeline-status="${htmlAttr(pipeline.tone || "pending")}" title="${htmlAttr(pipelineTitle)}"><strong>${group.totalQty}</strong></td>
         <td><button class="mini return" data-manager-quantity-detail="${group.keyId}">Detail</button></td>
-      </tr>`).join("")
+      </tr>`;
+    }).join("")
     : `<tr class="quantity-empty-row"><td colspan="${managerQuantityColumnCount()}" class="empty-cell">${managerQuantityEmptyMessage()}</td></tr>`;
   const filters = managerQuantityFilters();
-  renderManagerCarryoverLedger("managerQuantityCarryoverLedger", {
-    project: filters.project,
-    phase: filters.phase,
-  }, filters.item || "");
+  if (showCarryoverEvidence) {
+    renderManagerCarryoverLedger("managerQuantityCarryoverLedger", {
+      project: filters.project,
+      requestLine: filters.requestLine,
+      phase: filters.phase,
+    }, filters.item || "");
+  } else {
+    clearNodeContent("managerQuantityCarryoverLedger");
+  }
+  refreshGlobalHorizontalNavigators();
 }
 
 function clearManagerQuantityFilters() {
   [
     "managerQuantityProjectFilter",
+    "managerQuantityLineFilter",
     "managerQuantityItemFilter",
     "managerQuantityPhaseFilter",
     "managerQuantityStationFilter",
@@ -5386,6 +7764,22 @@ function clearManagerQuantityFilters() {
   if (document.getElementById("managerQuantityProjectFilter")) syncManagerQuantityFilters();
   selectedManagerQuantityKeyId = "";
   renderManagerQuantityMatrix();
+}
+
+function clearPriceReviewQuantityFilters() {
+  [
+    "priceReviewQuantityProjectFilter",
+    "priceReviewQuantityItemFilter",
+    "priceReviewQuantityPhaseFilter",
+    "priceReviewQuantityStationFilter",
+    "priceReviewQuantityUnitFilter",
+    "priceReviewQuantitySortFilter",
+  ].forEach((id) => {
+    const control = document.getElementById(id);
+    if (control) control.value = "";
+  });
+  selectedManagerQuantityKeyId = "";
+  renderPriceReviewAnalysis();
 }
 
 function openManagerQuantityDetail(groupKeyId) {
@@ -5713,7 +8107,11 @@ function setView(name) {
   currentView = name;
   globalThis.currentView = name;
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === name));
-  document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.dataset.view === name));
+  document.querySelectorAll(".view").forEach((view) => {
+    const isActive = view.dataset.view === name;
+    view.classList.toggle("active", isActive);
+    view.hidden = !isActive;
+  });
   document.getElementById("pageTitle").textContent = pageTitles[name] || "Equipment Handoff";
   if (name === "department") renderDepartment();
   if (name === "manager") renderManager();
@@ -5726,7 +8124,11 @@ function setView(name) {
   if (name === "priceReview") renderPriceReview();
   if (name === "sourcing") renderSourcing();
   if (name === "buyer") renderBuyer();
-  if (name === "adminSetup") renderAdminSetup();
+  if (name === "adminSetup") {
+    renderAdminSetup();
+    refreshAdminSetup({ silent: true });
+    refreshSapPoRawImportStatus({ silent: true });
+  }
   if (typeof window.cleanupTemporaryBudgetLeakage === "function") window.cleanupTemporaryBudgetLeakage();
 }
 
@@ -5741,6 +8143,7 @@ function applyRole(role) {
   currentUserRole = role;
   globalThis.currentUserRole = role;
   const profile = roleProfiles[role] || roleProfiles.requester;
+  const workspaceConfig = workspaceConfigForRole(role);
   const currencySelect = document.getElementById("currencyDisplaySelect");
   if (currencySelect) currencySelect.value = currencyDisplay;
   if (role === "requester") {
@@ -5771,15 +8174,18 @@ function applyRole(role) {
     ${displayProfile.employeeId ? `<span>Account: ${displayProfile.employeeId}</span>` : ""}
     ${displayProfile.email ? `<span>Email: ${displayProfile.email}</span>` : ""}`;
 
-  document.querySelectorAll(".tab").forEach((tab) => {
-    const allowedRoles = tab.dataset.roles.split(" ");
-    tab.hidden = !allowedRoles.includes(role);
-  });
+  syncMainNavigation(role);
 
   document.querySelectorAll(".requester-only").forEach((element) => {
     element.hidden = !["requester", "admin"].includes(role);
   });
 
+  if (workspaceConfig.defaultManagerTab) currentManagerTab = workspaceConfig.defaultManagerTab;
+  if (workspaceConfig.defaultOmTab) currentOmTab = workspaceConfig.defaultOmTab;
+  if (workspaceConfig.defaultPriceReviewTab) currentPriceReviewTab = workspaceConfig.defaultPriceReviewTab;
+  syncManagerWorkspaceUi(role);
+  syncOmWorkspaceUi(role);
+  syncPriceReviewWorkspaceUi(role);
   setView(profile.defaultView);
   if (typeof window.cleanupTemporaryBudgetLeakage === "function") window.cleanupTemporaryBudgetLeakage();
 }
@@ -5815,9 +8221,19 @@ function closeItemPicker() {
 }
 
 function setManagerTab(tabName) {
-  currentManagerTab = tabName;
-  document.querySelectorAll("[data-manager-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.managerTab === tabName));
-  document.querySelectorAll("[data-manager-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.managerPanel === tabName));
+  const config = workspaceConfigForRole(currentRole);
+  const visibleTabs = new Set(config.managerTabs || ["review", "history"]);
+  currentManagerTab = visibleTabs.has(tabName)
+    ? tabName
+    : config.defaultManagerTab || firstVisibleDatasetValue("[data-manager-tab]", "managerTab") || "review";
+  updateApprovalReviewState("manager", { activeTab: approvalReviewTabFromManagerTab(currentManagerTab) });
+  document.querySelectorAll("[data-manager-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.managerTab === currentManagerTab));
+  document.querySelectorAll("[data-manager-panel]").forEach((panel) => {
+    const panelName = panel.dataset.managerPanel;
+    const isActive = panelName === currentManagerTab || (currentManagerTab === "review" && panelName === "analysis");
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
+  });
   syncDemandAnalysisTabs();
   renderManager();
 }
@@ -5827,7 +8243,9 @@ function syncDemandAnalysisTabs() {
     tab.classList.toggle("active", tab.dataset.demandAnalysisTab === currentDemandAnalysisTab);
   });
   document.querySelectorAll("[data-demand-analysis-panel]").forEach((panel) => {
-    panel.classList.toggle("active", panel.dataset.demandAnalysisPanel === currentDemandAnalysisTab);
+    const isActive = panel.dataset.demandAnalysisPanel === currentDemandAnalysisTab;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
   });
 }
 
@@ -5846,17 +8264,39 @@ function setHandoffTab(tabName) {
 
 function setOmTab(tabName) {
   const allowedTabs = new Set([...document.querySelectorAll("[data-om-tab]")].map((tab) => tab.dataset.omTab));
-  const nextTab = allowedTabs.has(tabName) ? tabName : "submission";
+  let nextTab = allowedTabs.has(tabName) ? tabName : "submission";
+  if (document.querySelector(`[data-om-tab="${nextTab}"]`)?.hidden) {
+    nextTab = firstVisibleDatasetValue("[data-om-tab]", "omTab") || nextTab;
+  }
   currentOmTab = nextTab;
   document.querySelectorAll("[data-om-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.omTab === nextTab));
-  document.querySelectorAll("[data-om-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.omPanel === nextTab));
+  document.querySelectorAll("[data-om-panel]").forEach((panel) => {
+    const isActive = panel.dataset.omPanel === nextTab;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
+  });
   renderOmPurchasing();
 }
 
 function setPriceReviewTab(tabName) {
-  currentPriceReviewTab = tabName === "history" ? "history" : "pending";
+  const normalizedTabName = tabName === "approved" ? "projectReview" : tabName;
+  const roleConfig = approvalReviewConfigForRole(currentRole);
+  const allowedTabs = new Set(roleConfig?.tabs || ["pending", "projectReview", "history"]);
+  currentPriceReviewTab = allowedTabs.has(normalizedTabName) ? normalizedTabName : firstVisibleDatasetValue("[data-price-review-tab]", "priceReviewTab") || "pending";
+  updateApprovalReviewState(currentRole, { activeTab: currentPriceReviewTab });
   document.querySelectorAll("[data-price-review-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.priceReviewTab === currentPriceReviewTab));
-  document.querySelectorAll("[data-price-review-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.priceReviewPanel === currentPriceReviewTab));
+  document.querySelectorAll("[data-price-review-panel]").forEach((panel) => {
+    const isActive = panel.dataset.priceReviewPanel === currentPriceReviewTab;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
+  });
+  renderPriceReview();
+}
+
+function setPriceReviewQueue(queueName) {
+  currentPriceReviewQueue = queueName || currentPriceReviewQueue;
+  selectedPriceReviewRequestId = null;
+  updateApprovalReviewState(currentRole, { activeQueue: currentPriceReviewQueue, selectedRowId: "" });
   renderPriceReview();
 }
 
@@ -5865,6 +8305,7 @@ function requestFromRecord(record, overrides = {}) {
   const project = overrides.project || record.project || currentProject;
   const stage = overrides.phase || overrides.defaultPhase || currentStageForProject(project);
   const omPatch = omResponsibilityPatch({ ...record, ...overrides, project });
+  const demandDepartment = rowDemandDepartment({ ...record, ...overrides }, currentRequesterDepartment());
   const draft = {
     id: `DRAFT-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
     project,
@@ -5900,7 +8341,9 @@ function requestFromRecord(record, overrides = {}) {
     spec: record.spec,
     process: record.process,
     station: record.station,
-    department: record.department || "",
+    department: demandDepartment,
+    requesterDept: record.requesterDept || overrides.requesterDept || demandDepartment,
+    demandDepartment: record.demandDepartment || overrides.demandDepartment || demandDepartment,
     unitPrice: record.unitPrice,
     unitPriceUsd: legacyPriceToUsd(record, "unitPrice"),
     unitPriceVnd: Number(record.unitPriceVnd || 0) || (legacyPriceToUsd(record, "unitPrice") ? Math.round(amountVndFromUsd(legacyPriceToUsd(record, "unitPrice"))) : 0),
@@ -5941,7 +8384,7 @@ function requestFromRecord(record, overrides = {}) {
     requesterReason: record.useCase || "",
     ...overrides,
   };
-  return syncRowPhaseQtyFromStationBreakdown(draft);
+  return syncRowPhaseQtyFromStationBreakdown(normalizeRequestDemandDepartment(draft, demandDepartment));
 }
 
 function suggestionToRecord(suggestion) {
@@ -6884,6 +9327,14 @@ function updateWarehouseCandidateStatus(transactionId, decision) {
     showToast("Warehouse use candidate was not found.", "error");
     return;
   }
+  if (currentView === "priceReview") {
+    preserveApprovalViewport("priceReview", {
+      actedRowId: transactionId,
+      rowIds: priceReviewQueueRows().map((item) => item.id),
+      selectedRowId: selectedPriceReviewRequestId,
+      containerSelector: '#priceReviewPendingWorkspace [data-approval-shell="priceReview"]',
+    });
+  }
   if (!canLockWarehouseSummary(row)) {
     showToast(`Only ${warehouseOwnerLabel(row)} owner can lock or reject this warehouse usage.`, "error");
     return;
@@ -6902,6 +9353,8 @@ function updateWarehouseCandidateStatus(transactionId, decision) {
   } : record);
   updateCarryoverLedgerStatusById(row.carryoverLedgerId, decision === "reject" ? "Rejected" : "Applied", decision === "reject" ? `${warehouseOwnerLabel(row)} rejected warehouse inventory use.` : "");
   renderWarehouseMaintenance();
+  renderPriceReview();
+  restoreApprovalViewport("priceReview");
   if (typeof renderManagerDemandCostDashboard === "function") renderManagerDemandCostDashboard();
   showToast(decision === "reject" ? "Warehouse use candidate rejected." : "Warehouse use candidate locked.", "success");
 }
@@ -7156,22 +9609,98 @@ function renderRequestWorksheetHead() {
   const head = document.getElementById("requestWorksheetHead");
   if (!head) return;
   syncRequestWorksheetContext();
-  const columns = requestWorksheetColumns();
-  const phaseColspan = columns.length + 1;
-  head.innerHTML = `
-    <tr>
-      <th class="request-col-item request-sticky-col" rowspan="2">Item / Spec</th>
-      ${STAGES.map((stage) => `<th class="request-phase-group-head" colspan="${phaseColspan}">${STAGE_LABELS[stage]}</th>`).join("")}
-      <th class="request-col-row-total" rowspan="2">Row Total</th>
-      <th class="request-col-hint" rowspan="2">Hint</th>
-      <th class="request-col-actions" rowspan="2">Action</th>
-    </tr>
-    <tr>
-      ${STAGES.map((stage) => `
-        ${columns.map((column) => `<th class="request-station-head" data-request-head-phase="${stage}" data-request-head-column="${htmlAttr(column)}">${htmlText(column)}</th>`).join("")}
-        <th class="request-phase-total-head">${STAGE_LABELS[stage]} Total</th>
-      `).join("")}
-    </tr>`;
+  const columns = requestWorksheetColumns().map((column) => htmlText(column));
+  const module = requestWorksheetMatrixModule();
+  head.innerHTML = module.renderHead?.({
+    stages: STAGES,
+    stageLabels: STAGE_LABELS,
+    columns,
+  }) || "";
+}
+
+function syncRequestWorksheetVisiblePhase() {
+  const module = horizontalTableNavigatorModule();
+  const snapshot = module.currentGroup?.("requestWorksheet") || {};
+  requestWorksheetVisiblePhase = snapshot.currentGroupId || requestWorksheetVisiblePhase || STAGES[0];
+  const indicator = document.getElementById("requestWorksheetCurrentPhaseIndicator");
+  if (indicator) {
+    indicator.textContent = "";
+    indicator.hidden = true;
+  }
+  document.querySelectorAll("[data-request-phase-jump]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.requestPhaseJump === requestWorksheetVisiblePhase);
+  });
+}
+
+function renderRequestWorksheetPhaseJumpBar() {
+  const target = document.getElementById("requestWorksheetPhaseJumpBar");
+  if (!target) return;
+  target.innerHTML = requestWorksheetMatrixModule().renderPhaseJumpBar?.({
+    stages: STAGES,
+    stageLabels: STAGE_LABELS,
+    activePhase: requestWorksheetVisiblePhase,
+  }) || "";
+}
+
+function refreshHorizontalTableNavigator(id, extraConfig = {}) {
+  const module = horizontalTableNavigatorModule();
+  const config = {
+    id,
+    ...extraConfig,
+  };
+  if (extraConfig.shellSelector || document.querySelector(`[data-horizontal-nav="${id}"]`)) {
+    module.mount?.(config);
+    module.refresh?.(id);
+  }
+}
+
+function demandCostNavigatorGroups() {
+  return [
+    ...QUANTITY_DASHBOARD_UNITS.map((unit) => ({
+      id: unit,
+      label: unit,
+      selector: `[data-demand-cost-unit-group="${unit}"]`,
+    })),
+    { id: "total", label: "Total", selector: '[data-demand-cost-unit-group="total"]' },
+  ];
+}
+
+function quantityNavigatorGroups() {
+  return [
+    ...managerQuantityVisibleStages().map((stage) => ({
+      id: stage,
+      label: STAGE_LABELS[stage],
+      selector: `[data-quantity-phase-group="${stage}"]`,
+    })),
+    { id: "total", label: "Total Qty", selector: '[data-quantity-phase-group="total"]' },
+  ];
+}
+
+function refreshGlobalHorizontalNavigators() {
+  refreshHorizontalTableNavigator("requestWorksheet", {
+    shellSelector: ".request-worksheet-shell",
+    groups: STAGES.map((stage) => ({ id: stage, label: STAGE_LABELS[stage], selector: `[data-request-phase-group="${stage}"]` })),
+    positions: [],
+    onStateChange: () => syncRequestWorksheetVisiblePhase(),
+  });
+  ["managerDemandCost", "priceReviewDemandCost", "priceReviewInlineDemandCost", "managerAuthorizedDemandCost"].forEach((id) => refreshHorizontalTableNavigator(id, {
+    label: "Unit Cost Columns",
+    groups: demandCostNavigatorGroups(),
+  }));
+  ["managerQuantity", "priceReviewQuantity", "priceReviewInlineQuantity", "managerAuthorizedQuantity"].forEach((id) => refreshHorizontalTableNavigator(id, {
+    label: "Phase / Station Columns",
+    groups: quantityNavigatorGroups(),
+  }));
+  refreshHorizontalTableNavigator("omQuoteResult", { label: "Quote Result Columns" });
+}
+
+function applyRequestWorksheetActiveState() {
+  document.querySelectorAll("#requestRows tr").forEach((row) => row.classList.remove("active-row"));
+  document.querySelectorAll(".request-matrix-cell").forEach((cell) => cell.classList.remove("active-cell"));
+  if (!requestWorksheetActiveCell.requestId) return;
+  document.querySelector(`#requestRows tr[data-request-row="${CSS.escape(requestWorksheetActiveCell.requestId)}"]`)?.classList.add("active-row");
+  const selector = `[data-request-worksheet-qty="${CSS.escape(requestWorksheetActiveCell.requestId)}"][data-request-worksheet-phase="${CSS.escape(requestWorksheetActiveCell.phase || "")}"][data-request-worksheet-column="${CSS.escape(requestWorksheetActiveCell.column || "")}"]`;
+  document.querySelector(selector)?.closest(".request-matrix-cell")?.classList.add("active-cell");
 }
 
 function requestInputContextKey(context = itemPickerDemandContext()) {
@@ -7192,6 +9721,73 @@ function requestWorksheetBreakdownMatches(item, { mode = requestWorksheetMode, r
   return mode === DEMAND_TYPE_MFG ? item.station === column : demandUnitFor(item) === column;
 }
 
+function requestNeedDateScopeKey({ project = currentProject, requestLine = requestWorksheetLine, mode = requestWorksheetMode } = {}) {
+  return [project || currentProject, requestLine || "Line 1", quantityReviewModeValue(mode)].join("|||");
+}
+
+function requestNeedDateScopeLabel({ requestLine = requestWorksheetLine, mode = requestWorksheetMode } = {}) {
+  return `${quantityReviewModeLabel(mode)} / ${requestLine || "Line 1"}`;
+}
+
+function requestBreakdownMatchesScope(item, { mode = requestWorksheetMode, requestLine = requestWorksheetLine } = {}) {
+  return requestWorksheetBreakdownMatches(item, { mode, requestLine });
+}
+
+function requestRowMatchesSubmitScope(row, { mode = requestWorksheetMode, requestLine = requestWorksheetLine } = {}) {
+  return stationBreakdownRowsForDetail(row).some((item) => requestBreakdownMatchesScope(item, { mode, requestLine }));
+}
+
+function requestRowHasSubmitScopeDemand(row, { mode = requestWorksheetMode, requestLine = requestWorksheetLine } = {}) {
+  return stationBreakdownRowsForDetail(row).some((item) =>
+    requestBreakdownMatchesScope(item, { mode, requestLine })
+    && stationBreakdownRowTotal(item) > 0
+  );
+}
+
+function currentRequestScopeNeedDateFromRows() {
+  const rows = activeProjectRequests().filter((row) => requestRowMatchesSubmitScope(row));
+  return rows.map(needDateForRow).find(Boolean) || "";
+}
+
+function currentRequestScopeNeedDate() {
+  return requestNeedDateByScope.get(requestNeedDateScopeKey()) || currentRequestScopeNeedDateFromRows();
+}
+
+function setCurrentRequestScopeNeedDate(value = "") {
+  const key = requestNeedDateScopeKey();
+  const next = value || "";
+  if (next) requestNeedDateByScope.set(key, next);
+  else requestNeedDateByScope.delete(key);
+}
+
+function syncRequestPackageNeedDateInput() {
+  const input = document.getElementById("requestPackageNeedDate");
+  const label = document.getElementById("requestPackageNeedDateLabel");
+  if (label) label.textContent = `${quantityReviewModeLabel(requestWorksheetMode)} Need Date`;
+  if (!input) return;
+  input.value = currentRequestScopeNeedDate();
+  input.setAttribute("aria-label", `${requestNeedDateScopeLabel()} Need Date`);
+}
+
+function requesterSubmitScopeAudit() {
+  const activeRows = activeProjectRequests().filter((row) => stationBreakdownRowsForDetail(row).length);
+  const scopedRows = activeRows.filter((row) => requestRowMatchesSubmitScope(row));
+  const readyRows = scopedRows.filter((row) => canRequesterEditRequest(row) && requestRowHasSubmitScopeDemand(row));
+  const excluded = activeRows
+    .filter((row) => !readyRows.some((item) => item.id === row.id))
+    .map((row) => {
+      const breakdown = stationBreakdownRowsForDetail(row);
+      let reason = "";
+      if (!breakdown.some((item) => (item.requestLine || "Line 1") === requestWorksheetLine)) reason = `Different line`;
+      else if (!requestRowMatchesSubmitScope(row)) reason = `Different worksheet`;
+      else if (!requestRowHasSubmitScopeDemand(row)) reason = `No ${quantityReviewModeLabel(requestWorksheetMode)} qty`;
+      else if (!canRequesterEditRequest(row)) reason = `Not Draft`;
+      else reason = `Not in current scope`;
+      return `${row.id || row.name}: ${reason}`;
+    });
+  return { scopedRows, readyRows, excluded };
+}
+
 function requestRowMatchesInputContext(row, context = itemPickerDemandContext()) {
   const contextKey = requestInputContextKey(context);
   const rows = stationBreakdownRowsForDetail(row);
@@ -7209,7 +9805,7 @@ function requesterInputRows() {
 function requesterPackageRows() {
   syncRequestWorksheetContext();
   return activeProjectRequests().filter((row) => stationBreakdownRowsForDetail(row).some((item) =>
-    (item.requestLine || "Line 1") === requestWorksheetLine
+    requestBreakdownMatchesScope(item)
   ));
 }
 
@@ -7349,7 +9945,7 @@ function updateRequestWorksheetQty(requestId, phase, column, value) {
         }),
       ];
     }
-    return syncRowPhaseQtyFromStationBreakdown({ ...row, stationBreakdown });
+    return syncRowPhaseQtyFromStationBreakdown(normalizeRequestDemandDepartment({ ...row, stationBreakdown }));
   });
   renderRequestRows();
   renderSelectedDemandLines();
@@ -7602,7 +10198,7 @@ function requestWorksheetTableColspan() {
 
 function requestWorksheetPhaseCells(row, phase) {
   return [
-    ...requestWorksheetColumns().map((column) => `<td class="cell-number request-matrix-cell">${requestWorksheetQtyInput(row, phase, column)}</td>`),
+    ...requestWorksheetColumns().map((column) => `<td class="cell-number request-matrix-cell" data-request-phase-cell="${phase}" data-request-phase-column="${htmlAttr(column)}">${requestWorksheetQtyInput(row, phase, column)}</td>`),
     `<td class="cell-number request-phase-total-cell"><strong>${requestWorksheetPhaseTotal(row, phase)}</strong></td>`,
   ].join("");
 }
@@ -7620,19 +10216,20 @@ function requestWorksheetHintCell(row) {
 }
 
 function requestWorksheetDataRowHtml(row) {
-  return `
-    <tr data-request-row="${htmlAttr(row.id)}">
-      <td class="cell-spec request-sticky-col">${draftDemandItemCell(row)}</td>
-      ${STAGES.map((phase) => requestWorksheetPhaseCells(row, phase)).join("")}
-      <td class="cell-number request-row-total-cell"><strong>${requestWorksheetRowTotal(row)}</strong></td>
-      <td class="cell-hint">${requestWorksheetHintCell(row)}</td>
-      <td class="cell-action">
-        <div class="action-stack">
-          ${itemDetailButton("request", row.id)}
-          ${canRequesterEditRequest(row) ? `<button class="mini reject" data-request-worksheet-remove="${htmlAttr(row.id)}">Remove</button>` : ""}
-        </div>
-      </td>
-    </tr>`;
+  return requestWorksheetMatrixModule().renderRow?.({
+    row,
+    stages: STAGES,
+    phaseCellHtml: (phase) => requestWorksheetPhaseCells(row, phase),
+    rowTotal: requestWorksheetRowTotal(row),
+    hintHtml: requestWorksheetHintCell(row),
+    actionHtml: `
+      <div class="action-stack">
+        ${itemDetailButton("request", row.id)}
+        ${canRequesterEditRequest(row) ? `<button class="mini reject" data-request-worksheet-remove="${htmlAttr(row.id)}">Remove</button>` : ""}
+      </div>`,
+    itemHtml: draftDemandItemCell(row),
+    isActiveRow: row.id === requestWorksheetActiveCell.requestId,
+  }) || "";
 }
 
 function requestWorksheetSeedBreakdown(record, { phase = requestWorksheetAddPhase, mode = requestWorksheetMode } = {}) {
@@ -7725,18 +10322,29 @@ function renderRequestRows() {
   const worksheetRows = requestWorksheetRows();
   const packageRows = requesterPackageRows();
   renderRequestWorksheetHead();
+  renderRequestWorksheetPhaseJumpBar();
   renderRequesterInputContext();
+  syncRequestPackageNeedDateInput();
   const summary = document.getElementById("requestDraftSummary");
   const scopeSummary = document.getElementById("requestWorksheetScopeSummary");
+  const packageNeedDate = requestPackageNeedDateValue();
+  const audit = requesterSubmitScopeAudit();
+  const rowsWithQty = audit.readyRows;
   if (summary) {
-    const rowsWithQty = packageRows.filter(stationBreakdownHasDemand);
-    summary.textContent = packageRows.length
-      ? `${packageRows.length} worksheet item${packageRows.length === 1 ? "" : "s"} on ${requestWorksheetLine} · ${rowsWithQty.length} with qty.`
-      : "Use Add Item, then enter at least one non-zero quantity before submitting.";
+    if (!packageRows.length) {
+      summary.textContent = `Use Add Item, then enter at least one non-zero ${quantityReviewModeLabel(requestWorksheetMode)} quantity before submitting.`;
+    } else if (!rowsWithQty.length) {
+      summary.textContent = `Add quantity to at least one ${requestNeedDateScopeLabel()} worksheet row before submitting to Dept DRI.`;
+    } else if (!packageNeedDate) {
+      summary.textContent = `${quantityReviewModeLabel(requestWorksheetMode)} Need Date is still required before this scope can be submitted.`;
+    } else {
+      const excludedText = audit.excluded.length ? ` Excluded: ${audit.excluded.slice(0, 3).join(" / ")}${audit.excluded.length > 3 ? ` / +${audit.excluded.length - 3} more` : ""}.` : "";
+      summary.textContent = `Ready to submit ${rowsWithQty.length} ${quantityReviewModeLabel(requestWorksheetMode)} row${rowsWithQty.length === 1 ? "" : "s"} on ${requestWorksheetLine}.${excludedText}`;
+    }
   }
   if (scopeSummary) {
-    const rowsWithQty = worksheetRows.filter(stationBreakdownHasDemand).length;
-    scopeSummary.textContent = `${worksheetRows.length} worksheet row${worksheetRows.length === 1 ? "" : "s"} · ${rowsWithQty} with qty`;
+    const worksheetRowsWithQty = worksheetRows.filter(stationBreakdownHasDemand).length;
+    scopeSummary.textContent = `${worksheetRows.length} worksheet row${worksheetRows.length === 1 ? "" : "s"} · ${worksheetRowsWithQty} ready`;
   }
   const body = document.getElementById("requestRows");
   if (!body) return;
@@ -7744,6 +10352,8 @@ function renderRequestRows() {
     ? worksheetRows.map(requestWorksheetDataRowHtml).join("")
     : `<tr><td colspan="${requestWorksheetTableColspan()}" class="empty-cell">No worksheet rows for ${requestWorksheetMode} / ${requestWorksheetLine}. Use Add Item to start.</td></tr>`;
   renderRequestItemPicker();
+  applyRequestWorksheetActiveState();
+  refreshGlobalHorizontalNavigators();
 }
 
 function userDemandOverviewSourceRows() {
@@ -8711,10 +11321,132 @@ function isUserAAmendmentReviewRow(row) {
   return Boolean(row.amendmentOf) && row.amendmentStatus === AMENDMENT_WAITING_USER_CONFIRM;
 }
 
+function isItemQuantityProposalPending(row) {
+  return row?.itemQuantityReviewStatus === "Proposal Pending Requester"
+    && itemReviewHistory(row).some((entry) => entry.type === "proposal" && entry.status === "pending_requester_confirmation");
+}
+
+function latestItemQuantityProposal(row) {
+  return itemReviewHistory(row).slice().reverse().find((entry) => entry.type === "proposal" && entry.status === "pending_requester_confirmation") || null;
+}
+
+function applyItemQuantityProposalChange(row, change) {
+  const rows = stationBreakdownRowsForDetail(row);
+  const matchesAggregate = (entry) => stationBreakdownPhaseKey(entry) === change.phase
+    && demandTypeFor(entry) === quantityReviewModeValue(change.demandType)
+    && (change.demandType === DEMAND_TYPE_MFG
+      ? (entry.station || STATION_MASTER[0]) === (change.station || STATION_MASTER[0])
+      : managerQuantityEntryUnit({ ...entry, request: row }) === (change.demandUnit || DEMAND_UNIT_FALLBACK));
+  if (change.aggregateKey) {
+    const keptRows = rows.filter((entry) => !matchesAggregate(entry));
+    if (clampQty(change.afterQty) <= 0) return keptRows;
+    return [
+      ...keptRows,
+      createStationBreakdownEntry(row, {
+        demandType: change.demandType,
+        phase: change.phase,
+        station: change.station,
+        demandUnit: change.demandUnit,
+        qty: change.afterQty,
+        remark: change.note,
+      }),
+    ];
+  }
+  if (change.action === "add") {
+    return [
+      ...rows,
+      createStationBreakdownEntry(row, {
+        demandType: change.demandType,
+        phase: change.phase,
+        station: change.station,
+        demandUnit: change.demandUnit,
+        qty: change.afterQty,
+        remark: change.note,
+      }),
+    ];
+  }
+  if (change.action === "delete") {
+    return rows.filter((entry) => {
+      if (change.rowId && entry.id === change.rowId) return false;
+      return !(stationBreakdownPhaseKey(entry) === change.phase
+        && (entry.station || "") === (change.station || "")
+        && (entry.demandUnit || "") === (change.demandUnit || ""));
+    });
+  }
+  return rows.map((entry) => {
+    const matches = change.rowId
+      ? entry.id === change.rowId
+      : stationBreakdownPhaseKey(entry) === change.phase
+        && (entry.station || "") === (change.station || "")
+        && (entry.demandUnit || "") === (change.demandUnit || "");
+    if (!matches) return entry;
+    return {
+      ...entry,
+      demandType: change.demandType || demandTypeFor(entry),
+      phase: change.phase || stationBreakdownPhaseKey(entry),
+      station: change.demandType === DEMAND_TYPE_NON_MFG ? "" : (change.station || entry.station || ""),
+      demandUnit: change.demandType === DEMAND_TYPE_MFG ? "" : (change.demandUnit || entry.demandUnit || ""),
+      qty: clampQty(change.afterQty),
+      remark: change.note || entry.remark || "",
+    };
+  });
+}
+
+function acceptItemQuantityProposal(requestId) {
+  const row = requests.find((item) => item.id === requestId);
+  const proposal = row ? latestItemQuantityProposal(row) : null;
+  if (!row || !proposal) return;
+  const note = itemQuantityPrompt("Requester acceptance note is required.", "Accepted reviewer quantity proposal.");
+  if (!String(note || "").trim()) {
+    showToast("Requester acceptance note is required.", "error");
+    return;
+  }
+  const now = new Date().toISOString();
+  const actor = requesterDisplayName();
+  requests = requests.map((item) => {
+    if (item.id !== requestId) return item;
+    const nextBreakdown = (proposal.changes || []).reduce((rows, change) => applyItemQuantityProposalChange({ ...item, stationBreakdown: rows }, change), stationBreakdownRowsForDetail(item));
+    const history = itemReviewHistory(item).map((entry) => entry === proposal ? { ...entry, status: "accepted", resolvedAt: now, resolvedBy: actor, resolutionNote: String(note).trim() } : entry);
+    return syncRowPhaseQtyFromStationBreakdown({
+      ...item,
+      stationBreakdown: nextBreakdown,
+      status: "Submitted",
+      deptDriReviewStatus: DEPT_DRI_SUBMISSION_PENDING,
+      deptDriReviewReworkRequired: false,
+      costManagerAuthorizationStatus: "",
+      costManagerAuthorizationReworkRequired: false,
+      priceReviewReworkRequired: false,
+      priceApprovalStatus: "",
+      priceDecisionStatus: "",
+      itemQuantityReviewStatus: "Requester Revised",
+      itemQuantityReviewHistory: [...history, {
+        type: "requester_revision",
+        action: "accept_proposal",
+        actor,
+        at: now,
+        note: String(note).trim(),
+        proposalId: proposal.id || "",
+      }],
+      itemQuantityRequesterRevisionCount: itemReviewRequesterRevisionCount(item) + 1,
+      itemQuantityChangeCount: itemReviewChangeCount(item) + 1,
+      itemQuantityLastChangedAt: now,
+      itemQuantityLastChangedBy: actor,
+      itemQuantityLastChangeNote: String(note).trim(),
+      nextStep: "Dept DRI submission review",
+    });
+  });
+  const latest = requests.find((item) => item.id === requestId);
+  addHandoffHistory(latest, "Requester accepted item quantity proposal", String(note).trim());
+  renderDepartment();
+  renderPriceReview();
+  renderManager();
+  showToast("Proposal accepted and resubmitted to Dept DRI.", "success");
+}
+
 function needConfirmationRows() {
   return requests
     .filter((row) => row.project === currentProject
-      && (row.userAQuoteDecisionStatus === OM_WAITING_USER_CONFIRM || row.amendmentStatus === AMENDMENT_WAITING_USER_CONFIRM || isPriceReviewReworkRequired(row) || isDeptDriSubmissionReworkRequired(row) || isOmRejectReworkRequired(row)))
+      && (row.userAQuoteDecisionStatus === OM_WAITING_USER_CONFIRM || row.amendmentStatus === AMENDMENT_WAITING_USER_CONFIRM || isItemQuantityProposalPending(row) || isPriceReviewReworkRequired(row) || isDeptDriSubmissionReworkRequired(row) || isOmRejectReworkRequired(row)))
     .sort((a, b) => latestRequestActivityTime(b) - latestRequestActivityTime(a));
 }
 
@@ -8805,6 +11537,37 @@ function renderNeedConfirmationRows() {
       const waitingHours = hoursSince(waitingAt);
       const overdue = waitingHours !== null && waitingHours > 24;
       const overdueDays = overdue ? Math.floor(waitingHours / 24) : 0;
+      if (isItemQuantityProposalPending(row)) {
+        const proposal = latestItemQuantityProposal(row);
+        const changeCount = proposal?.changes?.length || 0;
+        return `
+      <article class="need-confirm-card price-rework-card item-proposal-card ${overdue ? "need-confirm-overdue" : ""}">
+        <div class="need-confirm-main">
+          <div class="need-confirm-taskbar">
+            <span class="status-pill warning">Item Quantity Proposal</span>
+            <span class="need-confirm-taskhint ${overdue ? "warning" : ""}">${overdue ? `Overdue ${overdueDays}d` : `${changeCount} proposed change${changeCount === 1 ? "" : "s"}`}</span>
+          </div>
+          <h4>${row.name}</h4>
+          <p>${proposal?.note || row.itemQuantityLastChangeNote || "Reviewer proposed quantity changes. Accepting updates official demand rows and resubmits to Dept DRI."}</p>
+          <div class="need-confirm-meta">
+            <span>Project <strong>${row.project}</strong></span>
+            <span>Total Qty <strong>${totalQty(row)}</strong></span>
+            <span>Proposal Count <strong>${itemReviewProposalCount(row)}</strong></span>
+            <span>Official Changes <strong>${itemReviewChangeCount(row)}</strong></span>
+          </div>
+          ${userQuoteInfoBarHtml(row)}
+        </div>
+        <div class="need-confirm-quote">
+          <span class="reason-text">Requester owns official quantity. Accepting this proposal writes the proposed raw rows to stationBreakdown and creates a new requester revision.</span>
+        </div>
+        <div class="need-confirm-actions">
+          <button class="mini approve" data-item-quantity-accept-proposal="${row.id}">Accept</button>
+          <button class="mini return" data-usera-amend="${row.id}">Revise</button>
+          ${itemDetailButton("request", row.id)}
+        </div>
+      </article>
+    `;
+      }
 	      if (isDeptDriSubmissionReworkRequired(row) || isPriceReviewReworkRequired(row)) {
 	        const submissionRework = isDeptDriSubmissionReworkRequired(row);
 	        return `
@@ -9739,32 +12502,43 @@ function importHistoryPackage() {
 }
 
 function requestPackageNeedDateValue() {
-  return document.getElementById("requestPackageNeedDate")?.value || "";
+  return document.getElementById("requestPackageNeedDate")?.value || currentRequestScopeNeedDate();
 }
 
 function saveRequesterDraft() {
   const rows = requesterPackageRows();
   const now = new Date().toISOString();
-  requests = requests.map((row) => rows.some((item) => item.id === row.id) ? { ...row, draftSavedAt: now } : row);
+  const packageNeedDate = requestPackageNeedDateValue();
+  if (packageNeedDate) setCurrentRequestScopeNeedDate(packageNeedDate);
+  requests = requests.map((row) => rows.some((item) => item.id === row.id) ? {
+    ...row,
+    draftSavedAt: now,
+    ...(packageNeedDate ? {
+      needDate: packageNeedDate,
+      requiredDeliveryDate: packageNeedDate,
+      requiredDeliveryDateDri: packageNeedDate,
+    } : {}),
+  } : row);
   renderRequestRows();
   renderSelectedDemandLines();
   showToast(rows.length ? `${rows.length} worksheet item${rows.length === 1 ? "" : "s"} saved.` : "No worksheet items on this line yet.", rows.length ? "success" : "info");
 }
 
 function submitRequests() {
-  const visibleRows = requesterPackageRows().filter(canRequesterEditRequest);
-  const selectedRows = visibleRows.filter(stationBreakdownHasDemand);
+  const audit = requesterSubmitScopeAudit();
+  const visibleRows = audit.scopedRows.filter(canRequesterEditRequest);
+  const selectedRows = audit.readyRows;
   const packageNeedDate = requestPackageNeedDateValue();
   if (!visibleRows.length) {
-    showToast("Add at least one item/spec before submitting to Dept DRI.", "error");
+    showToast(`Add at least one ${quantityReviewModeLabel(requestWorksheetMode)} item/spec before submitting to Dept DRI.`, "error");
     return;
   }
   if (!selectedRows.length) {
-    showToast("Add at least one phase quantity before submitting to Dept DRI.", "error");
+    showToast(`Add at least one ${quantityReviewModeLabel(requestWorksheetMode)} phase quantity before submitting to Dept DRI.`, "error");
     return;
   }
   if (!packageNeedDate) {
-    showToast("Need Date is required before submitting this demand package.", "error");
+    showToast(`${quantityReviewModeLabel(requestWorksheetMode)} Need Date is required before submitting this demand scope.`, "error");
     return;
   }
   if (selectedRows.some((row) => !isMaintenanceComplete(row) && !isMaterialNoPending(row))) {
@@ -9773,8 +12547,10 @@ function submitRequests() {
   }
   let submitted = 0;
   const now = new Date().toISOString();
+  setCurrentRequestScopeNeedDate(packageNeedDate);
   const packageId = `PKG-${currentProject}-${now.replace(/[-:.TZ]/g, "").slice(0, 14)}`;
   const requesterPersona = currentRequesterPersona();
+  const requesterDepartment = currentRequesterDepartment();
   const submittedIds = new Map(selectedRows.map((row) => [
     row.id,
     row.id.startsWith("REQ-") && !row.id.startsWith("DRAFT-") ? row.id : `REQ-${String(requestSequence++).padStart(4, "0")}`,
@@ -9786,7 +12562,8 @@ function submitRequests() {
     if (selectedRows.some((item) => item.id === row.id)) {
       submitted += 1;
       const newId = submittedIds.get(row.id);
-      return syncRowPhaseQtyFromStationBreakdown({
+      const demandDepartment = rowDemandDepartment(row, requesterDepartment);
+      return syncRowPhaseQtyFromStationBreakdown(normalizeRequestDemandDepartment({
         ...row,
         id: newId,
         selected: false,
@@ -9805,14 +12582,16 @@ function submitRequests() {
         requesterEmployeeId: row.requesterEmployeeId || requesterPersona?.employeeId || "",
         email: row.email || requesterPersona?.email || "",
         phone: row.phone || requesterPersona?.phone || "",
-        department: row.department || requesterPersona?.department || row.department || "",
+        department: demandDepartment,
+        requesterDept: row.requesterDept || demandDepartment,
+        demandDepartment: row.demandDepartment || demandDepartment,
         ...(row.amendmentOf ? {
           amendmentStatus: AMENDMENT_SUBMITTED,
           amendmentSubmittedAt: now,
           amendedBy: roleProfiles[currentRole]?.name || "Requester",
           amendedAt: row.amendedAt || now,
         } : {}),
-      });
+      }, demandDepartment));
     }
     const amendment = amendmentSubmissions.find((item) => item.sourceId === row.id);
     if (amendment) {
@@ -10432,6 +13211,199 @@ function managerRows() {
   });
 }
 
+function priceReviewSubmissionRows() {
+  return requests.filter((row) => isDeptDriSubmissionPending(row) && currentRole === "dri")
+    .sort((left, right) => {
+      const dateDiff = new Date(needDateForRow(left) || "9999-12-31") - new Date(needDateForRow(right) || "9999-12-31");
+      if (dateDiff) return dateDiff;
+      return latestRequestActivityTime(right) - latestRequestActivityTime(left);
+    });
+}
+
+function priceReviewExceptionRows() {
+  return requests.filter((row) => {
+    if (row.priceDecisionStatus !== PRICE_ESCALATION_REQUIRED) return false;
+    if (row.priceApprovalStatus === PRICE_ESCALATION_REJECTED || row.projectDriApprovedAt) return false;
+    return currentRole === "dri" && !row.driApprovedAt;
+  }).sort((left, right) => {
+    const dateDiff = new Date(needDateForRow(left) || "9999-12-31") - new Date(needDateForRow(right) || "9999-12-31");
+    if (dateDiff) return dateDiff;
+    return latestRequestActivityTime(right) - latestRequestActivityTime(left);
+  });
+}
+
+function priceReviewBudgetRows() {
+  return requests.filter((row) => {
+    if (row.priceDecisionStatus !== PRICE_ESCALATION_REQUIRED) return false;
+    if (row.priceApprovalStatus === PRICE_ESCALATION_REJECTED || row.projectDriApprovedAt) return false;
+    return currentRole === "projectDri" && priceReviewRequiresBudgetApprover(row) && Boolean(row.driApprovedAt) && !row.projectDriApprovedAt;
+  }).sort((left, right) => {
+    const dateDiff = new Date(needDateForRow(left) || "9999-12-31") - new Date(needDateForRow(right) || "9999-12-31");
+    if (dateDiff) return dateDiff;
+    return latestRequestActivityTime(right) - latestRequestActivityTime(left);
+  });
+}
+
+function priceReviewStockRows() {
+  return warehouseStockRecords
+    .filter((row) => isWarehousePendingUse(row) && warehouseOwnerForTransaction(row) === ITEM_OWNER_UNIT)
+    .filter(() => currentRole === "dri")
+    .sort((left, right) => String(left.targetProject || "").localeCompare(String(right.targetProject || "")) || String(left.item || "").localeCompare(String(right.item || "")))
+    .map((row) => ({
+      ...row,
+      workbenchType: "stockCarryover",
+      project: row.targetProject || row.sourceProject || "-",
+      name: row.item,
+    }));
+}
+
+function priceReviewQueueRows(queue = currentPriceReviewQueue) {
+  if (queue === "submission") return priceReviewSubmissionRows();
+  if (queue === "stock") return priceReviewStockRows();
+  if (queue === "budget") return priceReviewBudgetRows();
+  return priceReviewExceptionRows();
+}
+
+function availablePriceReviewQueues() {
+  const queueMeta = roleQueueConfigModule();
+  const approvalSurface = approvalReviewSurfaceModule();
+  const queues = [];
+  if (currentRole === "dri") {
+    queues.push({
+      id: "submission",
+      label: approvalSurface?.queueLabel?.(currentRole, "submission", queueMeta.queueLabel?.(currentRole, "submission", "Submission Review")) || "Submission Review",
+      helper: "Requester submissions that still need Dept DRI gate approval before Cost Manager authorization.",
+      rows: priceReviewSubmissionRows(),
+    });
+    queues.push({
+      id: "exception",
+      label: approvalSurface?.queueLabel?.(currentRole, "exception", queueMeta.queueLabel?.(currentRole, "exception", "Price Exception Review")) || "Price Exception Review",
+      helper: "Quoted rows above threshold, missing history price, or Temporary Budget cases waiting Dept DRI review.",
+      rows: priceReviewExceptionRows(),
+    });
+    queues.push({
+      id: "stock",
+      label: approvalSurface?.queueLabel?.(currentRole, "stock", queueMeta.queueLabel?.(currentRole, "stock", "Unit Stock Review")) || "Unit Stock Review",
+      helper: "Unit-owned stock-use candidates stay here for Dept DRI confirmation. OM-owned and MFG-owned warehouse evidence does not appear in this queue.",
+      rows: priceReviewStockRows(),
+    });
+  } else if (currentRole === "projectDri") {
+    queues.push({
+      id: "budget",
+      label: approvalSurface?.queueLabel?.(currentRole, "budget", queueMeta.queueLabel?.(currentRole, "budget", "Budget Exception Approval")) || "Budget Exception Approval",
+      helper: "Dept DRI-approved price exceptions that still need Budget Approver release.",
+      rows: priceReviewBudgetRows(),
+    });
+  }
+  const visibleQueues = queues;
+  return visibleQueues.sort((left, right) => {
+    const leftHasRows = left.rows.length ? 1 : 0;
+    const rightHasRows = right.rows.length ? 1 : 0;
+    if (leftHasRows !== rightHasRows) return rightHasRows - leftHasRows;
+    return 0;
+  });
+}
+
+function ensureCurrentPriceReviewQueue() {
+  const queues = availablePriceReviewQueues();
+  if (!queues.length) {
+    currentPriceReviewQueue = "submission";
+    updateApprovalReviewState(currentRole, { activeQueue: currentPriceReviewQueue });
+    return [];
+  }
+  const currentQueue = queues.find((queue) => queue.id === currentPriceReviewQueue);
+  if (!currentQueue || (!currentQueue.rows.length && queues.some((queue) => queue.rows.length))) {
+    const preferred = queues.find((queue) => queue.rows.length) || currentQueue || queues[0];
+    currentPriceReviewQueue = preferred.id;
+  }
+  updateApprovalReviewState(currentRole, { activeQueue: currentPriceReviewQueue });
+  return queues;
+}
+
+function priceReviewQueueMeta(queue = currentPriceReviewQueue) {
+  const queues = ensureCurrentPriceReviewQueue();
+  return queues.find((item) => item.id === queue) || queues[0] || {
+    id: "submission",
+    label: "Review Queue",
+    helper: "No queue is active.",
+    rows: [],
+  };
+}
+
+function priceReviewEmptyState(role = currentRole, queue = currentPriceReviewQueue) {
+  const queueDefinition = approvalReviewSurfaceModule()?.queueDefinition?.(role, queue);
+  if (queueDefinition && approvalReviewConfigForRole(role)?.emptyStateCopy) return approvalReviewConfigForRole(role).emptyStateCopy;
+  if (role === "dri" && queue === "submission") return "No requester submissions are waiting for Dept DRI review.";
+  if (role === "dri" && queue === "exception") return "No quoted exceptions are waiting for Dept DRI escalation review.";
+  if (role === "dri" && queue === "stock") return "No unit-owned stock candidates are waiting for Dept DRI confirmation.";
+  if (role === "projectDri" && queue === "budget") return "No Dept DRI-approved budget exceptions are waiting for Budget Approver release.";
+  return `No rows are waiting for ${roleProfiles[role]?.name || "this role"} in this queue.`;
+}
+
+function renderPriceReviewWorkspaceBanner(queues = ensureCurrentPriceReviewQueue(), activeQueue = priceReviewQueueMeta()) {
+  const host = document.getElementById("priceReviewWorkspaceBanner");
+  if (!host) return;
+  host.innerHTML = "";
+  host.hidden = true;
+}
+
+function preserveApprovalViewport(kind, { rowIds = [], actedRowId = "", selectedRowId = "", containerSelector = "" } = {}) {
+  const container = containerSelector ? document.querySelector(containerSelector) : null;
+  const actedIndex = actedRowId ? rowIds.indexOf(actedRowId) : -1;
+  approvalViewportState[kind] = {
+    actedIndex,
+    actedRowId,
+    containerSelector,
+    rowIds: [...rowIds],
+    scrollLeft: container?.scrollLeft || 0,
+    scrollTop: container?.scrollTop || 0,
+    selectedRowId,
+    tab: kind === "priceReview" ? currentPriceReviewTab : currentManagerTab,
+    queue: kind === "priceReview" ? currentPriceReviewQueue : "",
+  };
+  return approvalViewportState[kind];
+}
+
+function nextApprovalSelection(rows, state, fallbackSelectedId = "") {
+  const ids = rows.map((row) => row.id);
+  if (!ids.length) return null;
+  const preferredId = fallbackSelectedId || state?.selectedRowId || state?.actedRowId || "";
+  if (preferredId && ids.includes(preferredId)) return preferredId;
+  const actedIndex = Number.isInteger(state?.actedIndex) ? state.actedIndex : -1;
+  if (actedIndex >= 0 && ids[actedIndex]) return ids[actedIndex];
+  if (actedIndex > 0 && ids[actedIndex - 1]) return ids[actedIndex - 1];
+  return ids[0];
+}
+
+function restoreApprovalViewport(kind) {
+  const state = approvalViewportState[kind];
+  if (!state?.containerSelector) return;
+  requestAnimationFrame(() => {
+    const container = document.querySelector(state.containerSelector);
+    if (!container) return;
+    container.scrollTop = state.scrollTop || 0;
+    container.scrollLeft = state.scrollLeft || 0;
+  });
+}
+
+function pendingWorkActionButtons(buttons = []) {
+  if (!buttons.length) return `<span class="status-pill">Read Only</span>`;
+  return `
+    <div class="row-action-stack">
+      ${buttons.join("")}
+    </div>`;
+}
+
+function pendingWorkIdentityHtml(row, { secondary = "", tertiary = "", badge = "" } = {}) {
+  const tertiaryText = [tertiary, badge].filter(Boolean).join(" · ");
+  return `
+    <div class="identity-block">
+      <span class="identity-primary">${htmlText(row.name || "-")}</span>
+      <span class="identity-secondary">${htmlText(secondary || partName(row) || row.id || "-")}</span>
+      ${tertiaryText ? `<span class="identity-tertiary">${htmlText(tertiaryText)}</span>` : ""}
+    </div>`;
+}
+
 function managerAffectedPhasesText(row) {
   return STAGES
     .map((stage) => ({ stage, qty: requestStageQty(row, stage) }))
@@ -10457,22 +13429,208 @@ function managerQueueNextStep(row) {
 }
 
 function managerDecisionCell(row) {
-  if (!isCostManagerAuthorizationPending(row)) return `<span class="status-pill">Read Only</span>`;
+  if (!isCostManagerAuthorizationPending(row)) return pendingWorkActionButtons();
+  return pendingWorkActionButtons([
+    `<button class="mini approve" type="button" data-cost-manager-authorization="${row.id}" data-cost-manager-action="approve">Authorize</button>`,
+    `<button class="mini reject" type="button" data-cost-manager-authorization="${row.id}" data-cost-manager-action="reject">Reject</button>`,
+  ]);
+}
+
+function renderManagerWorkbenchDetail(row) {
+  if (!row) {
+    return `
+      <div class="empty-state pending-work-empty">
+        Select a queue row to review request detail, phase impact, and the next approval action.
+      </div>`;
+  }
+  const decisionHtml = managerDecisionCell(row);
+  const summary = detailSummaryGridHtml([
+    ["Request ID", row.id, row.project],
+    ["Requester", row.submittedBy || row.requesterName || "Requester", row.submittedAt ? compactDateTime(row.submittedAt) : "Waiting submitted time"],
+    ["Current Stage", managerQueueStatus(row), managerGateOwner(row)],
+    ["Next Step", managerQueueNextStep(row), row.nextStep || "Workflow status"],
+    ["Affected Phases", managerAffectedPhasesText(row), `Total Qty ${totalQty(row)}`],
+    ["Need Date", needDateForRow(row) || "-", row.requiredDeliveryDate || "No required delivery date"],
+    ["Reason / Use Case", row.requesterReason || row.useCase || "-", row.managerReason || "No reject reason recorded"],
+    ["Estimate / Cost", row.estimatedAmount ? formatMoneyFromVnd(row.estimatedAmount) : row.estimatedUnitPrice ? `${formatMoneyFromVnd(row.estimatedUnitPrice)} / unit` : "-", isCostManagerAuthorizationPending(row) ? "Waiting final authorization" : managerQueueStatus(row)],
+  ]);
   return `
-    <div class="row-action-stack">
-      <button class="mini approve" type="button" data-cost-manager-authorization="${row.id}" data-cost-manager-action="approve">Approve</button>
-      <button class="mini reject" type="button" data-cost-manager-authorization="${row.id}" data-cost-manager-action="reject">Reject</button>
+    <section class="pending-work-detail-card">
+      <div class="panel-title section-head-tight">
+        <div>
+          <h4>${htmlText(row.name || "Selected Request")}</h4>
+          <p class="panel-subcopy">${htmlText(partName(row) || itemDetail(row) || "Review the requester summary, then authorize or reject without leaving the queue.")}</p>
+        </div>
+        <span class="status-pill ${statusClass(managerQueueStatus(row))}">${managerQueueStatus(row)}</span>
+      </div>
+      <div class="pending-work-detail-actions">
+        ${decisionHtml}
+        <button class="ghost" type="button" data-manager-detail="${row.id}">Open Full Detail</button>
+      </div>
+      ${summary}
+      <section class="detail-card-section">
+        <h4>需求單位 / Station Breakdown</h4>
+        ${stationBreakdownDetailHtml(row)}
+      </section>
+      <section class="detail-card-section">
+        <h4>Timeline / Evidence</h4>
+        ${managerAuditTimelineHtml(row)}
+      </section>
+    </section>`;
+}
+
+function syncSelectedManagerRequest(rows = managerRows(), preferredId = selectedManagerRequestId) {
+  selectedManagerRequestId = nextApprovalSelection(rows, approvalViewportState.manager, preferredId);
+  updateApprovalReviewState("manager", { selectedRowId: selectedManagerRequestId || "" });
+}
+
+function renderManagerQueueRows(rows) {
+  return rows.length ? rows.map((row) => `
+    <tr class="${row.id === selectedManagerRequestId ? "active-row" : ""}" data-manager-select-row="${htmlAttr(row.id)}">
+      <td class="cell-action pending-work-action-cell">
+        ${managerDecisionCell(row)}
+      </td>
+      <td class="cell-identity">
+        ${pendingWorkIdentityHtml(row, {
+    secondary: row.id,
+    tertiary: itemDetail(row) || "",
+    badge: isNewMaterial(row) ? "New Material" : "",
+  })}
+      </td>
+      <td>${row.project}</td>
+      <td>${row.submittedBy || row.requesterName || "Requester"}<div class="reason-text">${row.submittedAt ? compactDateTime(row.submittedAt) : "-"}</div></td>
+      <td>${managerAffectedPhasesText(row)}<div class="reason-text">Qty ${totalQty(row)}</div></td>
+      <td><span class="status-pill ${statusClass(managerQueueStatus(row))}">${managerQueueStatus(row)}</span></td>
+      <td>${managerGateOwner(row)}</td>
+      <td>${managerQueueNextStep(row)}</td>
+      <td class="cell-action">
+        <div class="row-action-stack">
+          <button class="mini" type="button" data-manager-select="${row.id}">Review</button>
+          <button class="mini return" type="button" data-contact-dri="${row.id}">Contact</button>
+          <button class="mini" type="button" data-manager-detail="${row.id}">Detail</button>
+        </div>
+      </td>
+	    </tr>`).join("") : `<tr><td colspan="9" class="empty-cell">No requests match the selected filters.</td></tr>`;
+}
+
+function approvalQuantityPickerItemHtml(row) {
+  const identity = row.name || row.item || "Review row";
+  const spec = isPriceReviewStockRow(row) ? (row.spec || "") : (userVisibleItemDetail(row) || itemDetail(row) || "");
+  const qty = isPriceReviewStockRow(row) ? warehouseTransactionQty(row) : totalQty(row);
+  const scope = isPriceReviewStockRow(row) ? warehouseTargetLabel(row) : minDemandUnitSummary(row);
+  return `
+    <span class="approval-quantity-chip-primary">${htmlText(identity)}</span>
+    <span class="approval-quantity-chip-secondary">${htmlText(row.id || row.targetRequestId || "-")} · Qty ${htmlText(qty)}</span>
+    <span class="approval-quantity-chip-tertiary">${htmlText([scope, spec].filter(Boolean).join(" · "))}</span>`;
+}
+
+function approvalQuantityPickerMetaHtml(row, role = currentRole) {
+  if (!row) return "";
+  const phase = isPriceReviewStockRow(row) ? (row.targetStage || row.phase || "-") : managerAffectedPhasesText(row);
+  const status = isPriceReviewStockRow(row)
+    ? warehouseTransactionStatus(row)
+    : role === "manager"
+      ? managerQueueStatus(row)
+      : priceReviewPendingOwner(row);
+  const next = isPriceReviewStockRow(row) ? warehouseOwnerLabel(row) : row.nextStep || managerQueueNextStep(row);
+  const minUnitLabel = isPriceReviewStockRow(row) ? "Target" : minDemandUnitLabel(row);
+  const minUnitValue = isPriceReviewStockRow(row) ? warehouseTargetLabel(row) : minDemandUnitValue(row);
+  return `
+    <div class="approval-quantity-selected-identity">
+      <strong>${htmlText(row.name || row.item || "Selected row")}</strong>
+      <span>${htmlText(row.id || row.targetRequestId || "-")} · ${htmlText(row.project || row.targetProject || "-")}</span>
+    </div>
+    <div class="approval-quantity-selected-metrics">
+      <span><em>Phase</em><strong>${htmlText(phase)}</strong></span>
+      <span><em>${htmlText(minUnitLabel)}</em><strong>${htmlText(minUnitValue)}</strong></span>
+      <span><em>Need Date</em><strong>${htmlText(isPriceReviewStockRow(row) ? (row.targetNeedDate || "-") : (needDateForRow(row) || "-"))}</strong></span>
+      <span><em>Status</em><strong>${htmlText(status)}</strong></span>
+      <span><em>Next</em><strong>${htmlText(next || "-")}</strong></span>
     </div>`;
+}
+
+function managerApprovalQuantityActions(row) {
+  if (!row) return "";
+  return `
+    ${managerDecisionCell(row)}
+    <button class="mini" type="button" data-manager-detail="${htmlAttr(row.id)}">Detail</button>
+    <button class="mini return" type="button" data-contact-dri="${htmlAttr(row.id)}">Contact</button>`;
+}
+
+function priceReviewApprovalQuantityActions(row) {
+  if (!row) return "";
+  return `
+    ${priceReviewActionCell(row)}
+    ${isPriceReviewStockRow(row)
+      ? itemDetailButton("warehouse", warehouseInventoryId({ month: row.month, item: row.item, spec: row.spec }))
+      : itemDetailButton("request", row.id)}`;
+}
+
+function renderApprovalQuantityRowPicker({
+  rows = [],
+  selectedId = "",
+  selectAttr = "",
+  title = "Review Rows",
+  helper = "",
+  emptyText = "",
+  role = currentRole,
+  actionHtml = () => "",
+} = {}) {
+  return approvalQuantityReviewModule().renderRowPicker?.({
+    rows,
+    selectedId,
+    selectAttr,
+    title,
+    helper,
+    emptyText,
+    itemHtml: approvalQuantityPickerItemHtml,
+    metaHtml: (row) => approvalQuantityPickerMetaHtml(row, role),
+    actionHtml,
+  }) || "";
+}
+
+function syncSelectedManagerAuthorized(rows = managerRows(), preferredId = selectedManagerRequestId) {
+  selectedManagerAuthorizedRequestId = nextApprovalSelection(rows, null, preferredId);
+  updateApprovalReviewState("manager", { selectedRowId: selectedManagerAuthorizedRequestId || selectedManagerRequestId || "" });
+}
+
+function renderManagerReviewEvidencePanel(selectedRow = null, rows = managerRows()) {
+  if (!projectContextSelectedProject("managerAuthorized")) syncProjectContextFromRow("managerAuthorized", selectedRow || rows[0] || null);
+  const selectedScope = priceReviewSelectedRowScope(selectedRow);
+  renderApprovedEvidenceAnalysis({
+    mode: "managerAuthorized",
+    scope: currentManagerTab === "review" ? selectedScope : null,
+    role: "manager",
+    rows,
+  });
+}
+
+function renderManagerDemandAnalysisEvidence() {
+  const duplicateEvidence = document.getElementById("managerAuthorizedAnalysis");
+  if (duplicateEvidence) duplicateEvidence.hidden = true;
+  const reviewProject = document.getElementById("managerProjectFilter")?.value || "";
+  if (reviewProject) {
+    ensureSelectValue("managerDemandCostProjectFilter", reviewProject);
+    ensureSelectValue("managerQuantityProjectFilter", reviewProject);
+  }
+  renderManagerDemandCostDashboard({ showCarryoverEvidence: true });
+  renderManagerQuantityMatrix({ showCarryoverEvidence: true });
 }
 
 function managerDecisionHistoryRows() {
   const projectFilter = document.getElementById("managerDashboardProjectFilter")?.value || "";
   const statusFilter = document.getElementById("managerDashboardStatusFilter")?.value || "";
   return requests.filter((row) => {
-    const reviewed = ["Approved", "Rejected"].includes(row.status);
+    const status = row.costManagerAuthorizationStatus || "";
+    const reviewed = [
+      COST_MANAGER_AUTH_APPROVED,
+      COST_MANAGER_AUTH_REJECTED,
+      "Cost Manager Authorized",
+      "Cost Manager Rejected",
+    ].includes(status);
     return reviewed
       && (!projectFilter || row.project === projectFilter)
-      && (!statusFilter || row.status === statusFilter);
+      && (!statusFilter || status === statusFilter);
   });
 }
 
@@ -11481,61 +14639,47 @@ function formatProgressDate(value) {
 }
 
 function renderManager() {
+  const reviewConfig = approvalReviewConfigForRole("manager");
+  document.querySelector('[data-view="manager"]')?.setAttribute("data-approval-review-role", "manager");
+  updateApprovalReviewState("manager", {
+    activeTab: approvalReviewTabFromManagerTab(currentManagerTab),
+    activeQueue: reviewConfig?.defaultQueue || "authorization",
+    quantityTab: approvalQuantityReviewTab,
+  });
   syncProjectControls();
+  syncManagerWorkspaceUi();
   syncDemandAnalysisTabs();
+  syncApprovalQuantityReviewTabState();
   const rows = managerRows();
+  syncSelectedManagerRequest(rows);
+  const selectedRow = rows.find((row) => row.id === selectedManagerRequestId) || null;
+  if (selectedRow) {
+    setApprovalQuantityReviewMode(approvalQuantityReviewModeForRow(selectedRow), { preserveDashboard: true });
+    syncApprovalQuantityReviewTabState();
+  }
 
   document.getElementById("managerCount").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"}`;
-  document.getElementById("managerQueue").innerHTML = rows.length
-    ? `
-      <div class="table-wrap manager-table-wrap">
-        <table class="data-table manager-table">
-          <thead>
-            <tr>
-              <th>Request ID</th>
-              <th>Project</th>
-              <th>Requester</th>
-              <th>Submitted At</th>
-              <th>Item</th>
-              <th>Affected Phases</th>
-              <th>Total Qty</th>
-              <th>Status</th>
-              <th>Gate Owner</th>
-              <th>Next Step</th>
-              <th>Decision</th>
-              <th>Contact</th>
-              <th>Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map((row) => {
-              return `
-              <tr class="${row.id === selectedManagerRequestId ? "active-row" : ""}">
-                <td>${row.id}</td>
-                <td>${row.project}</td>
-                <td>${row.submittedBy || row.requesterName || "Requester"}</td>
-                <td>${row.submittedAt ? new Date(row.submittedAt).toLocaleString("en-US") : "-"}</td>
-                <td>${row.name}<div class="reason-text">${partName(row)}</div>${isNewMaterial(row) ? itemTypeBadge(row) : ""}${amendmentBadgeHtml(row)}${row.amendmentReason ? `<div class="reason-text">${row.amendmentReason}</div>` : ""}${amendmentQueueSummaryHtml(row)}</td>
-                <td>${managerAffectedPhasesText(row)}</td>
-                <td>${totalQty(row)}</td>
-                <td><span class="status-pill ${statusClass(managerQueueStatus(row))}">${managerQueueStatus(row)}</span>${row.amendmentStatus ? `<div>${amendmentBadgeHtml(row)}</div>` : ""}</td>
-                <td>${managerGateOwner(row)}</td>
-                <td>${managerQueueNextStep(row)}</td>
-                <td>${managerDecisionCell(row)}</td>
-                <td><button class="mini return" type="button" data-contact-dri="${row.id}">Contact DRI</button></td>
-                <td>${itemDetailButton("request", row.id)}</td>
-              </tr>`;
-            }).join("")}
-          </tbody>
-        </table>
-      </div>`
-    : `<div class="empty-state">No requests match the selected filters.</div>`;
-  renderProjectSetup();
-  renderManagerStageTracking();
-  renderManagerDemandCostDashboard();
-  syncManagerQuantityScopeFromDemandCost();
-  renderManagerQuantityMatrix();
+  const managerTabs = document.getElementById("managerApprovalQuantityTabs");
+  if (managerTabs) {
+    managerTabs.innerHTML = approvalQuantityReviewModule().renderViewTabs?.({
+      activeTab: approvalQuantityReviewTab,
+      label: `${reviewConfig?.entryLabel || "Cost Review"} quantity review views`,
+    }) || "";
+  }
+  document.getElementById("managerQueue").innerHTML = renderApprovalQuantityRowPicker({
+    rows,
+    selectedId: selectedManagerRequestId,
+    selectAttr: "data-manager-select",
+    title: `${reviewConfig?.entryLabel || "Cost Review"} Rows`,
+    helper: "Pick a request to scope MFG, Non-MFG, and Dashboard review. Actions apply to the selected request.",
+    emptyText: reviewConfig?.emptyStateCopy || "No Cost Manager rows match the selected filters.",
+    role: "manager",
+    actionHtml: managerApprovalQuantityActions,
+  });
+  priceReviewAnalysisRowsOverride = null;
+  renderManagerDemandAnalysisEvidence(selectedRow, rows);
   renderManagerDashboard();
+  refreshGlobalHorizontalNavigators();
 }
 
 function managerCostRows() {
@@ -11631,6 +14775,95 @@ function detailSection(title, rows) {
     <section class="detail-card-section">
       <h4>${title}</h4>
       <div class="detail-section-grid">${rows.join("")}</div>
+    </section>`;
+}
+
+function approvalPipelineDetailHtml(row = {}, role = currentRole) {
+  const pipeline = approvalPipelineStatus(row, role);
+  const omUpdatedAt = latestTimestamp(
+    row.sentToOmAt,
+    row.pasDemandNoRecordedAt,
+    row.pasDemandNoUpdatedAt,
+    row.quoteReadyAt,
+    row.quoteCompletionReadyAt,
+    row.userAQuoteDecisionAt,
+    row.finalExportedAt
+  );
+  const buyerUpdatedAt = latestTimestamp(row.buyerReceivedAt, latestExternalProgressEvent(row)?.createdAt);
+  const rows = [
+    {
+      stage: "Request Submitted",
+      owner: "Requester",
+      status: row.submittedAt || row.deptDriReviewSubmittedAt ? "Submitted" : "Pending",
+      at: row.submittedAt || row.deptDriReviewSubmittedAt || "",
+      note: row.requestPackageLabel || "Requester submitted demand for approval.",
+    },
+    {
+      stage: "Dept DRI Decision",
+      owner: "Dept DRI",
+      status: row.deptDriReviewStatus || row.priceApprovalStatus || (row.driApprovedAt ? "Dept DRI Approved" : "Pending"),
+      at: row.deptDriSubmissionApprovedAt || row.driApprovedAt || row.deptDriReviewRejectedAt || "",
+      note: row.deptDriReviewRejectReason || (row.deptDriSubmissionApprovedAt ? "Sent to Cost Manager." : row.driApprovedAt ? "Sent to Budget Approver." : "Waiting Dept DRI decision."),
+    },
+    {
+      stage: "Cost Manager Authorization",
+      owner: "Cost Manager",
+      status: row.costManagerAuthorizationStatus || (row.costManagerAuthorizationSubmittedAt ? COST_MANAGER_AUTH_PENDING : "Pending"),
+      at: row.costManagerAuthorizedAt || row.costManagerRejectedAt || row.costManagerAuthorizationSubmittedAt || "",
+      note: row.costManagerRejectReason || row.nextStep || "Final cost authorization before OM intake.",
+    },
+    {
+      stage: "OM PAS / Quote / Export",
+      owner: "OM Leader / OM Purchasing",
+      status: row.finalExportStatus || row.omStatus || row.pasStatus || pasDisplayStatus(row),
+      at: omUpdatedAt,
+      note: row.finalExportPackageCode || row.pasDemandNo || row.quoteCompletionReadyAt ? "OM processing recorded." : "Waiting OM PAS / quote / export work.",
+    },
+    {
+      stage: "Buyer PR / PO",
+      owner: "Buyer",
+      status: approvalPipelinePoStatus(row),
+      at: buyerUpdatedAt,
+      note: [row.prNo ? `PR ${row.prNo}` : "", row.buyerPoNo || row.poNo ? `PO ${row.buyerPoNo || row.poNo}` : "", externalStatusFor(row) !== "-" ? externalStatusFor(row) : ""].filter(Boolean).join(" / ") || "Buyer PR / PO not started.",
+    },
+  ];
+  return `
+    <section class="detail-card-section approval-pipeline-detail">
+      <div class="detail-section-head">
+        <h4>Approval / Pipeline Detail</h4>
+        <span class="status-pill ${statusClass(pipeline.blockedAtOwner)}">Current Owner: ${htmlText(pipeline.blockedAtOwner || "-")}</span>
+      </div>
+      <div class="approval-pipeline-summary">
+        <span>Sent To <strong>${htmlText(pipeline.nextOwner || "-")}</strong></span>
+        <span>Since <strong>${htmlText(pipeline.lastUpdatedAt ? compactDateTime(pipeline.lastUpdatedAt) : "-")}</strong></span>
+        <span>PO <strong>${htmlText(pipeline.poStatus || "PO Pending")}</strong></span>
+      </div>
+      <div class="table-wrap compact-wrap">
+        <table class="data-table approval-pipeline-detail-table">
+          <thead>
+            <tr>
+              <th>Stage</th>
+              <th>Owner</th>
+              <th>Status</th>
+              <th>Timestamp</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((item) => {
+              const isCurrent = item.owner === pipeline.blockedAtOwner || (pipeline.blockedAtOwner || "").includes(item.owner.split(" / ")[0]);
+              return `
+                <tr class="${isCurrent ? "approval-pipeline-current" : ""}">
+                  <td>${htmlText(item.stage)}</td>
+                  <td>${htmlText(item.owner)}</td>
+                  <td><span class="status-pill ${statusClass(item.status)}">${htmlText(item.status || "Pending")}</span></td>
+                  <td>${item.at ? compactDateTime(item.at) : "-"}</td>
+                  <td>${htmlText(item.note || "-")}</td>
+                </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
     </section>`;
 }
 
@@ -11862,6 +15095,7 @@ function renderItemDetail(row, sourceType) {
     ? [
       detailSection("Item & Material", identityRows),
       `<section class="detail-card-section"><h4>需求單位 / Station Breakdown</h4>${stationBreakdownDetailHtml(row)}</section>`,
+      currentRole === "requester" ? "" : approvalPipelineDetailHtml(row, currentRole),
       detailSection("OM Quote & PAS", omFlowRows),
       detailSection("Estimate vs PAS Quote", estimateVarianceRows),
       detailSection("PAS Tracking", pasTrackingRows),
@@ -12275,10 +15509,10 @@ function reviewedRows() {
 function renderManagerDashboard() {
   const rows = managerDecisionHistoryRows();
   document.getElementById("managerDashboardSummary").innerHTML = summaryCardsHtml([
-    { label: "Dept DRI Approved", value: rows.filter((row) => row.status === "Approved").length, helper: `${document.getElementById("managerDashboardProjectFilter")?.value || "All projects"} · decision history`, variant: "hero" },
-    { label: "Rejected", value: rows.filter((row) => row.status === "Rejected").length },
-    { label: "Returned to Requester", value: rows.filter((row) => row.status === "Rejected").length, helper: "Reject loop is visible" },
-    { label: "Decision Notes", value: rows.filter((row) => row.managerReason).length, helper: "Rows with recorded reason" },
+    { label: "Authorized", value: rows.filter((row) => (row.costManagerAuthorizationStatus || "") === COST_MANAGER_AUTH_APPROVED).length, helper: `${document.getElementById("managerDashboardProjectFilter")?.value || "All projects"} · Cost Manager history`, variant: "hero" },
+    { label: "Rejected", value: rows.filter((row) => (row.costManagerAuthorizationStatus || "") === COST_MANAGER_AUTH_REJECTED).length },
+    { label: "Returned to Requester", value: rows.filter((row) => (row.costManagerAuthorizationStatus || "") === COST_MANAGER_AUTH_REJECTED).length, helper: "Reject loop is visible" },
+    { label: "Decision Notes", value: rows.filter((row) => row.costManagerAuthorizationReason || row.managerReason).length, helper: "Rows with recorded reason" },
   ]);
 
   document.getElementById("managerDashboardRows").innerHTML = rows.length
@@ -12286,15 +15520,15 @@ function renderManagerDashboard() {
       <tr>
         <td>${row.id}</td>
         <td>${row.project}</td>
-        <td>${omItemCell(row, { stageLabel: "Dept DRI history" })}</td>
+        <td>${omItemCell(row, { stageLabel: "Cost Manager history" })}</td>
         <td>${managerAffectedPhasesText(row)}</td>
         <td>${totalQty(row)}</td>
-        <td><span class="status-pill ${statusClass(row.status)}">${row.status}</span></td>
-        <td>${row.managerReason || "-"}</td>
-        <td>${row.decidedAt ? new Date(row.decidedAt).toLocaleString("en-US") : "-"}</td>
+        <td><span class="status-pill ${statusClass(row.costManagerAuthorizationStatus)}">${row.costManagerAuthorizationStatus || "-"}</span></td>
+        <td>${row.costManagerAuthorizationReason || row.managerReason || "-"}</td>
+        <td>${row.costManagerAuthorizedAt ? new Date(row.costManagerAuthorizedAt).toLocaleString("en-US") : row.costManagerRejectedAt ? new Date(row.costManagerRejectedAt).toLocaleString("en-US") : "-"}</td>
         <td>${itemDetailButton("request", row.id)}</td>
       </tr>`).join("")
-    : `<tr><td colspan="9" class="empty-cell">No approval history is available.</td></tr>`;
+    : `<tr><td colspan="9" class="empty-cell">No Cost Manager decision history is available.</td></tr>`;
 }
 
 function openManagerDashboardPhaseDetail(project, stage) {
@@ -12367,16 +15601,10 @@ function omPasRequestStatus(row) {
   return "Waiting PAS Demand No";
 }
 
-function defaultOmAssigneeForProject(project) {
-  const projectCode = String(project || "").trim().toUpperCase();
-  const employeeId = ["P27", "F27"].includes(projectCode) ? "linhnp" : "giangth1";
-  return omAssignees.find((user) => user.employeeId === employeeId || String(user.email || "").toLowerCase().startsWith(employeeId));
-}
-
 function omAssignmentForRow(row) {
   const explicitAssignment = omAssignmentMap.get(row.id);
   if (explicitAssignment) return explicitAssignment;
-  const defaultAssignee = defaultOmAssigneeForProject(row.project);
+  const defaultAssignee = defaultOmAssigneeForRuleRow(row);
   return {
     requestId: row.id,
     assignedToUserId: row.omAssigneeId || defaultAssignee?.id || "",
@@ -14466,6 +17694,26 @@ function priceDecisionModule() {
   return window.ProcurementApp?.modules?.priceDecision || {};
 }
 
+function horizontalTableNavigatorModule() {
+  return window.ProcurementApp?.modules?.horizontalTableNavigator || {};
+}
+
+function requestWorksheetMatrixModule() {
+  return window.ProcurementApp?.modules?.requestWorksheetMatrix || {};
+}
+
+function approvalWorkbenchModule() {
+  return window.ProcurementApp?.modules?.approvalWorkbench || {};
+}
+
+function approvalQuantityReviewModule() {
+  return window.ProcurementApp?.modules?.approvalQuantityReview || {};
+}
+
+function roleQueueConfigModule() {
+  return window.ProcurementApp?.modules?.roleQueueConfig || {};
+}
+
 function quoteUnitPriceUsdForDecision(row) {
   const directUsd = Number(row.updatedPriceUsd || row.quoteUnitPriceUsd || 0);
   if (directUsd > 0) return directUsd;
@@ -14789,11 +18037,10 @@ function renderOmDemandCollection() {
 }
 
 function renderOmPurchasing() {
-  if (!document.querySelector(`[data-om-tab="${currentOmTab}"]`)) currentOmTab = "submission";
-  document.querySelectorAll("[data-om-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.omTab === currentOmTab));
-  document.querySelectorAll("[data-om-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.omPanel === currentOmTab));
+  syncOmWorkspaceUi();
   syncProjectControls();
   renderOmFeedbackUtility();
+  renderOmWorkspaceBanner();
   const quoteConfirmRows = omQuoteConfirmRows();
   const rowCount = document.getElementById("omWorkbenchCount");
   if (rowCount) rowCount.textContent = `${quoteConfirmRows.length} row${quoteConfirmRows.length === 1 ? "" : "s"}`;
@@ -15079,6 +18326,7 @@ function renderOmQuoteConfirmRows(rows) {
     waitingRows.length ? sectionRow("Waiting User A Confirmation", "Rows already sent to User A stay here as read-only tracking.") : "",
     ...waitingRows.map(quoteRowHtml),
   ].join("");
+  refreshGlobalHorizontalNavigators();
 }
 
 function renderOmQuoteRows(rows) {
@@ -16020,19 +19268,160 @@ function priceReviewPendingOwner(row) {
   return "Dept DRI";
 }
 
+function latestTimestamp(...values) {
+  return values
+    .filter(Boolean)
+    .map((value) => ({ value, time: new Date(value).getTime() }))
+    .filter((item) => !Number.isNaN(item.time))
+    .sort((left, right) => right.time - left.time)[0]?.value || "";
+}
+
+function approvalPipelinePoStatus(row = {}) {
+  const externalStatus = externalStatusFor(row);
+  if (row.buyerPoNo || row.poNo) return [row.poStatus || row.buyerStatus || "PO Issued", row.buyerPoNo || row.poNo].filter(Boolean).join(" / ");
+  if (row.poStatus) return row.poStatus;
+  if ([BUYER_PO_ISSUED, BUYER_COMPLETED].includes(row.buyerStatus || "")) return row.buyerStatus;
+  if ([EXT_PO_ISSUED, EXT_COMPLETED].includes(externalStatus)) return externalStatus;
+  if (row.buyerStatus && row.buyerStatus !== BUYER_RECEIVED) return row.buyerStatus;
+  if (externalStatus && externalStatus !== "-") return externalStatus;
+  return "PO Pending";
+}
+
+function approvalPipelineStatus(row = {}, role = currentRole) {
+  if (isPriceReviewStockRow(row)) {
+    const status = warehouseTransactionStatus(row);
+    return {
+      decisionStatus: status,
+      nextOwner: "Stock Evidence",
+      blockedAtOwner: status === "Locked Use" ? "Locked" : warehouseOwnerLabel(row),
+      sentAt: row.confirmedAt || row.createdAt || "",
+      lastUpdatedAt: row.confirmedAt || row.createdAt || "",
+      nextStep: status === "Locked Use" ? "Locked stock evidence" : "Waiting stock owner decision",
+      poStatus: "Not PO scope",
+      tone: status === "Locked Use" ? "approved" : status === "Rejected" ? "rejected" : "pending",
+    };
+  }
+  const deptApprovedAt = row.deptDriSubmissionApprovedAt || row.driApprovedAt || "";
+  const deptRejectedAt = row.deptDriReviewRejectedAt || row.priceEscalationRejectedAt || "";
+  const costSubmittedAt = row.costManagerAuthorizationSubmittedAt || deptApprovedAt;
+  const costApprovedAt = row.costManagerAuthorizedAt || "";
+  const costRejectedAt = row.costManagerRejectedAt || "";
+  const budgetApprovedAt = row.projectDriApprovedAt || "";
+  const omUpdatedAt = latestTimestamp(
+    row.sentToOmAt,
+    row.pasDemandNoRecordedAt,
+    row.pasDemandNoUpdatedAt,
+    row.quoteReadyAt,
+    row.quoteCompletionReadyAt,
+    row.userAQuoteDecisionAt,
+    row.finalExportedAt
+  );
+  const buyerUpdatedAt = latestTimestamp(row.buyerReceivedAt, latestExternalProgressEvent(row)?.createdAt);
+  if (row.status === "Rejected" || row.deptDriReviewStatus === DEPT_DRI_SUBMISSION_REJECTED || row.priceApprovalStatus === PRICE_ESCALATION_REJECTED) {
+    return {
+      decisionStatus: "Rejected",
+      nextOwner: "Requester",
+      blockedAtOwner: "Requester",
+      sentAt: deptRejectedAt || costRejectedAt || row.decidedAt || "",
+      lastUpdatedAt: deptRejectedAt || costRejectedAt || row.decidedAt || "",
+      nextStep: "Requester revise / resubmit",
+      poStatus: "PO Pending",
+      tone: "rejected",
+    };
+  }
+  if (budgetApprovedAt) {
+    const hasBuyer = Boolean(row.buyerStatus || row.buyerReceivedAt || buyerUpdatedAt || row.poStatus || row.buyerPoNo || row.poNo);
+    const hasExport = Boolean(row.finalExportStatus || row.finalExportedAt);
+    return {
+      decisionStatus: "Approved",
+      nextOwner: hasBuyer ? "Buyer" : hasExport ? "Buyer" : "OM Purchasing",
+      blockedAtOwner: hasBuyer ? "Buyer" : hasExport ? "Buyer" : "OM Purchasing",
+      sentAt: budgetApprovedAt,
+      lastUpdatedAt: buyerUpdatedAt || omUpdatedAt || budgetApprovedAt,
+      nextStep: hasBuyer ? "Buyer PR / PO tracking" : hasExport ? "Buyer handoff pending" : "OM export package",
+      poStatus: hasBuyer ? approvalPipelinePoStatus(row) : "PO Pending",
+      tone: hasBuyer ? "po" : "sent",
+    };
+  }
+  if (costApprovedAt || row.costManagerAuthorizationStatus === COST_MANAGER_AUTH_APPROVED) {
+    const hasBuyer = Boolean(row.buyerStatus || row.buyerReceivedAt || buyerUpdatedAt || row.poStatus || row.buyerPoNo || row.poNo);
+    const hasExport = Boolean(row.finalExportStatus || row.finalExportedAt);
+    return {
+      decisionStatus: "Approved",
+      nextOwner: hasBuyer ? "Buyer" : "OM Purchasing",
+      blockedAtOwner: hasBuyer ? "Buyer" : hasExport ? "Buyer" : "OM Purchasing",
+      sentAt: costApprovedAt || row.sentToOmAt || deptApprovedAt,
+      lastUpdatedAt: buyerUpdatedAt || omUpdatedAt || costApprovedAt || row.sentToOmAt || deptApprovedAt,
+      nextStep: hasBuyer ? "Buyer PR / PO tracking" : hasExport ? "Buyer handoff pending" : (row.nextStep || "OM PAS / quote / export"),
+      poStatus: hasBuyer ? approvalPipelinePoStatus(row) : "PO Pending",
+      tone: hasBuyer ? "po" : "sent",
+    };
+  }
+  if (isCostManagerAuthorizationPending(row)) {
+    return {
+      decisionStatus: "Approved",
+      nextOwner: "Cost Manager",
+      blockedAtOwner: "Cost Manager",
+      sentAt: deptApprovedAt,
+      lastUpdatedAt: costSubmittedAt || deptApprovedAt,
+      nextStep: row.nextStep || "Cost Manager final authorization",
+      poStatus: "PO Pending",
+      tone: "sent",
+    };
+  }
+  if (row.priceApprovalStatus === PRICE_ESCALATION_PENDING_PROJECT_DRI || row.driApprovedAt) {
+    return {
+      decisionStatus: "Approved",
+      nextOwner: "Budget Approver",
+      blockedAtOwner: "Budget Approver",
+      sentAt: row.driApprovedAt,
+      lastUpdatedAt: row.driApprovedAt,
+      nextStep: row.nextStep || "Budget exception approval",
+      poStatus: "PO Pending",
+      tone: "sent",
+    };
+  }
+  if (isDeptDriSubmissionPending(row) || row.deptDriReviewStatus === DEPT_DRI_SUBMISSION_PENDING) {
+    return {
+      decisionStatus: "Pending",
+      nextOwner: "Dept DRI",
+      blockedAtOwner: "Dept DRI",
+      sentAt: row.deptDriReviewSubmittedAt || row.submittedAt || "",
+      lastUpdatedAt: row.deptDriReviewSubmittedAt || row.submittedAt || "",
+      nextStep: row.nextStep || "Dept DRI submission review",
+      poStatus: "PO Pending",
+      tone: "pending",
+    };
+  }
+  return {
+    decisionStatus: row.status || row.priceApprovalStatus || "Pending",
+    nextOwner: priceReviewPendingOwner(row),
+    blockedAtOwner: priceReviewPendingOwner(row),
+    sentAt: row.submittedAt || row.createdAt || "",
+    lastUpdatedAt: latestTimestamp(row.updatedAt, row.submittedAt, row.createdAt),
+    nextStep: row.nextStep || managerQueueNextStep(row) || "Workflow status",
+    poStatus: approvalPipelinePoStatus(row),
+    tone: "pending",
+  };
+}
+
+function approvalPipelineToneClass(row = {}, role = currentRole) {
+  return `approval-pipeline-${approvalPipelineStatus(row, role).tone || "pending"}`;
+}
+
+function approvalPipelineTitle(row = {}, role = currentRole) {
+  const pipeline = approvalPipelineStatus(row, role);
+  return [
+    `Status: ${pipeline.decisionStatus}`,
+    `Current Owner: ${pipeline.blockedAtOwner}`,
+    pipeline.lastUpdatedAt ? `Since: ${compactDateTime(pipeline.lastUpdatedAt)}` : "",
+    `Next: ${pipeline.nextStep}`,
+    `PO: ${pipeline.poStatus}`,
+  ].filter(Boolean).join(" / ");
+}
+
 function priceReviewPendingRowsForRole() {
-  return requests.filter((row) => {
-    if (isDeptDriSubmissionPending(row) || isCostManagerAuthorizationPending(row)) return currentRole === "dri" && isDeptDriSubmissionPending(row);
-    if (row.priceDecisionStatus !== PRICE_ESCALATION_REQUIRED) return false;
-    if (row.priceApprovalStatus === PRICE_ESCALATION_REJECTED || row.projectDriApprovedAt) return false;
-    if (currentRole === "dri") return !row.driApprovedAt;
-    if (currentRole === "projectDri") return priceReviewRequiresBudgetApprover(row) && Boolean(row.driApprovedAt) && !row.projectDriApprovedAt;
-    return false;
-  }).sort((left, right) => {
-    const dateDiff = new Date(needDateForRow(left) || "9999-12-31") - new Date(needDateForRow(right) || "9999-12-31");
-    if (dateDiff) return dateDiff;
-    return latestRequestActivityTime(right) - latestRequestActivityTime(left);
-  });
+  return availablePriceReviewQueues().flatMap((queue) => queue.rows);
 }
 
 function priceReviewHistoryRows() {
@@ -16045,34 +19434,431 @@ function priceVarianceLabel(row) {
   return `${Number(row.priceDeltaUsd).toFixed(2)} USD / threshold ${Number(row.priceThresholdUsd || 0.4).toFixed(2)} USD`;
 }
 
+function syncSelectedPriceReviewRequest(rows = priceReviewQueueRows(), preferredId = selectedPriceReviewRequestId) {
+  selectedPriceReviewRequestId = nextApprovalSelection(rows, approvalViewportState.priceReview, preferredId);
+  updateApprovalReviewState(currentRole, { selectedRowId: selectedPriceReviewRequestId || "" });
+}
+
+function syncPriceReviewSelectionMarkers(requestId = selectedPriceReviewRequestId) {
+  document.querySelectorAll("[data-price-review-select], [data-price-review-select-row], [data-price-review-select-cell]").forEach((node) => {
+    const nodeId = node.dataset.priceReviewSelect || node.dataset.priceReviewSelectRow || node.dataset.priceReviewSelectCell || "";
+    const active = !!requestId && nodeId === requestId;
+    if (node.classList.contains("approval-quantity-row-chip")) {
+      node.classList.toggle("active", active);
+      node.setAttribute("aria-selected", active ? "true" : "false");
+    }
+    if (node.matches("tr")) node.classList.toggle("active-row", active);
+  });
+}
+
+function isPriceReviewStockRow(row) {
+  return row?.workbenchType === "stockCarryover";
+}
+
+function priceReviewActionCell(row) {
+  if (isPriceReviewStockRow(row)) {
+    return pendingWorkActionButtons([
+      `<button class="mini approve" data-warehouse-candidate-lock="${row.id}">Approve</button>`,
+      `<button class="mini reject" data-warehouse-candidate-reject="${row.id}">Reject</button>`,
+    ]);
+  }
+  return pendingWorkActionButtons([
+    `<button class="mini approve" data-price-review-decision="${row.id}" data-price-review-action="approve">Approve</button>`,
+    `<button class="mini reject" data-price-review-decision="${row.id}" data-price-review-action="reject">Reject</button>`,
+  ]);
+}
+
+function renderPriceReviewDetail(row) {
+  if (!row) {
+    return `
+      <div class="empty-state pending-work-empty">
+        Select a review row to see price evidence, routing context, and the next decision.
+      </div>`;
+  }
+  if (isPriceReviewStockRow(row)) {
+    const summary = detailSummaryGridHtml([
+      ["Queue", "Unit Stock Review", warehousePendingStatusForOwner(warehouseOwnerForTransaction(row))],
+      ["Item", row.item || "-", row.spec || "-"],
+      ["Target Scope", warehouseTargetLabel(row), row.targetRequestId || "-"],
+      ["Source Scope", warehouseSourceLabel(row), row.sourceRequestId || "-"],
+      ["Candidate Qty", warehouseTransactionQty(row), row.createdAt ? compactDateTime(row.createdAt) : "-"],
+      ["Reason", row.reason || "-", warehouseOwnerLabel(row)],
+      ["Current Stage", "Warehouse evidence", "Decision does not change requester routing ownership"],
+    ]);
+    return `
+      <section class="pending-work-detail-card">
+        <div class="panel-title section-head-tight">
+          <div>
+            <h4>${htmlText(row.item || "Stock Candidate")}</h4>
+            <p class="panel-subcopy">${htmlText(row.spec || "Review unit-owned warehouse evidence, then approve or reject the stock-use candidate.")}</p>
+          </div>
+          <span class="status-pill ${statusClass(warehouseTransactionStatus(row))}">${warehouseTransactionStatus(row)}</span>
+        </div>
+        <div class="pending-work-detail-actions">
+          ${priceReviewActionCell(row)}
+          ${itemDetailButton("warehouse", warehouseInventoryId({ month: row.month, item: row.item, spec: row.spec }))}
+        </div>
+        ${summary}
+      </section>`;
+  }
+  const isSubmission = isDeptDriSubmissionPending(row);
+  const summary = detailSummaryGridHtml([
+    ["Request ID", row.id, row.project],
+    ["Current Queue", isSubmission ? "Submission Review" : currentRole === "projectDri" ? "Budget Exception Approval" : "Price Exception Review", priceReviewPendingOwner(row)],
+    ["Need Date", needDateForRow(row) || "-", row.requiredDeliveryDate || "No required delivery date"],
+    ["History Price", isSubmission ? "Not quoted yet" : row.historyUnitPrice ? money(row.historyUnitPrice) : "No history", row.priceThresholdCategory || "Need classification"],
+    ["Quote Price", isSubmission ? "Pending OM quote" : row.quoteUnitPrice ? money(row.quoteUnitPrice) : "-", isSubmission ? "Waiting OM quote" : priceVarianceLabel(row)],
+    ["Decision Risk", row.estimateVarianceStatus || row.priceApprovalStatus || "-", row.estimateVarianceReason || row.priceDecisionReason || row.deptDriReviewRejectReason || "No review reason recorded"],
+    ["Requester Estimate", row.estimatedUnitPrice ? formatMoneyFromVnd(row.estimatedUnitPrice) : "-", row.requesterReason || row.useCase || "-"],
+    ["Current Stage", managerQueueNextStep(row), row.nextStep || "Workflow status"],
+  ]);
+  return `
+    <section class="pending-work-detail-card">
+      <div class="panel-title section-head-tight">
+        <div>
+          <h4>${htmlText(row.name || "Selected Review")}</h4>
+          <p class="panel-subcopy">${htmlText((userVisibleItemDetail(row) || itemDetail(row) || "Review the quote context, then approve or reject from this detail panel."))}</p>
+        </div>
+        <span class="status-pill ${statusClass(priceReviewPendingOwner(row))}">${priceReviewPendingOwner(row)}</span>
+      </div>
+      <div class="pending-work-detail-actions">
+        ${priceReviewActionCell(row)}
+        ${itemDetailButton("request", row.id)}
+      </div>
+      ${summary}
+      <section class="detail-card-section">
+        <h4>Timeline / Evidence</h4>
+        ${managerAuditTimelineHtml(row)}
+      </section>
+    </section>`;
+}
+
+function renderPriceReviewExcelIdentityCell(row) {
+  const isStock = isPriceReviewStockRow(row);
+  const itemName = row.name || row.item || "-";
+  const specText = isStock ? (row.spec || "-") : (userVisibleItemDetail(row) || itemDetail(row) || "-");
+  const requestText = isStock ? (row.targetRequestId || row.id || "-") : (row.id || "-");
+  const queueText = isStock ? "Unit Stock" : (isDeptDriSubmissionPending(row) ? "Submission" : "Price Exception");
+  return `
+    <div class="identity-block identity-block--excel">
+      <span class="identity-primary">${htmlText(itemName)}</span>
+      <span class="identity-secondary">${htmlText(specText)}</span>
+      <span class="identity-tertiary">${htmlText(`${requestText} · ${queueText}`)}</span>
+    </div>`;
+}
+
+function renderPriceReviewExcelContextCell(row) {
+  if (isPriceReviewStockRow(row)) {
+    return `
+      <div class="excel-cell-stack">
+        <strong>${htmlText(warehouseTargetLabel(row))}</strong>
+        <span>${htmlText(`From ${warehouseSourceLabel(row)}`)}</span>
+      </div>`;
+  }
+  return `
+    <div class="excel-cell-stack">
+      <strong>${htmlText(row.project || "-")}</strong>
+      <span>${htmlText(row.requestLine || "Line 1")}</span>
+    </div>`;
+}
+
+function renderPriceReviewExcelDetailCell(row) {
+  return `
+    <div class="excel-cell-stack">
+      ${isPriceReviewStockRow(row) ? itemDetailButton("warehouse", warehouseInventoryId({ month: row.month, item: row.item, spec: row.spec })) : itemDetailButton("request", row.id)}
+    </div>`;
+}
+
+function renderPriceReviewExcelQtyCell(row) {
+  if (isPriceReviewStockRow(row)) {
+    return `
+      <div class="excel-cell-stack">
+        <strong>${htmlText(`${warehouseTransactionQty(row)} qty`)}</strong>
+        <span>${htmlText(row.targetStage || "-")}</span>
+      </div>`;
+  }
+  return `
+    <div class="excel-cell-stack">
+      <strong>${htmlText(isDeptDriSubmissionPending(row) ? "Waiting quote" : (row.quoteUnitPrice ? money(row.quoteUnitPrice) : "-"))}</strong>
+      <span>${htmlText(isDeptDriSubmissionPending(row) ? "Quote pending" : (row.quoteQty ? `${row.quoteQty} qty` : "Quoted row"))}</span>
+    </div>`;
+}
+
+function renderPriceReviewExcelHistoryCell(row) {
+  if (isPriceReviewStockRow(row)) {
+    return `
+      <div class="excel-cell-stack">
+        <strong>${htmlText("Stock evidence")}</strong>
+        <span>${htmlText(warehouseSourceLabel(row))}</span>
+      </div>`;
+  }
+  return `
+    <div class="excel-cell-stack">
+      <strong>${htmlText(isDeptDriSubmissionPending(row) ? "Submission" : (row.historyUnitPrice ? money(row.historyUnitPrice) : "No hist."))}</strong>
+      <span>${htmlText(isDeptDriSubmissionPending(row) ? "Before OM quote" : priceVarianceLabel(row))}</span>
+    </div>`;
+}
+
+function renderPriceReviewQueueRows(rows) {
+  const tableOnlyDri = currentRole === "dri";
+  return rows.length ? rows.map((row) => tableOnlyDri ? `
+    <tr class="${row.id === selectedPriceReviewRequestId ? "active-row" : ""}" data-price-review-select-row="${row.id}">
+      <td class="cell-identity">
+        ${renderPriceReviewExcelIdentityCell(row)}
+      </td>
+      <td>${renderPriceReviewExcelContextCell(row)}</td>
+      <td>${renderPriceReviewExcelQtyCell(row)}</td>
+      <td>${isPriceReviewStockRow(row) ? (row.targetStage || "-") : (needDateForRow(row) || "-")}</td>
+      <td>${renderPriceReviewExcelHistoryCell(row)}</td>
+      <td><div class="excel-cell-stack"><strong>${htmlText(isPriceReviewStockRow(row) ? warehouseOwnerLabel(row) : priceReviewPendingOwner(row))}</strong><span>${htmlText(isPriceReviewStockRow(row) ? warehouseTransactionStatus(row) : (row.nextStep || managerQueueNextStep(row) || "-"))}</span></div></td>
+      <td class="cell-action pending-work-action-cell">
+        ${priceReviewActionCell(row)}
+      </td>
+      <td class="cell-action">
+        ${renderPriceReviewExcelDetailCell(row)}
+      </td>
+    </tr>` : `
+    <tr class="${row.id === selectedPriceReviewRequestId ? "active-row" : ""}" data-price-review-select-row="${row.id}">
+      <td class="cell-action pending-work-action-cell">
+        ${priceReviewActionCell(row)}
+      </td>
+      <td class="cell-identity">
+        ${pendingWorkIdentityHtml(row, {
+    secondary: isPriceReviewStockRow(row) ? (row.targetRequestId || row.id) : row.id,
+    tertiary: isPriceReviewStockRow(row) ? (row.spec || "") : (userVisibleItemDetail(row) || itemDetail(row) || ""),
+    badge: isPriceReviewStockRow(row) ? "Unit-owned Candidate" : (isDeptDriSubmissionPending(row) ? "Submission Gate" : (row.priceThresholdCategory || "Need Classification")),
+  })}
+      </td>
+      <td>${isPriceReviewStockRow(row) ? warehouseTargetLabel(row) : row.project}</td>
+      <td>${isPriceReviewStockRow(row) ? (row.targetStage || "-") : (needDateForRow(row) || "-")}</td>
+      <td>${isPriceReviewStockRow(row) ? warehouseSourceLabel(row) : (isDeptDriSubmissionPending(row) ? "Pending" : row.historyUnitPrice ? money(row.historyUnitPrice) : "No hist.")}</td>
+      <td>${isPriceReviewStockRow(row) ? `${warehouseTransactionQty(row)} qty` : (isDeptDriSubmissionPending(row) ? "Waiting quote" : row.quoteUnitPrice ? money(row.quoteUnitPrice) : "-")}</td>
+      <td>${isPriceReviewStockRow(row) ? "Stock evidence" : (isDeptDriSubmissionPending(row) ? "Submission" : priceVarianceLabel(row))}</td>
+      <td><span class="status-pill ${statusClass(isPriceReviewStockRow(row) ? warehouseTransactionStatus(row) : priceReviewPendingOwner(row))}">${isPriceReviewStockRow(row) ? warehouseOwnerLabel(row) : priceReviewPendingOwner(row)}</span></td>
+      <td class="cell-action">
+        <div class="row-action-stack">
+          <button class="mini" type="button" data-price-review-select="${row.id}">Review</button>
+          ${isPriceReviewStockRow(row) ? itemDetailButton("warehouse", warehouseInventoryId({ month: row.month, item: row.item, spec: row.spec })) : itemDetailButton("request", row.id)}
+        </div>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="${tableOnlyDri ? 8 : 9}" class="empty-cell">No rows are waiting for ${roleProfiles[currentRole]?.name || "this role"} in this queue.</td></tr>`;
+}
+
+function decisionTimestampForRole(row, role = currentRole) {
+  if (isPriceReviewStockRow(row)) return row.confirmedAt || "";
+  if (role === "manager") return row.costManagerAuthorizedAt || "";
+  if (role === "projectDri") return row.projectDriApprovedAt || "";
+  return row.driApprovedAt || row.deptDriSubmissionApprovedAt || "";
+}
+
+function decisionActorForRole(row, role = currentRole) {
+  if (isPriceReviewStockRow(row)) return row.confirmedBy || "Dept DRI";
+  if (role === "manager") return row.costManagerAuthorizedBy || "Cost Manager";
+  if (role === "projectDri") return row.projectDriApprovedBy || "Budget Approver";
+  return row.driApprovedBy || row.deptDriSubmissionApprovedBy || "Dept DRI";
+}
+
+function approvedEvidenceStatus(row, role = currentRole) {
+  if (isPriceReviewStockRow(row)) return warehouseTransactionStatus(row);
+  if (role === "manager") return row.costManagerAuthorizationStatus || COST_MANAGER_AUTH_APPROVED;
+  if (role === "projectDri") return row.priceApprovalStatus || "Budget Approved";
+  return row.deptDriReviewStatus || row.priceApprovalStatus || "Approved";
+}
+
+function renderApprovedEvidenceRows(rows = [], { role = currentRole, selectedId = selectedPriceReviewRequestId, selectAttr = "data-price-review-select-row" } = {}) {
+  return rows.length ? rows.map((row) => {
+    const status = approvedEvidenceStatus(row, role);
+    const phase = isPriceReviewStockRow(row) ? (row.targetStage || row.phase || "-") : managerAffectedPhasesText(row);
+    const qty = isPriceReviewStockRow(row) ? `${warehouseTransactionQty(row)} qty` : `Qty ${totalQty(row)}`;
+    const scope = isPriceReviewStockRow(row) ? warehouseTargetLabel(row) : `${row.project || "-"} / ${phase}`;
+    const pipeline = approvalPipelineStatus(row, role);
+    const pipelineClass = `approval-pipeline-${pipeline.tone || "pending"}`;
+    const sentTo = pipeline.nextOwner ? `Sent to ${pipeline.nextOwner}` : "-";
+    const currentOwner = pipeline.blockedAtOwner || "-";
+    return `
+      <tr class="${row.id === selectedId ? "active-row" : ""} ${pipelineClass}" ${selectAttr}="${htmlAttr(row.id)}" data-approval-pipeline-status="${htmlAttr(pipeline.tone || "pending")}" title="${htmlAttr(approvalPipelineTitle(row, role))}">
+        <td class="cell-identity">${pendingWorkIdentityHtml(row, {
+          secondary: isPriceReviewStockRow(row) ? (row.targetRequestId || row.id) : row.id,
+          tertiary: isPriceReviewStockRow(row) ? (row.spec || "") : (userVisibleItemDetail(row) || itemDetail(row) || ""),
+          badge: status,
+        })}</td>
+        <td>${htmlText(scope)}</td>
+        <td>${htmlText(qty)}</td>
+        <td><span class="status-pill ${statusClass(status)}">${htmlText(status)}</span></td>
+        <td><strong>${htmlText(sentTo)}</strong><div class="reason-text">${pipeline.sentAt ? compactDateTime(pipeline.sentAt) : "-"}</div></td>
+        <td><span class="status-pill ${statusClass(currentOwner)}">${htmlText(currentOwner)}</span><div class="reason-text">${pipeline.lastUpdatedAt ? `Since ${compactDateTime(pipeline.lastUpdatedAt)}` : pipeline.nextStep || "-"}</div></td>
+        <td><span class="status-pill ${statusClass(pipeline.poStatus)}">${htmlText(pipeline.poStatus)}</span><div class="reason-text">${htmlText(pipeline.nextStep || "-")}</div></td>
+        <td class="cell-action">${isPriceReviewStockRow(row) ? itemDetailButton("warehouse", warehouseInventoryId({ month: row.month, item: row.item, spec: row.spec })) : itemDetailButton("request", row.id)}</td>
+      </tr>`;
+  }).join("") : `<tr><td colspan="8" class="empty-cell">No project review rows match this role scope.</td></tr>`;
+}
+
+function renderEvidenceEmptyState(mode = "approved") {
+  const ids = priceReviewAnalysisDomIds(mode);
+  clearNodeContent(ids.quantity.head);
+  const quantityRows = document.getElementById(ids.quantity.rows);
+  const quantityTable = document.getElementById(ids.quantity.table);
+  if (quantityRows) quantityRows.innerHTML = `<tr class="quantity-empty-row"><td colspan="${managerQuantityColumnCount()}" class="empty-cell">Select a row to load scoped station evidence.</td></tr>`;
+  quantityTable?.querySelector("colgroup")?.remove();
+  priceReviewAnalysisDomIds(mode).scopeNodes.forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = id.toLowerCase().includes("demandcost") ? "All review rows" : "Select a row";
+  });
+}
+
+function renderApprovedEvidenceAnalysis({ mode = "approved", scope = null, role = currentRole, rows = [] } = {}) {
+  if (mode === "managerAuthorized") {
+    renderPriceReviewCostDashboard({ mode, scope: null, role, rows, showCarryoverEvidence: false });
+    const activeProject = activeProjectContext({ mode, scope, rows });
+    const projectRows = projectContextRowsForProject(rows, activeProject);
+    setApprovalQuantityDashboardScopeLabel(mode, activeProject ? `${activeProject} / ${projectRows.length} row${projectRows.length === 1 ? "" : "s"}` : "All Cost Manager review rows");
+    if (!scope) {
+      renderEvidenceEmptyState(mode);
+      setApprovalQuantityDashboardScopeLabel(mode, activeProject ? `${activeProject} / ${projectRows.length} row${projectRows.length === 1 ? "" : "s"}` : "All Cost Manager review rows");
+      return;
+    }
+    renderPriceReviewStationMatrix({ mode, scope, role, rows, showCarryoverEvidence: false });
+    const label = scope.label || "Selected row";
+    priceReviewAnalysisDomIds(mode).scopeNodes.forEach((id) => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = id.toLowerCase().includes("demandcost")
+        ? (activeProject ? `${activeProject} / ${projectRows.length} row${projectRows.length === 1 ? "" : "s"}` : "All Cost Manager review rows")
+        : label;
+    });
+    return;
+  }
+
+  syncPriceReviewDetailTitle(mode);
+  const detailScope = approvalQuantityReviewTab === "dashboard"
+    ? scope
+    : priceReviewDetailScopeForTab(scope, approvalQuantityReviewTab);
+  updatePriceReviewAnalysisScopeLabel();
+  renderPriceReviewItemUnitMatrix({ mode, scope: detailScope, rows });
+  if (!detailScope) {
+    renderEvidenceEmptyState(mode);
+    return;
+  }
+  if (approvalQuantityReviewTab === "dashboard") {
+    const ids = priceReviewAnalysisDomIds(mode);
+    clearNodeContent(ids.quantity.head);
+    const quantityRows = document.getElementById(ids.quantity.rows);
+    const quantityTable = document.getElementById(ids.quantity.table);
+    if (quantityRows) quantityRows.innerHTML = `<tr class="quantity-empty-row"><td colspan="${managerQuantityColumnCount()}" class="empty-cell">Click MFG or a Non-MFG department in Dashboard to load item detail.</td></tr>`;
+    quantityTable?.querySelector("colgroup")?.remove();
+    return;
+  }
+  renderPriceReviewStationMatrix({ mode, scope: detailScope, role, rows, showCarryoverEvidence: false });
+  const label = detailScope.label || "Selected row";
+  priceReviewAnalysisDomIds(mode).scopeNodes.forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = id.toLowerCase().includes("demandcost") ? "All project review rows" : label;
+  });
+}
+
 function renderPriceReview() {
+  const analysisEnabled = isPriceReviewAnalysisRole();
+  const roleSurface = approvalReviewConfigForRole(currentRole);
+  const roleMeta = roleQueueConfigModule().metaForRole?.(currentRole) || {};
+  document.querySelector('[data-view="priceReview"]')?.setAttribute("data-approval-review-role", currentRole);
+  const title = document.getElementById("priceReviewTitle");
+  if (title) title.textContent = roleSurface?.entryLabel || roleProfiles[currentRole]?.functionName || "Price Review";
+  syncPriceReviewWorkspaceUi();
+  syncApprovalQuantityReviewTabState();
+  if (currentPriceReviewTab === "approved") currentPriceReviewTab = "projectReview";
+  if (!analysisEnabled && currentPriceReviewTab === "projectReview") currentPriceReviewTab = "pending";
+  document.querySelectorAll("[data-price-review-tab='costDashboard'], [data-price-review-tab='stationMatrix']").forEach((tab) => {
+    tab.hidden = !analysisEnabled;
+  });
   document.querySelectorAll("[data-price-review-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.priceReviewTab === currentPriceReviewTab));
-  document.querySelectorAll("[data-price-review-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.priceReviewPanel === currentPriceReviewTab));
-  const pending = priceReviewPendingRowsForRole();
+  document.querySelectorAll("[data-price-review-panel]").forEach((panel) => {
+    const isActive = panel.dataset.priceReviewPanel === currentPriceReviewTab;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
+  });
+  const pendingTab = document.querySelector('[data-price-review-tab="pending"]');
+  if (pendingTab) pendingTab.textContent = roleSurface?.tabLabels?.pending || roleMeta.pendingTabLabel || "Review Workbench";
+  const queues = ensureCurrentPriceReviewQueue();
+  const activeQueue = priceReviewQueueMeta();
+  const projectRows = priceReviewProjectRowsForRole(currentRole);
+  const selectedRows = currentPriceReviewTab === "projectReview" ? projectRows : activeQueue.rows;
+  syncSelectedPriceReviewRequest(selectedRows);
+  updateApprovalReviewState(currentRole, {
+    activeTab: currentPriceReviewTab,
+    activeQueue: currentPriceReviewQueue,
+    quantityTab: approvalQuantityReviewTab,
+  });
+  renderPriceReviewWorkspaceBanner(queues, activeQueue);
+  const pending = activeQueue.rows;
+  const selectedRow = selectedRows.find((row) => row.id === selectedPriceReviewRequestId) || null;
+  const selectedScope = priceReviewSelectedRowScope(selectedRow);
+  const pendingHeader = document.getElementById("priceReviewPendingHeader");
+  if (pendingHeader) pendingHeader.hidden = false;
+  const workspaceBanner = document.getElementById("priceReviewWorkspaceBanner");
+  if (workspaceBanner) {
+    workspaceBanner.hidden = true;
+    workspaceBanner.innerHTML = "";
+  }
   const count = document.getElementById("priceReviewPendingCount");
   if (count) count.textContent = `${pending.length} row${pending.length === 1 ? "" : "s"}`;
-  const pendingBody = document.getElementById("priceReviewPendingRows");
-  if (pendingBody) {
-    pendingBody.innerHTML = pending.length ? pending.map((row) => `
-      <tr>
-        <td>${row.id}</td>
-        <td>${row.project}</td>
-        <td><div class="item-primary">${row.name}</div><div class="reason-text">${userVisibleItemDetail(row) || itemDetail(row) || "-"}</div></td>
-        <td>${needDateForRow(row) || "-"}</td>
-        <td><span class="status-pill">${isDeptDriSubmissionPending(row) ? "Submission Gate" : row.priceThresholdCategory || "Need Classification"}</span></td>
-        <td>${isDeptDriSubmissionPending(row) ? "Not quoted yet" : row.historyUnitPrice ? money(row.historyUnitPrice) : "No history"}</td>
-        <td>${isDeptDriSubmissionPending(row) ? "Pending OM quote" : row.quoteUnitPrice ? money(row.quoteUnitPrice) : "-"}</td>
-        <td>${isDeptDriSubmissionPending(row) ? "Initial review" : priceVarianceLabel(row)}</td>
-        <td><span class="status-pill ${statusClass(priceReviewPendingOwner(row))}">${priceReviewPendingOwner(row)}</span></td>
-        <td>
-          <div class="row-action-stack">
-            <button class="mini approve" data-price-review-decision="${row.id}" data-price-review-action="approve">Approve</button>
-            <button class="mini reject" data-price-review-decision="${row.id}" data-price-review-action="reject">Reject</button>
-          </div>
-        </td>
-        <td>${itemDetailButton("request", row.id)}</td>
-      </tr>`).join("") : `<tr><td colspan="11" class="empty-cell">No price review rows are waiting for ${roleProfiles[currentRole]?.name || "this role"}.</td></tr>`;
+  const queueTabs = document.getElementById("priceReviewQueueTabs");
+  if (queueTabs) {
+    queueTabs.innerHTML = approvalWorkbenchModule().renderQueueTabs?.({
+        queues,
+        activeQueue: currentPriceReviewQueue,
+      }) || "";
+    queueTabs.hidden = !queues.length;
   }
+  const queueHelper = document.getElementById("priceReviewQueueHelper");
+  if (queueHelper) {
+    queueHelper.hidden = false;
+    queueHelper.textContent = activeQueue.rows.length
+      ? currentRole === "dri"
+        ? "Select an item in the item switcher to highlight it in Dashboard and drive station or department detail."
+        : "Pick a row below, then use Dashboard / MFG / Non-MFG to review and edit official quantity."
+      : `${activeQueue.label}: no rows are waiting.`;
+  }
+  const workspace = document.getElementById("priceReviewPendingWorkspace");
+  if (workspace) {
+    workspace.hidden = false;
+    workspace.innerHTML = renderApprovalQuantityRowPicker({
+        rows: pending,
+        selectedId: selectedPriceReviewRequestId,
+        selectAttr: "data-price-review-select",
+        title: currentRole === "dri" ? "Item Switcher" : roleSurface?.entryLabel || roleMeta.workbenchTitle || `${roleProfiles[currentRole]?.name || "Reviewer"} Rows`,
+        helper: currentRole === "dri"
+          ? "Switch item here. Dashboard keeps all active project items visible; the selection controls MFG Station Detail, Non-MFG Department Detail, and direct quantity edit."
+          : activeQueue.helper || "Select a row to scope Dashboard, MFG, and Non-MFG review.",
+        emptyText: priceReviewEmptyState(currentRole, currentPriceReviewQueue),
+        role: currentRole,
+        actionHtml: priceReviewApprovalQuantityActions,
+      });
+  }
+  const approvedTitle = document.getElementById("priceReviewApprovedTitle");
+  if (approvedTitle) approvedTitle.textContent = "Project Review";
+  const approvedCount = document.getElementById("priceReviewApprovedCount");
+  if (approvedCount) approvedCount.textContent = `${projectRows.length} row${projectRows.length === 1 ? "" : "s"}`;
+  const approvedWorkspace = document.getElementById("priceReviewApprovedWorkspace");
+  if (approvedWorkspace) {
+    approvedWorkspace.innerHTML = approvalWorkbenchModule().renderLayout?.({
+      shellAttr: 'data-approval-shell="priceReviewApproved"',
+      tableClass: "price-review-table price-review-table--excel",
+      headerHtml: `
+        <tr>
+          <th>Item</th>
+          <th>Scope</th>
+          <th>Qty / Cost</th>
+          <th>Decision</th>
+          <th>Sent To</th>
+          <th>Current Owner</th>
+          <th>PO Status</th>
+          <th>Detail</th>
+        </tr>`,
+      bodyHtml: renderApprovedEvidenceRows(projectRows, { role: currentRole, selectedId: selectedPriceReviewRequestId }),
+      detailMode: "hidden",
+      emptyHtml: `<div class="empty-state">No project review rows are available for ${roleProfiles[currentRole]?.name || "this role"}.</div>`,
+    }) || "";
+  }
+  renderApprovedEvidenceAnalysis({ mode: "tab", scope: currentPriceReviewTab === "projectReview" ? selectedScope : null, role: currentRole, rows: projectRows });
   const historyBody = document.getElementById("priceReviewHistoryRows");
   if (historyBody) {
     const rows = priceReviewHistoryRows();
@@ -16088,6 +19874,9 @@ function renderPriceReview() {
         <td>${itemDetailButton("request", row.id)}</td>
       </tr>`).join("") : `<tr><td colspan="8" class="empty-cell">No price review history yet.</td></tr>`;
   }
+  renderPriceReviewInlineAnalysis(selectedScope);
+  renderPriceReviewAnalysis();
+  refreshGlobalHorizontalNavigators();
 }
 
 function applyPriceReviewDecision(requestId, action) {
@@ -16097,6 +19886,12 @@ function applyPriceReviewDecision(requestId, action) {
     showToast("Admin manages setup only and cannot approve business price reviews.", "error");
     return;
   }
+  preserveApprovalViewport("priceReview", {
+    actedRowId: requestId,
+    rowIds: priceReviewQueueRows().map((item) => item.id),
+    selectedRowId: selectedPriceReviewRequestId,
+    containerSelector: '#priceReviewPendingWorkspace [data-approval-shell="priceReview"]',
+  });
   const now = new Date().toISOString();
   const actor = roleProfiles[currentRole]?.name || "Price Reviewer";
   if (action === "reject") {
@@ -16119,7 +19914,9 @@ function applyPriceReviewDecision(requestId, action) {
       } : item);
       const latest = requests.find((item) => item.id === requestId);
       addHandoffHistory(latest, "Dept DRI submission rejected", reason);
+      syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
       renderPriceReview();
+      restoreApprovalViewport("priceReview");
       renderDepartment();
       renderManager();
       showToast("Dept DRI rejected the submission. Row returned to Requester Action Required.", "success");
@@ -16142,7 +19939,9 @@ function applyPriceReviewDecision(requestId, action) {
     const latest = requests.find((item) => item.id === requestId);
     addHandoffHistory(latest, "Price escalation rejected", reason);
     addOmHistory(latest, "Price escalation rejected", reason);
+    syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
     renderPriceReview();
+    restoreApprovalViewport("priceReview");
     renderOmPurchasing();
     renderDepartment();
     showToast("Price escalation rejected. Row returned to Requester Action Required.", "success");
@@ -16165,8 +19964,11 @@ function applyPriceReviewDecision(requestId, action) {
       }) : item);
       const latest = requests.find((item) => item.id === requestId);
       addHandoffHistory(latest, "Dept DRI submission approved", "Waiting Cost Manager final authorization.");
+      syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
       renderPriceReview();
+      restoreApprovalViewport("priceReview");
       renderDepartment();
+      syncSelectedManagerRequest(managerRows(), requestId);
       renderManager();
       showToast("Dept DRI approved. Waiting Cost Manager authorization.", "success");
       return;
@@ -16180,7 +19982,9 @@ function applyPriceReviewDecision(requestId, action) {
     const latest = requests.find((item) => item.id === requestId);
     addHandoffHistory(latest, "Dept DRI approved", "Waiting Budget Approver approval.");
     addOmHistory(latest, "Dept DRI approved", "Waiting Budget Approver approval.");
+    syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
     renderPriceReview();
+    restoreApprovalViewport("priceReview");
     renderOmPurchasing();
     showToast("Dept DRI approval recorded. Waiting Budget Approver.", "success");
     return;
@@ -16204,7 +20008,9 @@ function applyPriceReviewDecision(requestId, action) {
   const latest = requests.find((item) => item.id === requestId);
   addHandoffHistory(latest, "Budget Approver approved", "Price escalation approved; row moved to Export Package.");
   addOmHistory(latest, "Budget Approver approved", "Price escalation approved; row moved to Export Package.");
+  syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
   renderPriceReview();
+  restoreApprovalViewport("priceReview");
   renderOmPurchasing();
   showToast("Budget Approver approved. Row moved to Export Package.", "success");
 }
@@ -16220,6 +20026,12 @@ function applyCostManagerAuthorization(requestId, action) {
     showToast("This row is not waiting for Cost Manager authorization.", "error");
     return;
   }
+  preserveApprovalViewport("manager", {
+    actedRowId: requestId,
+    rowIds: managerRows().map((item) => item.id),
+    selectedRowId: selectedManagerRequestId,
+    containerSelector: "#managerQueue .approval-quantity-row-list",
+  });
   const now = new Date().toISOString();
   const actor = roleProfiles[currentRole]?.name || "Cost Manager";
   if (action === "reject") {
@@ -16242,7 +20054,9 @@ function applyCostManagerAuthorization(requestId, action) {
     } : item);
     const latest = requests.find((item) => item.id === requestId);
     addHandoffHistory(latest, "Cost Manager rejected", reason);
+    syncSelectedManagerRequest(managerRows(), requestId);
     renderManager();
+    restoreApprovalViewport("manager");
     renderDepartment();
     renderPriceReview();
     showToast("Cost Manager rejected the row. It returned to Requester Action Required.", "success");
@@ -16261,43 +20075,351 @@ function applyCostManagerAuthorization(requestId, action) {
   const latest = requests.find((item) => item.id === requestId);
   addHandoffHistory(latest, "Cost Manager authorized", "Row moved to OM Leader intake.");
   addOmHistory(latest, "Received after Cost Manager authorization", "OM Leader can assign PAS Demand No / quote work.");
+  syncSelectedManagerRequest(managerRows(), requestId);
   renderManager();
+  restoreApprovalViewport("manager");
   renderOmPurchasing();
   renderDepartment();
   renderPriceReview();
   showToast("Cost Manager authorized. Row moved to OM Leader intake.", "success");
 }
 
-function roleOptionsHtml(selected) {
-  const roles = [
-    ["requester", "Requester"],
-    ["manager", "Cost Manager"],
-    ["omLeader", "OM Leader"],
-    ["omMember", "OM Purchasing"],
-    ["dri", "Dept DRI"],
-    ["projectDri", "Budget Approver"],
-    ["admin", "Admin"],
+function roleOptionsHtml(selected, { useRoleKey = false } = {}) {
+  return adminApprovalSetup.roles.map((role) => {
+    const value = useRoleKey ? role.roleKey : role.appRole;
+    return `<option value="${value}" ${selected === value ? "selected" : ""}>${htmlText(role.roleName)}</option>`;
+  }).join("");
+}
+
+function scopeTypeOptionsHtml(selected = "department") {
+  return [
+    ["global", "Global"],
+    ["department", "Department"],
+    ["project-mapping", "Project Mapping"],
+  ].map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("");
+}
+
+function normalizeAdminUserRow(user = {}) {
+  return {
+    ...user,
+    employeeId: user.employeeId || user.employee_id || "",
+    createdBy: user.createdBy || user.created_by || "",
+    createdAt: user.createdAt || user.created_at || "",
+    disabledAt: user.disabledAt || user.disabled_at || "",
+    lastLoginAt: user.lastLoginAt || user.last_login_at || "",
+    scopeType: user.scopeType || user.scope_type || "department",
+    scopeValue: user.scopeValue || user.scope_value || user.department || "",
+    status: user.status || (user.is_active ? "active" : "inactive"),
+  };
+}
+
+function normalizeAdminRoleRow(role = {}) {
+  const permissions = Object.fromEntries(Object.entries(role.permissions || {}).map(([moduleKey, record]) => [moduleKey, {
+    canCreate: Boolean(record.canCreate ?? record.can_create),
+    canUpdate: Boolean(record.canUpdate ?? record.can_update),
+    canDelete: Boolean(record.canDelete ?? record.can_delete),
+    canView: Boolean(record.canView ?? record.can_view),
+    canExport: Boolean(record.canExport ?? record.can_export),
+  }]));
+  return {
+    roleKey: role.roleKey || role.role_key || "",
+    roleName: role.roleName || role.role_name || "",
+    appRole: role.appRole || role.app_role || "",
+    roleLevel: role.roleLevel || role.role_level || "",
+    isSystem: Boolean(role.isSystem ?? role.is_system),
+    permissions,
+  };
+}
+
+function normalizeFieldVisibilityRows(rules = []) {
+  const next = {};
+  rules.forEach((row) => {
+    const fieldKey = row.fieldKey || row.field_key;
+    if (!fieldKey) return;
+    if (!next[fieldKey]) {
+      next[fieldKey] = {
+        fieldKey,
+        label: row.label || row.field_label || fieldKey,
+        reserved: Boolean(row.reserved),
+        visibilityByRole: {},
+      };
+    }
+    const visibilityByRole = row.visibilityByRole || row.visibility_by_role || {};
+    Object.entries(visibilityByRole).forEach(([roleKey, visibility]) => {
+      next[fieldKey].visibilityByRole[roleKey] = visibility;
+    });
+  });
+  return next;
+}
+
+function omAssignmentRuleAssigneeOptions(selected = "") {
+  const users = activeOmMembers();
+  return [`<option value="">Unassigned</option>`, ...users.map((user) => `<option value="${htmlAttr(user.id)}" ${user.id === selected ? "selected" : ""}>${htmlText(`${user.name} · ${user.employeeId || user.email || user.id}`)}</option>`)].join("");
+}
+
+function omAssignmentRuleInvalidReason(rule = {}) {
+  if (!rule.assigneeUserId) return "Choose an active OM Purchasing user.";
+  if (!validOmAssignmentRule(rule)) return "Assigned user is inactive or no longer an OM Purchasing operator.";
+  return "";
+}
+
+async function refreshAdminSetup({ silent = false } = {}) {
+  if (!apiModeEnabled() || currentRole !== "admin") return;
+  try {
+    const [usersPayload, rolesPayload, fieldsPayload, auditPayload, omRulePayload] = await Promise.all([
+      apiRequest("/api/admin/users"),
+      apiRequest("/api/admin/roles"),
+      apiRequest("/api/admin/field-visibility"),
+      apiRequest("/api/admin/audit-events"),
+      apiRequest("/api/admin/om-assignment-rules"),
+    ]);
+    adminApprovalSetup = {
+      ...adminApprovalSetup,
+      users: (usersPayload.users || []).map(normalizeAdminUserRow),
+      roles: (rolesPayload.roles || []).map(normalizeAdminRoleRow),
+      permissionModules: (rolesPayload.modules || []).map((row) => ({ moduleKey: row.moduleKey || row.module_key, label: row.label || row.module_name || row.module_key })),
+      rolePermissions: (rolesPayload.roles || []).reduce((acc, row) => {
+        const normalized = normalizeAdminRoleRow(row);
+        acc[normalized.roleKey] = normalized.permissions || {};
+        return acc;
+      }, {}),
+      fieldVisibilityRules: normalizeFieldVisibilityRows(fieldsPayload.rules || []),
+      auditLog: (auditPayload.events || []).map((row) => ({
+        id: row.id || `${row.event_type}-${row.created_at}`,
+        createdAt: row.createdAt || row.created_at || "",
+        eventType: row.eventType || row.event_type || "",
+        actorUserId: row.actorUserId || row.actor_user_id || "",
+        actorRole: row.actorRole || row.actor_role || "",
+        entityType: row.entityType || row.entity_type || "",
+        entityId: row.entityId || row.entity_id || "",
+        ipAddress: row.ipAddress || row.ip_address || "",
+        metadata: row.metadata || row.metadata_json || {},
+      })),
+      omAssignmentRules: (omRulePayload.rules || []).map(normalizeOmAssignmentRule),
+    };
+    syncOmOperatorField();
+    if (currentView === "adminSetup") renderAdminSetup();
+  } catch (error) {
+    if (!silent) showToast(`Admin setup sync failed: ${error.message}`, "error");
+  }
+}
+
+function filteredAdminAuditRows() {
+  return (adminApprovalSetup.auditLog || []).filter((row) => {
+    if (adminAuditFilters.actorUserId && !String(row.actorUserId || "").includes(adminAuditFilters.actorUserId)) return false;
+    if (adminAuditFilters.actorRole && String(row.actorRole || "") !== adminAuditFilters.actorRole) return false;
+    if (adminAuditFilters.eventType && !String(row.eventType || "").includes(adminAuditFilters.eventType)) return false;
+    if (adminAuditFilters.module && !String(row.eventType || "").startsWith(`${adminAuditFilters.module}.`)) return false;
+    if (adminAuditFilters.from && String(row.createdAt || "") < adminAuditFilters.from) return false;
+    if (adminAuditFilters.to && String(row.createdAt || "") > `${adminAuditFilters.to}T23:59:59`) return false;
+    return true;
+  });
+}
+
+function renderAdminRolePermissionMatrix() {
+  const target = document.getElementById("adminRolePermissionRows");
+  if (!target) return;
+  const actionKeys = [
+    ["canCreate", "Create"],
+    ["canUpdate", "Update"],
+    ["canDelete", "Delete"],
+    ["canView", "View"],
+    ["canExport", "Export"],
   ];
-  return roles.map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("");
+  target.innerHTML = adminApprovalSetup.roles.map((role) => `
+    <tr>
+      <td><strong>${htmlText(role.roleName)}</strong><div class="muted">${htmlText(role.roleLevel)}</div></td>
+      <td>${role.isSystem ? "System" : "Custom"}</td>
+      ${adminApprovalSetup.permissionModules.map((module) => `
+        <td>
+          <div class="permission-chip-stack">
+            ${actionKeys.map(([actionKey, label]) => `
+              <label class="permission-toggle">
+                <input type="checkbox" data-admin-role-permission="${role.roleKey}" data-admin-module-key="${module.moduleKey}" data-admin-permission-key="${actionKey}" ${adminPermissionFor(role.roleKey, module.moduleKey)[actionKey] ? "checked" : ""} />
+                <span>${label}</span>
+              </label>`).join("")}
+          </div>
+        </td>`).join("")}
+    </tr>`).join("");
+}
+
+function renderAdminFieldVisibilityMatrix() {
+  const target = document.getElementById("adminFieldVisibilityRows");
+  if (!target) return;
+  target.innerHTML = Object.values(adminApprovalSetup.fieldVisibilityRules || {}).map((field) => `
+    <tr>
+      <td><strong>${htmlText(field.label)}</strong>${field.reserved ? `<div class="muted">Reserved cross-domain field</div>` : ""}</td>
+      ${adminApprovalSetup.roles.map((role) => `
+        <td>
+          <label class="permission-toggle">
+            <input type="checkbox" data-admin-field-key="${field.fieldKey}" data-admin-role-visibility="${role.roleKey}" ${(field.visibilityByRole?.[role.roleKey] || "hidden") === "visible" ? "checked" : ""} />
+            <span>${(field.visibilityByRole?.[role.roleKey] || "hidden") === "visible" ? "Visible" : "Hidden"}</span>
+          </label>
+        </td>`).join("")}
+    </tr>`).join("");
+}
+
+function renderAdminAuditLog() {
+  const rowsTarget = document.getElementById("adminAuditRows");
+  if (!rowsTarget) return;
+  const rows = filteredAdminAuditRows();
+  rowsTarget.innerHTML = rows.map((row) => `
+    <tr>
+      <td>${htmlText(compactDateTime(row.createdAt) || "-")}</td>
+      <td>${htmlText(row.eventType || "-")}</td>
+      <td>${htmlText(row.actorUserId || "-")}</td>
+      <td>${htmlText(adminRoleLabelByAppRole(row.actorRole || "") || row.actorRole || "-")}</td>
+      <td>${htmlText(row.entityType || "-")}</td>
+      <td>${htmlText(row.entityId || "-")}</td>
+      <td>${htmlText(row.ipAddress || "-")}</td>
+    </tr>`).join("");
+  const counter = document.getElementById("adminAuditCount");
+  if (counter) counter.textContent = `${rows.length} events`;
+}
+
+function renderSapPoRawImportPanel() {
+  const state = adminApprovalSetup.sapPoRawImport || {};
+  const status = state.status || {};
+  const preview = state.preview || null;
+  const receipt = state.receipt || null;
+  const dbStatus = document.getElementById("sapPoRawImportDbStatus");
+  const workbookPath = document.getElementById("sapPoRawWorkbookPath");
+  const summary = document.getElementById("sapPoRawImportSummary");
+  const rowsTarget = document.getElementById("sapPoRawImportRows");
+  const messages = document.getElementById("sapPoRawImportMessages");
+  if (dbStatus) {
+    dbStatus.textContent = status.mysql_config_present ? "UAT DB ready" : "Preview only: DB env missing";
+    dbStatus.className = `status-pill ${status.mysql_config_present ? "status-ok" : "status-warning"}`;
+  }
+  if (workbookPath && !workbookPath.value && status.workbook_path) workbookPath.value = status.workbook_path;
+  if (summary) {
+    const omCount = preview?.scope_counts?.om_scope ?? "-";
+    const mfgCount = preview?.scope_counts?.mfg_buy ?? "-";
+    summary.innerHTML = [
+      `<div class="summary-card"><span>Workbook</span><strong>${htmlText(preview?.source_file_name || status.workbook_path?.split("/").pop() || "-")}</strong><small>${status.workbook_exists === false ? "File missing" : "Raw Data A-BN"}</small></div>`,
+      `<div class="summary-card"><span>Selected Rows</span><strong>${htmlText(preview?.selected_row_count ?? "-")}</strong><small>${htmlText(preview?.scope_mode || "yellow-only")}</small></div>`,
+      `<div class="summary-card"><span>OM Scope</span><strong>${htmlText(omCount)}</strong><small>Excel yellow fill</small></div>`,
+      `<div class="summary-card"><span>MFG Buy</span><strong>${htmlText(mfgCount)}</strong><small>Non-yellow in full import</small></div>`,
+      `<div class="summary-card"><span>Warnings / Errors</span><strong>${htmlText(`${preview?.warnings?.length || 0} / ${preview?.errors?.length || 0}`)}</strong><small>${receipt ? `Committed ${receipt.inserted_lines || 0}` : "Preview gate"}</small></div>`,
+    ].join("");
+  }
+  if (rowsTarget) {
+    const sampleRows = preview?.sample_rows || [];
+    rowsTarget.innerHTML = sampleRows.length ? sampleRows.map((row) => `
+      <tr>
+        <td>${htmlText(row.source_row_number || "-")}</td>
+        <td><span class="status-pill ${row.buy_scope === "om_scope" ? "status-ok" : "info"}">${htmlText(row.buy_scope || "-")}</span></td>
+        <td>${htmlText(row.factory_material_no || "-")}</td>
+        <td>${htmlText(row.sap_material_no || "-")}</td>
+        <td>${htmlText(row.ftv_code || "-")}</td>
+        <td>${htmlText(row.normalized_item_name || "-")}</td>
+        <td>${htmlText([row.lv1, row.lv2, row.lv3].filter(Boolean).join(" / ") || "-")}</td>
+        <td>${htmlText(row.expected_factory_prefix || "-")}</td>
+      </tr>`).join("") : `<tr><td colspan="8" class="muted">Run preview to load SAP PO Raw sample rows.</td></tr>`;
+  }
+  if (messages) {
+    const errors = (preview?.errors || []).slice(0, 5).map((item) => `Error row ${item.row || "-"}: ${item.code || ""} ${item.message || ""}`);
+    const warnings = (preview?.warnings || []).slice(0, 5).map((item) => `Warning row ${item.row || "-"}: ${item.code || ""} ${item.message || ""}`);
+    messages.textContent = [...errors, ...warnings].join("\n");
+  }
+}
+
+async function refreshSapPoRawImportStatus({ silent = false } = {}) {
+  if (!apiModeEnabled()) {
+    if (!silent) showToast("SAP PO Raw import status requires server API mode.", "error");
+    return;
+  }
+  try {
+    const status = await apiRequest("/api/admin/sap-po-raw-import/status");
+    adminApprovalSetup.sapPoRawImport = { ...(adminApprovalSetup.sapPoRawImport || {}), status };
+    renderSapPoRawImportPanel();
+    if (!silent) showToast("SAP PO Raw import status refreshed.", "success");
+  } catch (error) {
+    if (!silent) showToast(error.message, "error");
+  }
+}
+
+async function previewSapPoRawImportFromForm() {
+  if (!apiModeEnabled()) {
+    showToast("SAP PO Raw preview requires server API mode.", "error");
+    return;
+  }
+  const payload = {
+    workbookPath: document.getElementById("sapPoRawWorkbookPath")?.value.trim() || "",
+    sheetName: document.getElementById("sapPoRawSheetName")?.value.trim() || "Raw Data",
+    scopeMode: document.getElementById("sapPoRawScopeMode")?.value || "yellow-only",
+  };
+  try {
+    const result = await apiRequest("/api/admin/sap-po-raw-import/preview", { method: "POST", body: payload });
+    adminApprovalSetup.sapPoRawImport = { ...(adminApprovalSetup.sapPoRawImport || {}), preview: result.preview, receipt: null };
+    renderSapPoRawImportPanel();
+    showToast(`Previewed ${result.preview?.selected_row_count || 0} SAP PO Raw rows.`, result.preview?.errors?.length ? "info" : "success");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function commitSapPoRawImportFromPreview() {
+  if (!apiModeEnabled()) {
+    showToast("SAP PO Raw commit requires server API mode.", "error");
+    return;
+  }
+  const preview = adminApprovalSetup.sapPoRawImport?.preview;
+  if (!preview?.id) {
+    showToast("Run SAP PO Raw preview before commit.", "error");
+    return;
+  }
+  if (preview.errors?.length) {
+    showToast("Fix SAP PO Raw preview errors before commit.", "error");
+    return;
+  }
+  try {
+    const result = await apiRequest("/api/admin/sap-po-raw-import/commit", { method: "POST", body: { previewId: preview.id } });
+    adminApprovalSetup.sapPoRawImport = { ...(adminApprovalSetup.sapPoRawImport || {}), receipt: result.receipt };
+    renderSapPoRawImportPanel();
+    showToast(`Committed ${result.receipt?.inserted_lines || 0} SAP PO Raw rows to UAT.`, "success");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
 function renderAdminSetup() {
   const delta = document.getElementById("adminHistoryPriceDeltaThreshold");
   const chain = document.getElementById("adminApprovalChain");
   const updated = document.getElementById("adminSetupUpdatedAt");
+  const newUserRole = document.getElementById("adminNewUserRole");
+  const newRuleAssignee = document.getElementById("adminNewOmRuleAssignee");
   if (delta) delta.value = Number(adminApprovalSetup.thresholds.historyPriceDeltaUsd || 0.4).toFixed(2);
   if (chain) chain.value = adminApprovalSetup.approvalChain.join(" -> ");
   if (updated) updated.textContent = adminApprovalSetup.updatedAt ? `Updated ${compactDateTime(adminApprovalSetup.updatedAt)} by ${adminApprovalSetup.updatedBy}` : "Prototype state";
   renderAdminConsole();
+  if (newUserRole) newUserRole.innerHTML = roleOptionsHtml(newUserRole.value || "requester", { useRoleKey: true });
+  if (newRuleAssignee) newRuleAssignee.innerHTML = omAssignmentRuleAssigneeOptions(newRuleAssignee.value || "");
   const userRows = document.getElementById("adminUserRows");
   if (userRows) {
-    userRows.innerHTML = adminApprovalSetup.users.map((user) => `
+    userRows.innerHTML = adminApprovalSetup.users.map((raw) => {
+      const user = normalizeAdminUserRow(raw);
+      return `
       <tr data-admin-user="${user.id}">
-        <td><input data-admin-user-field="name" data-admin-user-id="${user.id}" value="${user.name}" /></td>
-        <td><input data-admin-user-field="email" data-admin-user-id="${user.id}" value="${user.email}" /></td>
-        <td><input data-admin-user-field="department" data-admin-user-id="${user.id}" value="${user.department}" /></td>
+        <td><input data-admin-user-field="employeeId" data-admin-user-id="${user.id}" value="${htmlAttr(user.employeeId)}" /></td>
+        <td><input data-admin-user-field="name" data-admin-user-id="${user.id}" value="${htmlAttr(user.name)}" /></td>
+        <td><input data-admin-user-field="email" data-admin-user-id="${user.id}" value="${htmlAttr(user.email)}" /></td>
+        <td><input data-admin-user-field="department" data-admin-user-id="${user.id}" value="${htmlAttr(user.department)}" /></td>
         <td><select data-admin-user-field="role" data-admin-user-id="${user.id}">${roleOptionsHtml(user.role)}</select></td>
-      </tr>`).join("");
+        <td>
+          <select data-admin-user-field="scopeType" data-admin-user-id="${user.id}">${scopeTypeOptionsHtml(user.scopeType)}</select>
+          <input class="compact-input" data-admin-user-field="scopeValue" data-admin-user-id="${user.id}" value="${htmlAttr(user.scopeValue)}" />
+        </td>
+        <td><span class="status-pill ${user.status === "active" ? "status-ok" : "status-warning"}">${htmlText(user.status)}</span></td>
+        <td>${htmlText(compactDateTime(user.lastLoginAt) || "-")}</td>
+        <td>${htmlText(user.createdBy || "-")}</td>
+        <td>
+          <div class="action-stack compact-actions">
+            <button class="mini" type="button" data-admin-user-status="${user.id}" data-admin-status-value="${user.status === "active" ? "inactive" : "active"}">${user.status === "active" ? "Deactivate" : "Activate"}</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join("");
   }
   const approverRows = document.getElementById("adminApproverRows");
   if (approverRows) {
@@ -16308,10 +20430,60 @@ function renderAdminSetup() {
         <td>${row.projectDri}</td>
       </tr>`).join("");
   }
+  const omRuleRows = document.getElementById("adminOmAssignmentRuleRows");
+  if (omRuleRows) {
+    omRuleRows.innerHTML = sortedOmAssignmentRules().map((raw) => {
+      const rule = normalizeOmAssignmentRule(raw);
+      const invalidReason = omAssignmentRuleInvalidReason(rule);
+      const statusLabel = invalidReason ? "Invalid Assignee" : rule.active ? "Active" : "Inactive";
+      const statusClassName = invalidReason ? "status-warning" : rule.active ? "status-ok" : "info";
+      return `
+        <tr data-admin-om-rule="${rule.id}">
+          <td class="cell-identity">
+            <input data-admin-om-rule-field="name" data-admin-om-rule-id="${rule.id}" value="${htmlAttr(rule.name)}" />
+            <div class="reason-text">${rule.isFallback ? "Fallback rule" : "Match rule"}</div>
+          </td>
+          <td><input data-admin-om-rule-field="priority" data-admin-om-rule-id="${rule.id}" type="number" min="1" step="1" value="${htmlAttr(rule.priority)}" /></td>
+          <td>
+            <select data-admin-om-rule-field="assigneeUserId" data-admin-om-rule-id="${rule.id}">
+              ${omAssignmentRuleAssigneeOptions(rule.assigneeUserId)}
+            </select>
+            <div class="reason-text">${invalidReason || "Active OM Purchasing user only."}</div>
+          </td>
+          <td><input data-admin-om-rule-field="projectCodes" data-admin-om-rule-id="${rule.id}" value="${htmlAttr(rule.projectCodes.join(", "))}" title="${htmlAttr(rule.projectCodes.join(", "))}" /></td>
+          <td><input data-admin-om-rule-field="projectFamilies" data-admin-om-rule-id="${rule.id}" value="${htmlAttr(rule.projectFamilies.join(", "))}" title="${htmlAttr(rule.projectFamilies.join(", "))}" /></td>
+          <td><input data-admin-om-rule-field="departmentScopes" data-admin-om-rule-id="${rule.id}" value="${htmlAttr(rule.departmentScopes.join(", "))}" title="${htmlAttr(rule.departmentScopes.join(", "))}" /></td>
+          <td>
+            <label class="permission-toggle">
+              <input type="checkbox" data-admin-om-rule-field="active" data-admin-om-rule-id="${rule.id}" ${rule.active ? "checked" : ""} />
+              <span>Active</span>
+            </label>
+            <label class="permission-toggle">
+              <input type="checkbox" data-admin-om-rule-field="isFallback" data-admin-om-rule-id="${rule.id}" ${rule.isFallback ? "checked" : ""} />
+              <span>Fallback</span>
+            </label>
+            <div><span class="status-pill ${statusClassName}">${statusLabel}</span></div>
+          </td>
+          <td class="cell-note-summary">
+            <input data-admin-om-rule-field="note" data-admin-om-rule-id="${rule.id}" value="${htmlAttr(rule.note)}" title="${htmlAttr(rule.note)}" />
+          </td>
+          <td class="cell-action">
+            <div class="action-stack compact-actions">
+              <button class="mini approve" type="button" data-action="saveOmAssignmentRule" data-admin-om-rule-id="${rule.id}">Save</button>
+            </div>
+          </td>
+        </tr>`;
+    }).join("");
+  }
+  renderAdminRolePermissionMatrix();
+  renderAdminFieldVisibilityMatrix();
+  renderAdminAuditLog();
+  renderSapPoRawImportPanel();
   renderRoleCapabilityMatrix();
+  syncOmOperatorField(document.getElementById("roleSelect")?.value || currentRole);
 }
 
-function saveAdminApprovalSetup() {
+async function saveAdminApprovalSetup() {
   adminApprovalSetup = {
     ...adminApprovalSetup,
     thresholds: {
@@ -16321,8 +20493,411 @@ function saveAdminApprovalSetup() {
     updatedBy: roleProfiles[currentRole]?.name || "Admin",
     updatedAt: new Date().toISOString(),
   };
+  pushAdminAuditEvent("admin.role_updated", "approval_chain", "thresholds", {
+    thresholds: adminApprovalSetup.thresholds,
+    approvalChain: adminApprovalSetup.approvalChain,
+  });
   renderAdminSetup();
   showToast("Access and approval setup saved.", "success");
+}
+
+function omAssignmentRuleFormPayload() {
+  return normalizeOmAssignmentRule({
+    id: `om-rule-${Date.now()}`,
+    name: document.getElementById("adminNewOmRuleName")?.value.trim() || "OM Assignment Rule",
+    priority: Number(document.getElementById("adminNewOmRulePriority")?.value || 999),
+    assigneeUserId: document.getElementById("adminNewOmRuleAssignee")?.value || "",
+    projectCodes: document.getElementById("adminNewOmRuleProjectCodes")?.value || "",
+    projectFamilies: document.getElementById("adminNewOmRuleProjectFamilies")?.value || "",
+    departmentScopes: document.getElementById("adminNewOmRuleDepartmentScopes")?.value || "",
+    active: Boolean(document.getElementById("adminNewOmRuleActive")?.checked),
+    isFallback: Boolean(document.getElementById("adminNewOmRuleFallback")?.checked),
+    note: document.getElementById("adminNewOmRuleNote")?.value.trim() || "",
+  });
+}
+
+function omAssignmentRulePayloadFromRow(ruleId) {
+  return normalizeOmAssignmentRule({
+    id: ruleId,
+    name: document.querySelector(`[data-admin-om-rule-field="name"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.value || "",
+    priority: document.querySelector(`[data-admin-om-rule-field="priority"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.value || "999",
+    assigneeUserId: document.querySelector(`[data-admin-om-rule-field="assigneeUserId"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.value || "",
+    projectCodes: document.querySelector(`[data-admin-om-rule-field="projectCodes"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.value || "",
+    projectFamilies: document.querySelector(`[data-admin-om-rule-field="projectFamilies"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.value || "",
+    departmentScopes: document.querySelector(`[data-admin-om-rule-field="departmentScopes"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.value || "",
+    active: document.querySelector(`[data-admin-om-rule-field="active"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.checked,
+    isFallback: document.querySelector(`[data-admin-om-rule-field="isFallback"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.checked,
+    note: document.querySelector(`[data-admin-om-rule-field="note"][data-admin-om-rule-id="${CSS.escape(ruleId)}"]`)?.value || "",
+  });
+}
+
+function validateOmAssignmentRulePayload(rule) {
+  if (!rule.name) return "Rule name is required.";
+  if (!rule.assigneeUserId) return "Choose an OM operator assignee.";
+  if (rule.priority < 1) return "Priority must be 1 or greater.";
+  const duplicateFallback = sortedOmAssignmentRules().filter((item) => item.id !== rule.id && item.isFallback && item.active);
+  if (rule.isFallback && duplicateFallback.length) return "Only one active fallback rule is allowed.";
+  const invalidReason = omAssignmentRuleInvalidReason(rule);
+  if (invalidReason) return invalidReason;
+  return "";
+}
+
+async function createOmAssignmentRuleFromForm() {
+  const payload = omAssignmentRuleFormPayload();
+  const validation = validateOmAssignmentRulePayload(payload);
+  if (validation) {
+    showToast(validation, "error");
+    return;
+  }
+  if (apiModeEnabled()) {
+    try {
+      await apiRequest("/api/admin/om-assignment-rules", { method: "POST", body: payload });
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    adminApprovalSetup.omAssignmentRules = [...sortedOmAssignmentRules().filter((rule) => !payload.isFallback || !rule.isFallback), payload];
+    pushAdminAuditEvent("admin.om_assignment_rule_created", "om_assignment_rule", payload.id, payload);
+  }
+  ["adminNewOmRuleName", "adminNewOmRuleProjectCodes", "adminNewOmRuleProjectFamilies", "adminNewOmRuleDepartmentScopes", "adminNewOmRuleNote"].forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.value = "";
+  });
+  const priorityInput = document.getElementById("adminNewOmRulePriority");
+  if (priorityInput) priorityInput.value = "10";
+  const activeInput = document.getElementById("adminNewOmRuleActive");
+  if (activeInput) activeInput.checked = true;
+  const fallbackInput = document.getElementById("adminNewOmRuleFallback");
+  if (fallbackInput) fallbackInput.checked = false;
+  renderAdminSetup();
+  showToast("OM assignment rule created.", "success");
+}
+
+async function saveOmAssignmentRule(ruleId) {
+  const payload = omAssignmentRulePayloadFromRow(ruleId);
+  const validation = validateOmAssignmentRulePayload(payload);
+  if (validation) {
+    showToast(validation, "error");
+    renderAdminSetup();
+    return;
+  }
+  if (apiModeEnabled()) {
+    try {
+      await apiRequest(`/api/admin/om-assignment-rules/${encodeURIComponent(ruleId)}`, { method: "PATCH", body: payload });
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    adminApprovalSetup.omAssignmentRules = [
+      ...sortedOmAssignmentRules().filter((rule) => rule.id !== ruleId && (!payload.isFallback || !rule.isFallback)),
+      payload,
+    ];
+    pushAdminAuditEvent("admin.om_assignment_rule_updated", "om_assignment_rule", ruleId, payload);
+  }
+  renderAdminSetup();
+  showToast("OM assignment rule saved.", "success");
+}
+
+async function createAdminUserFromForm() {
+  const payload = {
+    employeeId: document.getElementById("adminNewUserEmployeeId")?.value.trim() || "",
+    name: document.getElementById("adminNewUserName")?.value.trim() || "",
+    email: document.getElementById("adminNewUserEmail")?.value.trim() || "",
+    department: document.getElementById("adminNewUserDepartment")?.value.trim() || "",
+    role_key: document.getElementById("adminNewUserRole")?.value || "requester",
+    scopeType: document.getElementById("adminNewUserScopeType")?.value || "department",
+    scopeValue: document.getElementById("adminNewUserScopeValue")?.value.trim() || "",
+  };
+  if (!payload.employeeId || !payload.name || !payload.email || !payload.department) {
+    showToast("Employee ID, name, email, and department are required.", "error");
+    return;
+  }
+  if (apiModeEnabled()) {
+    try {
+      await apiRequest("/api/admin/users", { method: "POST", body: payload });
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    adminApprovalSetup.users.unshift(normalizeAdminUserRow({
+      id: `user-${Date.now()}`,
+      employeeId: payload.employeeId,
+      name: payload.name,
+      email: payload.email,
+      department: payload.department,
+      role: appRoleForAdminRoleKey(payload.role_key),
+      scopeType: payload.scopeType,
+      scopeValue: payload.scopeValue || payload.department,
+      status: "active",
+      createdBy: sessionUserFromRole("admin").id,
+      createdAt: new Date().toISOString(),
+    }));
+    pushAdminAuditEvent("admin.user_created", "user", payload.employeeId, payload);
+  }
+  ["adminNewUserEmployeeId", "adminNewUserName", "adminNewUserEmail", "adminNewUserDepartment", "adminNewUserScopeValue"].forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.value = "";
+  });
+  renderAdminSetup();
+  showToast("Admin user created.", "success");
+}
+
+async function updateAdminUserStatusAction(userId, status) {
+  if (!userId) return;
+  if (apiModeEnabled()) {
+    try {
+      await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/status`, { method: "PATCH", body: { status } });
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    adminApprovalSetup.users = adminApprovalSetup.users.map((user) => user.id === userId ? {
+      ...user,
+      status,
+      disabledAt: status === "active" ? "" : new Date().toISOString(),
+    } : user);
+    pushAdminAuditEvent(status === "active" ? "admin.user_activated" : "admin.user_deactivated", "user", userId, { status });
+  }
+  renderAdminSetup();
+  showToast(`User ${status === "active" ? "activated" : "deactivated"}.`, "success");
+}
+
+async function updateAdminUserField(userId, field, value) {
+  const fieldMap = {
+    employeeId: "employeeId",
+    name: "name",
+    email: "email",
+    department: "department",
+    role: "role_key",
+    scopeType: "scopeType",
+    scopeValue: "scopeValue",
+  };
+  const mapped = fieldMap[field];
+  if (!mapped) return;
+  if (apiModeEnabled()) {
+    const current = adminApprovalSetup.users.find((user) => user.id === userId);
+    if (!current) return;
+    const body = {
+      employeeId: field === "employeeId" ? value : current.employeeId,
+      name: field === "name" ? value : current.name,
+      email: field === "email" ? value : current.email,
+      department: field === "department" ? value : current.department,
+      role_key: field === "role" ? normalizeAdminRoleKey(value) : normalizeAdminRoleKey(current.role),
+      scopeType: field === "scopeType" ? value : current.scopeType,
+      scopeValue: field === "scopeValue" ? value : current.scopeValue,
+    };
+    try {
+      await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}`, { method: "PATCH", body });
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    adminApprovalSetup.users = adminApprovalSetup.users.map((user) => user.id === userId ? {
+      ...user,
+      [field]: value,
+      ...(field === "role" ? { role: value } : {}),
+    } : user);
+    pushAdminAuditEvent("admin.user_role_changed", "user", userId, { field, value });
+  }
+  renderAdminSetup();
+}
+
+async function createAdminRoleFromForm() {
+  const payload = {
+    role_key: document.getElementById("adminNewRoleKey")?.value.trim() || "",
+    role_name: document.getElementById("adminNewRoleName")?.value.trim() || "",
+    role_level: document.getElementById("adminNewRoleLevel")?.value.trim() || "governance",
+  };
+  if (!payload.role_key || !payload.role_name) {
+    showToast("Role key and role name are required.", "error");
+    return;
+  }
+  if (apiModeEnabled()) {
+    try {
+      await apiRequest("/api/admin/roles", { method: "POST", body: payload });
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    adminApprovalSetup.roles.push({
+      roleKey: payload.role_key,
+      roleName: payload.role_name,
+      appRole: payload.role_key,
+      roleLevel: payload.role_level,
+      isSystem: false,
+    });
+    adminApprovalSetup.rolePermissions[payload.role_key] = JSON.parse(JSON.stringify(defaultAdminRolePermissions().requester || {}));
+    pushAdminAuditEvent("admin.role_created", "role", payload.role_key, payload);
+  }
+  ["adminNewRoleKey", "adminNewRoleName", "adminNewRoleLevel"].forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.value = "";
+  });
+  renderAdminSetup();
+  showToast("Role created.", "success");
+}
+
+async function updateAdminRolePermission(roleKey, moduleKey, actionKey, checked) {
+  const current = adminApprovalSetup.rolePermissions?.[roleKey]?.[moduleKey] || {};
+  const next = {
+    ...current,
+    [actionKey]: checked,
+  };
+  if (apiModeEnabled()) {
+    try {
+      await apiRequest(`/api/admin/roles/${encodeURIComponent(roleKey)}/permissions`, {
+        method: "PATCH",
+        body: {
+          permissions: {
+            [moduleKey]: {
+              canCreate: Boolean(next.canCreate),
+              canUpdate: Boolean(next.canUpdate),
+              canDelete: Boolean(next.canDelete),
+              canView: Boolean(next.canView),
+              canExport: Boolean(next.canExport),
+            },
+          },
+        },
+      });
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    adminApprovalSetup.rolePermissions[roleKey] = adminApprovalSetup.rolePermissions[roleKey] || {};
+    adminApprovalSetup.rolePermissions[roleKey][moduleKey] = next;
+    pushAdminAuditEvent("admin.permission_updated", "role", roleKey, { moduleKey, actionKey, checked });
+  }
+  renderAdminSetup();
+}
+
+async function updateAdminFieldVisibility(fieldKey, roleKey, visible) {
+  const current = adminApprovalSetup.fieldVisibilityRules[fieldKey];
+  if (!current) return;
+  if (apiModeEnabled()) {
+    try {
+      await apiRequest("/api/admin/field-visibility", {
+        method: "PATCH",
+        body: { rules: [{ fieldKey, roleKey, visibility: visible ? "visible" : "hidden", reserved: current.reserved }] },
+      });
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    current.visibilityByRole[roleKey] = visible ? "visible" : "hidden";
+    pushAdminAuditEvent("admin.field_visibility_updated", "field_visibility", fieldKey, { roleKey, visibility: current.visibilityByRole[roleKey] });
+  }
+  renderAdminSetup();
+}
+
+function parseAdminImportText(text = "") {
+  return String(text).split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const [employeeId, name, email, department, roleKey, scopeType, scopeValue] = line.split(",").map((item) => item.trim());
+    return { employeeId, name, email, department, role_key: roleKey || "requester", scopeType: scopeType || "department", scopeValue: scopeValue || department };
+  });
+}
+
+async function importAdminUsersFromTextarea() {
+  const text = document.getElementById("adminImportTextarea")?.value || "";
+  const rows = parseAdminImportText(text);
+  if (!rows.length) {
+    showToast("Paste CSV lines before import.", "error");
+    return;
+  }
+  if (apiModeEnabled()) {
+    try {
+      const result = await apiRequest("/api/admin/users/import", { method: "POST", body: { rows } });
+      if (result.errors?.length) showToast(`Imported ${result.imported?.length || 0} rows with ${result.errors.length} errors.`, "info");
+      else showToast(`Imported ${result.imported?.length || 0} users.`, "success");
+      await refreshAdminSetup({ silent: true });
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+  } else {
+    const imported = [];
+    const errors = [];
+    rows.forEach((row, index) => {
+      if (!row.employeeId || !row.name || !row.email || !row.department) {
+        errors.push(`Row ${index + 1}: missing required fields`);
+        return;
+      }
+      if (adminApprovalSetup.users.some((user) => user.employeeId === row.employeeId || user.email === row.email)) {
+        errors.push(`Row ${index + 1}: duplicate employee_id or email`);
+        return;
+      }
+      imported.push(normalizeAdminUserRow({
+        id: `import-${Date.now()}-${index}`,
+        employeeId: row.employeeId,
+        name: row.name,
+        email: row.email,
+        department: row.department,
+        role: appRoleForAdminRoleKey(row.role_key),
+        status: "active",
+        scopeType: row.scopeType,
+        scopeValue: row.scopeValue,
+        createdBy: sessionUserFromRole("admin").id,
+        createdAt: new Date().toISOString(),
+      }));
+    });
+    adminApprovalSetup.users = [...imported, ...adminApprovalSetup.users];
+    adminApprovalSetup.importJobs.unshift({
+      id: `job-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      createdBy: sessionUserFromRole("admin").id,
+      importedCount: imported.length,
+      errorCount: errors.length,
+      errors,
+    });
+    pushAdminAuditEvent("admin.user_imported", "import_job", adminApprovalSetup.importJobs[0].id, { importedCount: imported.length, errorCount: errors.length });
+    showToast(errors.length ? `Imported ${imported.length} rows with ${errors.length} errors.` : `Imported ${imported.length} users.`, errors.length ? "info" : "success");
+  }
+  const textarea = document.getElementById("adminImportTextarea");
+  if (textarea) textarea.value = "";
+  renderAdminSetup();
+}
+
+async function exportAdminUsers() {
+  if (apiModeEnabled()) {
+    window.open("/api/admin/users/export?format=csv", "_blank", "noopener");
+    return;
+  }
+  const header = ["employee_id", "name", "email", "department", "role", "status", "scope_type", "scope_value"];
+  const lines = [
+    header.join(","),
+    ...adminApprovalSetup.users.map((user) => [user.employeeId, user.name, user.email, user.department, normalizeAdminRoleKey(user.role), user.status, user.scopeType, user.scopeValue].join(",")),
+  ];
+  downloadFile("admin-users-export.csv", lines.join("\n"), "text/csv");
+  pushAdminAuditEvent("admin.user_exported", "user_export", `count:${adminApprovalSetup.users.length}`, { count: adminApprovalSetup.users.length });
+}
+
+async function exportAdminAuditLog() {
+  if (apiModeEnabled()) {
+    window.open("/api/admin/audit-events/export", "_blank", "noopener");
+    return;
+  }
+  const rows = filteredAdminAuditRows();
+  const header = ["created_at", "event_type", "actor_user_id", "actor_role", "entity_type", "entity_id"];
+  const lines = [
+    header.join(","),
+    ...rows.map((row) => [row.createdAt, row.eventType, row.actorUserId, row.actorRole, row.entityType, row.entityId].join(",")),
+  ];
+  downloadFile("admin-audit-export.csv", lines.join("\n"), "text/csv");
 }
 
 function exportPasExcel() {
@@ -17222,6 +21797,7 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
     if (apiModeEnabled()) {
       const user = await loginWithApi(identifier, password, selectedRole);
       setScreen("workspace");
+      if (user.role === "omMember" && user.id) selectedOmOperatorId = user.id;
       applyRole(user.role);
       showToast(`Signed in as ${user.name}.`, "success");
       return;
@@ -17247,6 +21823,11 @@ document.getElementById("roleSelect")?.addEventListener("change", (event) => {
   syncLoginAccountForRole(event.target.value);
 });
 
+document.getElementById("omOperatorSelect")?.addEventListener("change", (event) => {
+  selectedOmOperatorId = event.target.value || selectedOmOperatorId;
+  syncLoginAccountForRole(document.getElementById("roleSelect")?.value || "requester");
+});
+
 document.getElementById("omExternalResultForm").addEventListener("submit", submitOmExternalResult);
 document.getElementById("uatFeedbackForm")?.addEventListener("submit", submitUatFeedback);
 document.getElementById("materialEntryForm").addEventListener("submit", submitMaterialEntry);
@@ -17256,6 +21837,7 @@ function closeModalById(modalId) {
   const closeById = {
     managerDetailModal: closeManagerDetail,
     managerTrackModal: closeManagerTrack,
+    itemQuantityReviewModal: closeItemQuantityReview,
     managerStageDetailModal: closeManagerStageDetail,
     itemDetailModal: closeItemDetail,
     demandEditorModal: closeDemandEditor,
@@ -17270,6 +21852,16 @@ function closeModalById(modalId) {
   }[modalId];
   if (closeById) closeById();
 }
+
+document.addEventListener("focusin", (event) => {
+  if (!event.target?.dataset?.requestWorksheetQty) return;
+  requestWorksheetActiveCell = {
+    requestId: event.target.dataset.requestWorksheetQty || "",
+    phase: event.target.dataset.requestWorksheetPhase || "",
+    column: event.target.dataset.requestWorksheetColumn || "",
+  };
+  applyRequestWorksheetActiveState();
+});
 
 document.addEventListener("keydown", (event) => {
   if (event.target?.dataset?.requestWorksheetQty) {
@@ -17301,6 +21893,14 @@ document.addEventListener("paste", (event) => {
   normalizeWorksheetQtyInput(event.target, { update: true });
 });
 
+document.addEventListener("input", (event) => {
+  if (!event.target?.hasAttribute?.("data-item-quantity-review-input")) return;
+  event.target.value = sanitizeWorksheetQtyValue(event.target.value);
+  const beforeQty = clampQty(event.target.dataset.beforeQty || 0);
+  const afterQty = clampQty(event.target.value || 0);
+  event.target.closest(".item-review-qty-cell")?.classList.toggle("changed", beforeQty !== afterQty);
+});
+
 document.addEventListener("click", (event) => {
   if (event.target.classList?.contains("modal-backdrop") && !event.target.classList.contains("confirm-backdrop")) {
     closeModalById(event.target.id);
@@ -17311,6 +21911,7 @@ document.addEventListener("click", (event) => {
   const deptTab = event.target.closest("[data-dept-tab]");
   const reuseModeTab = event.target.closest("[data-reuse-mode-tab]");
   const requestWorksheetTab = event.target.closest("[data-request-worksheet-tab]");
+  const requestPhaseJumpButton = event.target.closest("[data-request-phase-jump]");
   const requestPickerSourceTab = event.target.closest("[data-request-picker-source-tab]");
   const managerTab = event.target.closest("[data-manager-tab]");
   const demandAnalysisTab = event.target.closest("[data-demand-analysis-tab]");
@@ -17334,7 +21935,21 @@ document.addEventListener("click", (event) => {
   const managerProgressDetailButton = event.target.closest("[data-manager-progress-detail]");
   const managerQuantityDetailButton = event.target.closest("[data-manager-quantity-detail]");
   const managerDemandCostButton = event.target.closest("[data-manager-demand-cost-unit]");
+  const itemQuantityCell = event.target.closest("[data-item-quantity-cell]");
+  const approvalQuantityTabButton = event.target.closest("[data-approval-quantity-tab]");
+  const approvalQuantityModeButton = event.target.closest("[data-approval-quantity-mode]");
+  const itemQuantityReviewModeButton = event.target.closest("[data-item-quantity-review-mode]");
+  const itemQuantityProposalButton = event.target.closest("[data-item-quantity-proposal-action]");
+  const itemQuantityDraftRemoveButton = event.target.closest("[data-item-quantity-remove-draft]");
+  const managerSelectButton = event.target.closest("[data-manager-select]");
+  const managerSelectRow = event.target.closest("[data-manager-select-row]");
+  const managerAuthorizedSelectRow = event.target.closest("[data-manager-authorized-select-row]");
+  const projectContextButton = event.target.closest("[data-project-context-project]");
   const priceReviewTab = event.target.closest("[data-price-review-tab]");
+  const priceReviewQueueButton = event.target.closest("[data-price-review-queue]");
+  const priceReviewSelectButton = event.target.closest("[data-price-review-select]");
+  const priceReviewSelectCell = event.target.closest("[data-price-review-select-cell]");
+  const priceReviewSelectRow = event.target.closest("[data-price-review-select-row]");
   const priceReviewDecisionButton = event.target.closest("[data-price-review-decision]");
   const costManagerAuthorizationButton = event.target.closest("[data-cost-manager-authorization]");
   const managerQuantitySelectRow = event.target.closest("[data-manager-quantity-select]");
@@ -17353,17 +21968,24 @@ document.addEventListener("click", (event) => {
   const userAAmendButton = event.target.closest("[data-usera-amend]");
   const userAAmendConfirmButton = event.target.closest("[data-usera-amend-confirm]");
   const userAAmendRejectButton = event.target.closest("[data-usera-amend-reject]");
+  const itemQuantityAcceptProposalButton = event.target.closest("[data-item-quantity-accept-proposal]");
   const uatRowFeedbackButton = event.target.closest("[data-uat-row-feedback]");
   const uatFeedbackSaveButton = event.target.closest("[data-uat-feedback-save]");
   const carryoverSuggestionButton = event.target.closest("[data-create-carryover-candidate]");
   const warehouseCandidateLockButton = event.target.closest("[data-warehouse-candidate-lock]");
   const warehouseCandidateRejectButton = event.target.closest("[data-warehouse-candidate-reject]");
+  const adminUserStatusButton = event.target.closest("[data-admin-user-status]");
 
   if (viewTab?.classList.contains("tab") && !viewTab.hidden) setView(viewTab.dataset.view);
   if (deptTab) setDeptTab(deptTab.dataset.deptTab);
   if (requestWorksheetTab) {
     syncRequestWorksheetContext({ mode: requestWorksheetTab.dataset.requestWorksheetTab || DEMAND_TYPE_MFG });
     renderRequestRows();
+  }
+  if (requestPhaseJumpButton) {
+    requestWorksheetVisiblePhase = requestPhaseJumpButton.dataset.requestPhaseJump || requestWorksheetVisiblePhase;
+    horizontalTableNavigatorModule().scrollToGroup?.("requestWorksheet", requestWorksheetVisiblePhase);
+    syncRequestWorksheetVisiblePhase();
   }
   if (requestPickerSourceTab) {
     requestItemPickerSourceMode = requestPickerSourceTab.dataset.requestPickerSourceTab || "catalog";
@@ -17378,6 +22000,11 @@ document.addEventListener("click", (event) => {
   if (managerTab) setManagerTab(managerTab.dataset.managerTab);
   if (demandAnalysisTab) setDemandAnalysisTab(demandAnalysisTab.dataset.demandAnalysisTab);
   if (priceReviewTab) setPriceReviewTab(priceReviewTab.dataset.priceReviewTab);
+  if (priceReviewQueueButton) {
+    currentPriceReviewQueue = priceReviewQueueButton.dataset.priceReviewQueue || currentPriceReviewQueue;
+    selectedPriceReviewRequestId = null;
+    renderPriceReview();
+  }
   if (costManagerAuthorizationButton) {
     applyCostManagerAuthorization(
       costManagerAuthorizationButton.dataset.costManagerAuthorization,
@@ -17406,9 +22033,21 @@ document.addEventListener("click", (event) => {
   if (action === "clearManagerProgressFilters") clearManagerProgressFilters();
   if (action === "clearManagerQuantityFilters") clearManagerQuantityFilters();
   if (action === "clearManagerDemandCostFilters") clearManagerDemandCostFilters();
+  if (action === "clearPriceReviewDemandCostFilters") clearPriceReviewDemandCostFilters();
+  if (action === "clearPriceReviewQuantityFilters") clearPriceReviewQuantityFilters();
   if (action === "clearOmSubmissionFilters") clearOmSubmissionFilters();
   if (action === "saveOmExchangeRate") saveOmExchangeRate();
   if (action === "saveAdminApprovalSetup") saveAdminApprovalSetup();
+  if (action === "createOmAssignmentRule") createOmAssignmentRuleFromForm();
+  if (action === "createAdminUser") createAdminUserFromForm();
+  if (action === "createAdminRole") createAdminRoleFromForm();
+  if (action === "refreshSapPoRawImportStatus") refreshSapPoRawImportStatus();
+  if (action === "previewSapPoRawImport") previewSapPoRawImportFromForm();
+  if (action === "commitSapPoRawImport") commitSapPoRawImportFromPreview();
+  if (action === "importAdminUsers") importAdminUsersFromTextarea();
+  if (action === "exportAdminUsers") exportAdminUsers();
+  if (action === "exportAdminAuditLog") exportAdminAuditLog();
+  if (action === "refreshAdminAudit") renderAdminAuditLog();
   if (action === "openNeedConfirmation") setDeptTab("needConfirmation");
   if (action === "historySearch") runHistorySearch();
   if (action === "clearHistorySearch") clearHistorySearch();
@@ -17424,6 +22063,45 @@ document.addEventListener("click", (event) => {
   }
   if (action === "addDemandEditorRow") addDemandEditorRow();
   if (action === "closeDemandEditor") closeDemandEditor();
+  if (action === "closeItemQuantityReview") closeItemQuantityReview();
+  if (action === "approveItemQuantityReview") approveItemQuantityReview();
+  if (action === "returnItemQuantityReview") returnItemQuantityReviewWithProposal();
+  if (action === "saveItemQuantityReviewDirectEdit") saveItemQuantityReviewDirectEdit();
+  if (action === "rejectItemQuantityReview") rejectItemQuantityReview();
+  if (approvalQuantityTabButton) {
+    approvalQuantityReviewTab = approvalQuantityReviewTabValue(approvalQuantityTabButton.dataset.approvalQuantityTab);
+    syncApprovalQuantityReviewTabState();
+    if (currentView === "manager") renderManager();
+    else if (currentView === "priceReview") renderPriceReview();
+    else {
+      renderManager();
+      renderPriceReview();
+    }
+  }
+  if (approvalQuantityModeButton) {
+    approvalQuantityReviewMode = quantityReviewModeValue(approvalQuantityModeButton.dataset.approvalQuantityMode);
+    approvalQuantityReviewTab = approvalQuantityReviewMode === DEMAND_TYPE_NON_MFG ? "nonMfg" : "mfg";
+    if (currentView === "manager") renderManager();
+    else if (currentView === "priceReview") renderPriceReview();
+    else {
+      renderManager();
+      renderPriceReview();
+    }
+  }
+  if (itemQuantityReviewModeButton && activeItemQuantityReview) {
+    activeItemQuantityReview = {
+      ...activeItemQuantityReview,
+      reviewMode: quantityReviewModeValue(itemQuantityReviewModeButton.dataset.itemQuantityReviewMode),
+      station: "",
+      unit: "",
+    };
+    renderItemQuantityReviewModal();
+  }
+  if (itemQuantityProposalButton) addItemQuantityProposalAction(
+    itemQuantityProposalButton.dataset.itemQuantityRequest || activeItemQuantityReview?.requestId || "",
+    itemQuantityProposalButton.dataset.itemQuantityProposalAction || "",
+  );
+  if (itemQuantityDraftRemoveButton) removeItemQuantityProposalDraft(Number(itemQuantityDraftRemoveButton.dataset.itemQuantityRemoveDraft || 0));
   if (demandEditorCarryoverToggle) {
     const key = demandEditorCarryoverToggle.dataset.demandEditorCarryoverToggle;
     if (expandedDemandEditorCarryoverRows.has(key)) expandedDemandEditorCarryoverRows.delete(key);
@@ -17436,6 +22114,10 @@ document.addEventListener("click", (event) => {
   if (carryoverSuggestionButton) createCarryoverCandidate(carryoverSuggestionButton.dataset.createCarryoverCandidate);
   if (warehouseCandidateLockButton) updateWarehouseCandidateStatus(warehouseCandidateLockButton.dataset.warehouseCandidateLock, "lock");
   if (warehouseCandidateRejectButton) updateWarehouseCandidateStatus(warehouseCandidateRejectButton.dataset.warehouseCandidateReject, "reject");
+  if (adminUserStatusButton) updateAdminUserStatusAction(adminUserStatusButton.dataset.adminUserStatus, adminUserStatusButton.dataset.adminStatusValue || "inactive");
+  if (itemQuantityAcceptProposalButton) acceptItemQuantityProposal(itemQuantityAcceptProposalButton.dataset.itemQuantityAcceptProposal);
+  const saveOmAssignmentRuleButton = event.target.closest("[data-action='saveOmAssignmentRule']");
+  if (saveOmAssignmentRuleButton) saveOmAssignmentRule(saveOmAssignmentRuleButton.dataset.adminOmRuleId || "");
   if (editDemandButton) openDemandEditor(editDemandButton.dataset.editDemand);
   if (action === "completeSelectedMaterials") completeSelectedMaterials();
   if (action === "saveRequesterDraft") saveRequesterDraft();
@@ -17514,6 +22196,29 @@ document.addEventListener("click", (event) => {
     removeStationBreakdownButton.dataset.removeStationBreakdownRow,
   );
   if (itemDetailControl) openItemDetail(itemDetailControl.dataset.itemDetailSource, itemDetailControl.dataset.itemDetailId);
+  if (managerSelectButton) {
+    selectedManagerRequestId = managerSelectButton.dataset.managerSelect || selectedManagerRequestId;
+    syncProjectContextFromRow("managerAuthorized", managerRows().find((row) => row.id === selectedManagerRequestId));
+    renderManager();
+  }
+  if (managerSelectRow && !event.target.closest("button, input, select, textarea, a")) {
+    selectedManagerRequestId = managerSelectRow.dataset.managerSelectRow || selectedManagerRequestId;
+    syncProjectContextFromRow("managerAuthorized", managerRows().find((row) => row.id === selectedManagerRequestId));
+    renderManager();
+  }
+  if (managerAuthorizedSelectRow && !event.target.closest("button, input, select, textarea, a")) {
+    selectedManagerRequestId = managerAuthorizedSelectRow.dataset.managerAuthorizedSelectRow || selectedManagerRequestId;
+    selectedManagerAuthorizedRequestId = selectedManagerRequestId;
+    syncProjectContextFromRow("managerAuthorized", managerRows().find((row) => row.id === selectedManagerRequestId));
+    renderManager();
+  }
+  if (projectContextButton) {
+    applyProjectContextSwitch(
+      projectContextButton.dataset.projectContextMode || (currentView === "manager" ? "managerAuthorized" : "inline"),
+      projectContextButton.dataset.projectContextProject || "",
+    );
+    return;
+  }
   if (managerDetailButton) openManagerDetail(managerDetailButton.dataset.managerDetail);
   if (managerDashboardDetailButton) openManagerDetail(managerDashboardDetailButton.dataset.managerDashboardDetail, { readonly: true });
   if (managerDashboardPhaseButton) openManagerDashboardPhaseDetail(
@@ -17522,11 +22227,50 @@ document.addEventListener("click", (event) => {
   );
   if (managerDemandDetailButton) openManagerDetail(managerDemandDetailButton.dataset.managerDemandDetail, { readonly: true });
   if (managerProgressDetailButton) openManagerProgressDetail(managerProgressDetailButton.dataset.managerProgressDetail);
+  if (itemQuantityCell) {
+    openItemQuantityReview({
+      requestId: itemQuantityCell.dataset.itemQuantityRequest || "",
+      project: itemQuantityCell.dataset.itemQuantityProject || "",
+      item: itemQuantityCell.dataset.itemQuantityItem || "",
+      phase: itemQuantityCell.dataset.itemQuantityPhase || "",
+      unit: itemQuantityCell.dataset.itemQuantityUnit || itemQuantityCell.dataset.managerDemandCostUnit || "",
+      station: itemQuantityCell.dataset.itemQuantityStation || "",
+      reviewMode: itemQuantityCell.dataset.itemQuantityReviewMode || "",
+      source: itemQuantityCell.dataset.itemQuantityCell || "",
+    });
+    return;
+  }
   if (managerDemandCostButton) drillManagerDemandCost(
     managerDemandCostButton.dataset.managerDemandCostUnit,
     managerDemandCostButton.dataset.managerDemandCostPhase || "",
     managerDemandCostButton.dataset.managerDemandCostItem || "",
+    managerDemandCostButton.dataset.managerDemandCostProject || "",
+    managerDemandCostButton.dataset.managerDemandCostRequestId || managerDemandCostButton.dataset.approvalDashboardRequestId || "",
   );
+  if (priceReviewSelectRow && !event.target.closest("button, input, select, textarea, a")) {
+    selectedPriceReviewRequestId = priceReviewSelectRow.dataset.priceReviewSelectRow || selectedPriceReviewRequestId;
+    syncProjectContextFromRow(currentPriceReviewTab === "projectReview" ? "tab" : "inline", priceReviewProjectRowsForRole(currentRole).find((row) => row.id === selectedPriceReviewRequestId));
+    approvalQuantityReviewTab = "dashboard";
+    syncApprovalQuantityReviewTabState();
+    shouldScrollPriceReviewInlineAnalysis = currentRole === "dri";
+    renderPriceReview();
+  }
+  if (priceReviewSelectButton) {
+    selectedPriceReviewRequestId = priceReviewSelectButton.dataset.priceReviewSelect || selectedPriceReviewRequestId;
+    syncProjectContextFromRow(currentPriceReviewTab === "projectReview" ? "tab" : "inline", priceReviewProjectRowsForRole(currentRole).find((row) => row.id === selectedPriceReviewRequestId));
+    approvalQuantityReviewTab = "dashboard";
+    syncApprovalQuantityReviewTabState();
+    shouldScrollPriceReviewInlineAnalysis = currentRole === "dri";
+    renderPriceReview();
+  }
+  if (priceReviewSelectCell) {
+    selectedPriceReviewRequestId = priceReviewSelectCell.dataset.priceReviewSelectCell || selectedPriceReviewRequestId;
+    syncProjectContextFromRow(currentPriceReviewTab === "projectReview" ? "tab" : "inline", priceReviewProjectRowsForRole(currentRole).find((row) => row.id === selectedPriceReviewRequestId));
+    approvalQuantityReviewTab = "dashboard";
+    syncApprovalQuantityReviewTabState();
+    shouldScrollPriceReviewInlineAnalysis = currentRole === "dri";
+    renderPriceReview();
+  }
   if (priceReviewDecisionButton) applyPriceReviewDecision(
     priceReviewDecisionButton.dataset.priceReviewDecision,
     priceReviewDecisionButton.dataset.priceReviewAction,
@@ -17634,6 +22378,7 @@ document.addEventListener("change", async (event) => {
   ].includes(event.target.id)) renderManagerStageTracking();
   if ([
     "managerDemandCostProjectFilter",
+    "managerDemandCostLineFilter",
     "managerDemandCostPhaseFilter",
     "managerDemandCostLineCount",
     "managerDemandCostViewMode",
@@ -17643,7 +22388,17 @@ document.addEventListener("change", async (event) => {
     renderManagerQuantityMatrix();
   }
   if ([
+    "priceReviewDemandCostProjectFilter",
+    "priceReviewDemandCostLineFilter",
+    "priceReviewDemandCostPhaseFilter",
+    "priceReviewDemandCostLineCount",
+    "priceReviewDemandCostViewMode",
+  ].includes(event.target.id)) {
+    renderPriceReviewAnalysis();
+  }
+  if ([
     "managerQuantityProjectFilter",
+    "managerQuantityLineFilter",
     "managerQuantityItemFilter",
     "managerQuantityPhaseFilter",
     "managerQuantityStationFilter",
@@ -17653,6 +22408,15 @@ document.addEventListener("change", async (event) => {
     "managerUnitSplitLineCount",
     "managerUnitSplitViewMode",
   ].includes(event.target.id)) renderManagerQuantityMatrix();
+  if ([
+    "priceReviewQuantityProjectFilter",
+    "priceReviewQuantityLineFilter",
+    "priceReviewQuantityItemFilter",
+    "priceReviewQuantityPhaseFilter",
+    "priceReviewQuantityStationFilter",
+    "priceReviewQuantityUnitFilter",
+    "priceReviewQuantitySortFilter",
+  ].includes(event.target.id)) renderPriceReviewAnalysis();
   if ([
     "omSubmissionYearFilter",
     "omSubmissionProjectFilter",
@@ -17665,6 +22429,7 @@ document.addEventListener("change", async (event) => {
   if (event.target.id === "currencyDisplaySelect") {
     currencyDisplay = event.target.value === "USD" ? "USD" : "VND";
     renderDepartment();
+    renderPriceReview();
     renderManager();
     renderOmPurchasing();
     renderSourcing();
@@ -17797,6 +22562,11 @@ document.addEventListener("change", async (event) => {
     updateRequestNeedDate(requestNeedDate, event.target.value);
   }
 
+  if (event.target.id === "requestPackageNeedDate") {
+    setCurrentRequestScopeNeedDate(event.target.value);
+    renderRequestRows();
+  }
+
   const requestDemandUnit = event.target.dataset.requestDemandUnit;
   if (requestDemandUnit) updateRequestDemandUnit(requestDemandUnit, event.target.value);
 
@@ -17823,10 +22593,22 @@ document.addEventListener("change", async (event) => {
   const adminUserField = event.target.dataset.adminUserField;
   const adminUserId = event.target.dataset.adminUserId;
   if (adminUserField && adminUserId) {
-    adminApprovalSetup = {
-      ...adminApprovalSetup,
-      users: adminApprovalSetup.users.map((user) => user.id === adminUserId ? { ...user, [adminUserField]: event.target.value } : user),
-    };
+    updateAdminUserField(adminUserId, adminUserField, event.target.value);
+  }
+  const adminRolePermission = event.target.dataset.adminRolePermission;
+  const adminModuleKey = event.target.dataset.adminModuleKey;
+  const adminPermissionKey = event.target.dataset.adminPermissionKey;
+  if (adminRolePermission && adminModuleKey && adminPermissionKey) {
+    updateAdminRolePermission(adminRolePermission, adminModuleKey, adminPermissionKey, Boolean(event.target.checked));
+  }
+  const adminFieldKey = event.target.dataset.adminFieldKey;
+  const adminRoleVisibility = event.target.dataset.adminRoleVisibility;
+  if (adminFieldKey && adminRoleVisibility) {
+    updateAdminFieldVisibility(adminFieldKey, adminRoleVisibility, Boolean(event.target.checked));
+  }
+  if (event.target.dataset.adminAuditFilter) {
+    adminAuditFilters[event.target.dataset.adminAuditFilter] = event.target.value;
+    renderAdminAuditLog();
   }
 
   const handoffSelect = event.target.dataset.handoffSelect;
@@ -18521,6 +23303,7 @@ renderBuyer();
       roleSelect.innerHTML = SIMPLIFIED_LOGIN_ROLES.map((role) => `<option value="${role.value}">${role.label}</option>`).join("");
       syncLoginAccountForRole(roleSelect.value || "requester");
     }
+    syncOmOperatorField(roleSelect?.value || "requester");
     const requesterField = document.getElementById("requesterPersonaField");
     if (requesterField) {
       requesterField.hidden = true;

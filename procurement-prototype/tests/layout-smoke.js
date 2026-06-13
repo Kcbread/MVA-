@@ -340,8 +340,7 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
     await page.evaluate(() => {
       window.applyRole?.("manager");
       window.setView?.("manager");
-      window.setManagerTab?.("analysis");
-      window.setDemandAnalysisTab?.("quantity");
+      window.setManagerTab?.("review");
     });
     await page.waitForTimeout(250);
     await assertNoPageOverflow(page, `Responsive ${viewport.label} manager matrix shell`);

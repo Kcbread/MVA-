@@ -167,7 +167,8 @@ MFG 的 `Mainline / Packing / Supporting` station 欄位，包含 `CG / BG / FAT
 | `PAS Material No` | 收到 bidding result 後，OM 在 `PAS Quote Result` 輸入，後續一路帶到 Export/Buyer/History。 |
 | `Quote Valid Until` | OM 在 `PAS Quote Result` 輸入；送 Requester 前必填。 |
 | `Expiry Status` | 由 Quote Valid Until 推算：Valid、14 天內 Expiring Soon、或 Expired / Requote Required。 |
-| `Factory Material No` | Buyer/PUR 在 PO 後回填；只有 PO 後才進 Reuse Item history。 |
+| `Factory Material No` | Buyer/PUR 在 PO 後回填；只有 PO 後才進 Reuse Item history。對應 SAP PO Raw Data A 欄 `料號` / `factory_material_no`。 |
+| `SAP Material No` | SAP PO Raw Data H 欄 `料號` / `sap_material_no`；不同於 Factory Material No，不可合併顯示或合併入同一 identity type。 |
 | `需求單位` | 需求來源單位，例如 ENG1、MFG、TE。 |
 | `Station` | 實際站位，例如 CG、BG、FATP、Test。 |
 | `Demand Type` | `MFG` 或 `Non-MFG`。`MFG` 必填 Station、不填需求單位；`Non-MFG` 不填 Station、必填需求單位。 |

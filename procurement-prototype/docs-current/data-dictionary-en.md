@@ -149,9 +149,22 @@ These are not requester-visible.
 | supplier | Supplier name | OM / Buyer / Admin |
 | pasDemandNo | PAS Demand No | OM / Cost Manager / Buyer |
 | pasMaterialNo | PAS Material No | OM / Buyer |
-| factoryMaterialNo | Factory material number after PO | Buyer / OM / Admin |
+| factoryMaterialNo | Factory material number after PO; SAP PO Raw Data column A `料號` | Buyer / OM / Admin |
+| sapMaterialNo | SAP material number from SAP PO Raw Data column H `料號`; separate from Factory Material No | OM / Buyer / Admin |
 | omAssignee | OM assigned owner | OM Leader / Admin |
 | ftvCode | Customs/audit FTV code | OM / Buyer / Admin |
+
+## 6A. SAP / PO Raw Mirror
+
+SAP PO raw import/export keeps the Excel `Raw Data` A-BN shape as a mirror layer. Core workflow tables should consume canonical fields only; PO-only fields may be blank before Buyer/PUR/SAP evidence exists.
+
+| Field | Raw Data Column | Meaning |
+| --- | --- | --- |
+| factory_material_no | A `料號` | Factory Material No; PO-stage factory-side tracking key |
+| sap_material_no | H `料號` | SAP material number; not the factory material number |
+| ftv_code | K `FTV Code` | Customs/audit FTV mapping source |
+| normalized_item_name | Q `正規化` | Main item matching / master key candidate |
+| lv1 / lv2 / lv3 | BL / BM / BN | Category coding source for future `AABBB00001` rules |
 
 ## 7. Attachments
 

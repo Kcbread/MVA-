@@ -25,13 +25,14 @@ test('carryover ledger preserves original demand through immutable events', () =
 });
 
 test('DRI can operate carryover while Cost Manager and OM are result-only', () => {
-  assert.match(carryoverJs, /Carryover Review/);
-  assert.match(carryoverJs, /data-carryover-apply/);
-  assert.match(carryoverJs, /data-carryover-reject/);
+  assert.match(appJs, /Stock \/ Carryover Review/);
+  assert.match(appJs, /data-warehouse-candidate-lock/);
+  assert.match(appJs, /data-warehouse-candidate-reject/);
   assert.match(appJs, /Carryover Ledger/);
   assert.match(appJs, /Only Dept DRI approved rows reduce effective cost/);
   assert.match(carryoverJs, /function renderManagerCarryover\(\) \{[\s\S]*carryover-manager-readonly[\s\S]*remove\(\)/);
   assert.match(carryoverJs, /function renderOmCarryover\(\) \{[\s\S]*carryover-om-effective-qty[\s\S]*remove\(\)/);
+  assert.match(carryoverJs, /function renderDriCarryover\(\) \{[\s\S]*carryover-review-workspace[\s\S]*remove\(\)/);
   assert.doesNotMatch(carryoverJs, /Effective Qty from Dept DRI Carryover/);
 });
 

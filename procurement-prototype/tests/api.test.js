@@ -28,8 +28,8 @@ async function request(baseUrl, path, { method = "GET", body, cookie } = {}) {
   return { response, json, cookie: response.headers.get("set-cookie") || cookie || "" };
 }
 
-async function login(baseUrl, identifier, password = "123") {
-  return request(baseUrl, "/api/login", { method: "POST", body: { identifier, password } });
+async function login(baseUrl, identifier, password = "123", extra = {}) {
+  return request(baseUrl, "/api/login", { method: "POST", body: { identifier, password, ...extra } });
 }
 
 async function uploadFile(baseUrl, pathName, { cookie, fields = {}, file }) {
@@ -86,6 +86,28 @@ test("test login role creates the selected server session", async () => {
   }
 });
 
+test("OM Purchasing login role can switch between Giang and Linh operators", async () => {
+  const server = createServer();
+  const baseUrl = await listen(server);
+  try {
+    const giang = await request(baseUrl, "/api/login", {
+      method: "POST",
+      body: { identifier: "V1524505", role: "omMember", loginRole: "omMember", operatorEmployeeId: "giangth1", password: "123" },
+    });
+    assert.equal(giang.response.status, 200);
+    assert.equal(giang.json.user.employee_id, "giangth1");
+
+    const linh = await request(baseUrl, "/api/login", {
+      method: "POST",
+      body: { identifier: "V1524505", role: "omMember", loginRole: "omMember", operatorEmployeeId: "linhnp", password: "123" },
+    });
+    assert.equal(linh.response.status, 200);
+    assert.equal(linh.json.user.employee_id, "linhnp");
+  } finally {
+    server.close();
+  }
+});
+
 test("invalid login fails and does not create a session", async () => {
   const server = createServer();
   const baseUrl = await listen(server);
@@ -93,6 +115,132 @@ test("invalid login fails and does not create a session", async () => {
     const result = await login(baseUrl, "maint5", "wrong");
     assert.equal(result.response.status, 401);
     assert.equal(result.json.error, "Invalid account or password");
+  } finally {
+    server.close();
+  }
+});
+
+test("static server only exposes browser runtime assets", async () => {
+  const server = createServer();
+  const baseUrl = await listen(server);
+  try {
+    const index = await fetch(`${baseUrl}/index.html`);
+    assert.equal(index.status, 200);
+    assert.match(await index.text(), /Purchasing System/);
+
+    const module = await fetch(`${baseUrl}/app-modules/quote-validity.js`);
+    assert.equal(module.status, 200);
+    assert.match(await module.text(), /quote/i);
+
+    for (const pathName of ["/server.js", "/db/schema.sql", "/package.json", "/tests/api.test.js"]) {
+      const blocked = await fetch(`${baseUrl}${pathName}`);
+      assert.equal(blocked.status, 404, `${pathName} should not be public`);
+    }
+  } finally {
+    server.close();
+  }
+});
+
+test("Admin can create, deactivate, and audit lifecycle-managed users", async () => {
+  const server = createServer();
+  const baseUrl = await listen(server);
+  try {
+    const admin = await login(baseUrl, "admin");
+    const created = await request(baseUrl, "/api/admin/users", {
+      method: "POST",
+      cookie: admin.cookie,
+      body: {
+        employeeId: "EMP-ADMIN-001",
+        name: "Dept Head Seed",
+        email: "dept-head-seed@fih-foxconn.com",
+        department: "MFG",
+        role_key: "requester",
+        scopeType: "department",
+        scopeValue: "MFG",
+      },
+    });
+    assert.equal(created.response.status, 201);
+    assert.equal(created.json.user.employee_id, "EMP-ADMIN-001");
+
+    const createdLogin = await login(baseUrl, "EMP-ADMIN-001");
+    assert.equal(createdLogin.response.status, 200);
+
+    const deactivated = await request(baseUrl, `/api/admin/users/${encodeURIComponent(created.json.user.id)}/status`, {
+      method: "PATCH",
+      cookie: admin.cookie,
+      body: { status: "inactive" },
+    });
+    assert.equal(deactivated.response.status, 200);
+    assert.equal(deactivated.json.user.status, "inactive");
+
+    const createdAfterDeactivate = await request(baseUrl, "/api/me", { cookie: createdLogin.cookie });
+    assert.equal(createdAfterDeactivate.response.status, 401);
+
+    const failedLogin = await login(baseUrl, "EMP-ADMIN-001");
+    assert.equal(failedLogin.response.status, 401);
+
+    const audit = await request(baseUrl, "/api/admin/audit-events", { cookie: admin.cookie });
+    assert.equal(audit.response.status, 200);
+    assert.equal(audit.json.events.some((event) => event.event_type === "admin.user_created"), true);
+    assert.equal(audit.json.events.some((event) => event.event_type === "admin.user_deactivated"), true);
+  } finally {
+    server.close();
+  }
+});
+
+test("Admin can manage roles, permissions, field visibility, and exports", async () => {
+  const server = createServer();
+  const baseUrl = await listen(server);
+  try {
+    const admin = await login(baseUrl, "admin");
+
+    const roleCreated = await request(baseUrl, "/api/admin/roles", {
+      method: "POST",
+      cookie: admin.cookie,
+      body: { role_key: "deptHead", role_name: "Dept Head", role_level: "governance" },
+    });
+    assert.equal(roleCreated.response.status, 201);
+    assert.equal(roleCreated.json.role.role_key, "deptHead");
+
+    const permissionUpdated = await request(baseUrl, "/api/admin/roles/deptHead/permissions", {
+      method: "PATCH",
+      cookie: admin.cookie,
+      body: {
+        permissions: {
+          "admin.users": {
+            canCreate: true,
+            canUpdate: true,
+            canDelete: false,
+            canView: true,
+            canExport: false,
+          },
+        },
+      },
+    });
+    assert.equal(permissionUpdated.response.status, 200);
+    assert.equal(permissionUpdated.json.permissions["admin.users"].can_create, 1);
+
+    const fieldsUpdated = await request(baseUrl, "/api/admin/field-visibility", {
+      method: "PATCH",
+      cookie: admin.cookie,
+      body: { rules: [{ fieldKey: "vendor", roleKey: "deptHead", visibility: "visible" }] },
+    });
+    assert.equal(fieldsUpdated.response.status, 200);
+    assert.equal(fieldsUpdated.json.rules.find((row) => row.field_key === "vendor").visibility_by_role.deptHead, "visible");
+
+    const usersExport = await fetch(`${baseUrl}/api/admin/users/export?format=csv`, {
+      headers: { Cookie: admin.cookie },
+    });
+    assert.equal(usersExport.status, 200);
+    const usersCsv = await usersExport.text();
+    assert.match(usersCsv, /employee_id,name,email/);
+
+    const auditExport = await fetch(`${baseUrl}/api/admin/audit-events/export`, {
+      headers: { Cookie: admin.cookie },
+    });
+    assert.equal(auditExport.status, 200);
+    const auditCsv = await auditExport.text();
+    assert.match(auditCsv, /created_at,event_type,actor_user_id/);
   } finally {
     server.close();
   }
@@ -125,6 +273,81 @@ test("OM Leader can assign rows; OM Purchasing member cannot assign rows", async
     assert.equal(assignments.response.status, 200);
     assert.equal(assignments.json.assignments.length, 1);
     assert.equal(assignments.json.assignments[0].requestId, "REQ-OM-001");
+  } finally {
+    server.close();
+  }
+});
+
+test("Admin can manage OM assignment rules and OM can read them", async () => {
+  memoryStore.omAssignmentRules = [
+    {
+      id: "om-rule-p27-f27-linh",
+      name: "P27/F27 -> Linh",
+      active: true,
+      priority: 10,
+      projectCodes: ["P27", "F27"],
+      projectFamilies: [],
+      departmentScopes: [],
+      assigneeUserId: "om-member-linh",
+      isFallback: false,
+      note: "seed",
+    },
+    {
+      id: "om-rule-fallback-giang",
+      name: "Fallback -> Giang",
+      active: true,
+      priority: 999,
+      projectCodes: [],
+      projectFamilies: [],
+      departmentScopes: [],
+      assigneeUserId: "om-member-giang",
+      isFallback: true,
+      note: "seed fallback",
+    },
+  ];
+  const server = createServer();
+  const baseUrl = await listen(server);
+  try {
+    const admin = await login(baseUrl, "admin");
+    const giang = await login(baseUrl, "giangth1");
+
+    const created = await request(baseUrl, "/api/admin/om-assignment-rules", {
+      method: "POST",
+      cookie: admin.cookie,
+      body: {
+        name: "IT -> Linh",
+        active: true,
+        priority: 30,
+        projectCodes: [],
+        projectFamilies: ["Non-G"],
+        departmentScopes: ["IT"],
+        assigneeUserId: "om-member-linh",
+        isFallback: false,
+        note: "non-g it",
+      },
+    });
+    assert.equal(created.response.status, 201);
+    assert.equal(created.json.rule.assigneeUserId, "om-member-linh");
+
+    const updated = await request(baseUrl, `/api/admin/om-assignment-rules/${created.json.rule.id}`, {
+      method: "PATCH",
+      cookie: admin.cookie,
+      body: {
+        priority: 25,
+        note: "updated",
+      },
+    });
+    assert.equal(updated.response.status, 200);
+    assert.equal(updated.json.rule.priority, 25);
+    assert.equal(updated.json.rule.note, "updated");
+
+    const adminList = await request(baseUrl, "/api/admin/om-assignment-rules", { cookie: admin.cookie });
+    assert.equal(adminList.response.status, 200);
+    assert.ok(adminList.json.rules.some((rule) => rule.id === created.json.rule.id));
+
+    const omList = await request(baseUrl, "/api/om/assignment-rules", { cookie: giang.cookie });
+    assert.equal(omList.response.status, 200);
+    assert.ok(omList.json.rules.some((rule) => rule.id === created.json.rule.id));
   } finally {
     server.close();
   }

@@ -4,10 +4,24 @@ const fs = require("node:fs");
 
 const html = fs.readFileSync("index.html", "utf8");
 const app = fs.readFileSync("app.js", "utf8");
+const roleGuards = fs.readFileSync("app-modules/role-guards.js", "utf8");
 const workflowStatusModule = fs.readFileSync("app-modules/workflow-status.js", "utf8");
+const approvalReviewSurfaceModule = fs.readFileSync("app-modules/approval-review-surface.js", "utf8");
+const sapPoRawContractModule = fs.readFileSync("app-modules/sap-po-raw-contract.js", "utf8");
 const styles = fs.readFileSync("styles.css", "utf8");
 const server = fs.existsSync("server.js") ? fs.readFileSync("server.js", "utf8") : "";
 const schema = fs.existsSync("db/schema.sql") ? fs.readFileSync("db/schema.sql", "utf8") : "";
+const workflowMigration = fs.existsSync("db/migrations/001_target_workflow_tables.sql")
+  ? fs.readFileSync("db/migrations/001_target_workflow_tables.sql", "utf8")
+  : "";
+const sapPoRawMigration = fs.existsSync("db/migrations/002_sap_po_raw_mirror.sql")
+  ? fs.readFileSync("db/migrations/002_sap_po_raw_mirror.sql", "utf8")
+  : "";
+const projectDecisions = fs.existsSync("PROJECT_DECISIONS.md") ? fs.readFileSync("PROJECT_DECISIONS.md", "utf8") : "";
+const dataDictionary = fs.existsSync("docs-current/data-dictionary-en.md") ? fs.readFileSync("docs-current/data-dictionary-en.md", "utf8") : "";
+const namingRulesZh = fs.existsSync("docs-current/it-handoff/zh-TW/00-naming-rules.md")
+  ? fs.readFileSync("docs-current/it-handoff/zh-TW/00-naming-rules.md", "utf8")
+  : "";
 
 function between(source, start, end) {
   const startIndex = source.indexOf(start);
@@ -17,115 +31,168 @@ function between(source, start, end) {
   return source.slice(startIndex, endIndex);
 }
 
+test("Docker runtime does not expose private source and workflow schema is migration-owned", () => {
+  assert.match(server, /PUBLIC_ROOT_FILES/);
+  assert.match(server, /publicAssetPath/);
+  assert.match(server, /SELECT 1 AS ok/);
+  assert.doesNotMatch(schema, /CREATE TABLE IF NOT EXISTS item_master_requests/);
+  assert.match(workflowMigration, /CREATE TABLE IF NOT EXISTS item_master_requests/);
+  assert.match(workflowMigration, /CONSTRAINT fk_item_master_requests_request_item/);
+});
+
 test("Cost Manager top-level tabs are consolidated", () => {
-  const managerView = between(html, '<section class="view" data-view="manager">', '<section class="view" data-view="procurement">');
-  assert.match(managerView, /data-manager-tab="review">Submission Monitor</);
-  assert.match(managerView, /data-manager-tab="analysis">Demand Analysis</);
-  assert.match(managerView, /data-manager-tab="demand">Progress Tracking</);
-  assert.match(managerView, /data-manager-tab="setup">Project Setup</);
-  assert.doesNotMatch(managerView, /data-manager-tab="history"/);
-  assert.match(managerView, /<h3>Requester Submission Monitor<\/h3>/);
-  assert.match(managerView, /<h3>Dept DRI Decision History<\/h3>/);
-  assert.match(managerView, /Dept DRI Decision/);
-  assert.doesNotMatch(managerView, /data-manager-row-decision/);
-  assert.doesNotMatch(managerView, /manager-reject-input/);
+  const managerView = between(html, '<section class="view" data-view="manager" data-approval-review-role="manager">', '<section class="view" data-view="procurement">');
+  assert.match(managerView, /data-approval-review-role="manager"/);
+  const managerTabs = between(managerView, '<div class="inner-tabs manager-tabs"', "</div>");
+  assert.match(managerTabs, /data-manager-tab="review">Cost Review</);
+  assert.match(managerTabs, /data-manager-tab="history">Review History</);
+  assert.doesNotMatch(managerTabs, /Submission Monitor|Authorized Analysis|Demand Analysis|Progress Tracking|Project Setup/);
+  assert.doesNotMatch(managerTabs, /data-manager-tab="authorized"|data-manager-tab="analysis"|data-manager-tab="demand"|data-manager-tab="setup"/);
+  assert.doesNotMatch(managerView, /<h3>Cost Review Workbench<\/h3>/);
+  assert.match(managerView, /<h3>Quantity Review<\/h3>/);
+  assert.match(managerView, /id="managerApprovalQuantityTabs"/);
+  assert.match(managerView, /data-manager-panel="analysis"/);
+  assert.match(managerView, /id="managerDemandCostTable"/);
+  assert.match(managerView, /id="managerQuantityMatrixTable"/);
+  assert.match(managerView, /id="managerDemandCostLineFilter"/);
+  assert.match(managerView, /id="managerQuantityLineFilter"/);
+  assert.match(managerView, /<h3>Cost Review History<\/h3>/);
+  assert.match(managerView, /Cost Manager Decision/);
+  assert.match(app, /data-cost-manager-authorization/);
+  assert.match(app, /data-cost-manager-action="reject"/);
+  assert.match(managerView, /id="managerQueue" class="pending-work-host"/);
+  assert.match(managerView, /id="managerAuthorizedAnalysis" class="price-review-inline-analysis" hidden/);
+  assert.match(app, /function renderApprovalQuantityRowPicker/);
+  assert.match(app, /approvalQuantityReviewModule\(\)\.renderRowPicker/);
+  assert.match(app, /function renderManagerReviewEvidencePanel/);
+  assert.doesNotMatch(app, /data-approval-shell="manager"/);
+  assert.match(app, /managerTabs:\s*\["review",\s*"history"\]/);
 });
 
-test("Cost Manager progress tracking is owner and aging based, not PR PO percentage based", () => {
-  const managerView = between(html, '<section class="view" data-view="manager">', '<section class="view" data-view="procurement">');
-  const progressPanel = between(managerView, 'data-manager-panel="demand"', 'data-manager-panel="setup"');
-  ["Submitted / Received Date", "Pending Owner", "Current Stage", "Days Pending"].forEach((label) => {
-    assert.match(progressPanel, new RegExp(label.replace("/", "\\/")));
-  });
-  ["Budget Progress", "PR Progress", "PO Progress", "Arrived Progress", "Delivery Status", "Key Dates"].forEach((label) => {
-    assert.doesNotMatch(progressPanel, new RegExp(label));
-  });
-  const progressRenderer = between(app, "function renderManagerStageTracking", "function managerQuantitySourceRows");
-  ["Waiting Dept DRI", "Waiting Budget", "Waiting OM", "Waiting PAS", "Waiting Requester", "Buyer Handoff", "Over SLA", "Expired Quote"].forEach((label) => {
-    assert.match(progressRenderer, new RegExp(label.replace("/", "\\/")));
-  });
-  assert.doesNotMatch(progressRenderer, /Downstream/);
-  ["Budget Done", "PR Done", "PO Done"].forEach((label) => {
-    assert.doesNotMatch(progressRenderer, new RegExp(label));
-  });
-  assert.doesNotMatch(progressRenderer, /managerProgressCell\(row\.budgetDone/);
-  assert.doesNotMatch(progressRenderer, /managerProgressCell\(row\.prDone/);
-  assert.doesNotMatch(progressRenderer, /managerProgressCell\(row\.poDone/);
-  assert.match(app, /function managerProgressPendingOwnerForRow/);
-  assert.match(app, /function managerProgressPendingOwnerForGroup/);
-  assert.match(app, /function managerProgressCurrentStageForGroup/);
-  assert.match(app, /function managerProgressAgingCell/);
-  assert.match(app, /function managerProgressNextActionForGroup/);
-  assert.match(html, /app-modules\/workflow-status\.js/);
-  assert.match(app, /function workflowStatusForRow/);
-  assert.match(app, /function workflowStatusForGroup/);
-  const progressDetail = between(app, "function openManagerProgressDetail", "function renderManagerStageSummary");
-  ["Pending Owner", "Current Stage", "Days Pending", "Quote Status", "Next Action"].forEach((label) => {
-    assert.match(progressDetail, new RegExp(label));
-  });
-  ["PR #", "PO #", "Budget / Package Code", "Delivery Action"].forEach((label) => {
-    assert.doesNotMatch(progressDetail, new RegExp(label.replace("/", "\\/")));
-  });
+test("Dept DRI, Cost Manager, and Budget Approver use one approval review surface contract", () => {
+  assert.match(html, /app-modules\/approval-review-surface\.js/);
+  assert.match(html, /data-view="manager" data-approval-review-role="manager"/);
+  assert.match(html, /data-view="priceReview" data-approval-review-role="dri"/);
+  assert.match(approvalReviewSurfaceModule, /ApprovalReviewRoleConfig|roleKey/);
+  assert.match(approvalReviewSurfaceModule, /dri:\s*\{/);
+  assert.match(approvalReviewSurfaceModule, /manager:\s*\{/);
+  assert.match(approvalReviewSurfaceModule, /projectDri:\s*\{/);
+  assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Dept Review"/);
+  assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Cost Review"/);
+  assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Budget Review"/);
+  assert.match(approvalReviewSurfaceModule, /defaultQueue:\s*"submission"/);
+  assert.match(approvalReviewSurfaceModule, /defaultQueue:\s*"authorization"/);
+  assert.match(approvalReviewSurfaceModule, /defaultQueue:\s*"budget"/);
+  assert.match(approvalReviewSurfaceModule, /decisionActions/);
+  assert.match(approvalReviewSurfaceModule, /Final Approve/);
+  assert.match(approvalReviewSurfaceModule, /approvalReviewState/);
+  assert.match(app, /function approvalReviewSurfaceModule/);
+  assert.match(app, /function approvalReviewConfigForRole/);
+  assert.match(app, /function approvalReviewStateForRole/);
+  assert.match(app, /workspaceConfigForRole[\s\S]*approvalReviewSurfaceModule\(\)\?\.workspaceConfig/);
+  assert.match(app, /availablePriceReviewQueues[\s\S]*approvalReviewSurfaceModule/);
+  assert.match(app, /updateApprovalReviewState\("manager"/);
+  assert.match(app, /updateApprovalReviewState\(currentRole/);
+  assert.match(app, /setProjectContextSelectedProject[\s\S]*updateApprovalReviewState/);
+  assert.match(app, /syncSelectedManagerRequest[\s\S]*selectedRowId/);
+  assert.match(app, /syncSelectedPriceReviewRequest[\s\S]*selectedRowId/);
+  assert.match(fs.readFileSync("app-modules/role-queue-config.js", "utf8"), /approvalReviewSurface/);
 });
 
-test("Manager Demand Analysis starts with Excel Dashboard-like item x unit cost dashboard", () => {
-  const analysis = between(html, 'data-manager-panel="analysis"', 'data-manager-panel="demand"');
-  assert.match(analysis, /data-demand-analysis-tab="costDashboard">Cost Dashboard</);
-  assert.match(analysis, /data-demand-analysis-tab="quantity">Station Matrix</);
-  assert.match(analysis, /class="[^"]*demand-cost-table[^"]*"/);
-  assert.match(analysis, /id="managerDemandCostLineCount"/);
-  assert.match(analysis, /id="managerDemandCostUnitSummary"/);
-  assert.match(analysis, /id="managerDemandCostCarryoverCompare"/);
-  assert.match(analysis, /id="managerDemandCostLineCompare"/);
-  assert.match(analysis, /id="managerDemandCostCarryoverLedger"/);
-  assert.match(analysis, /<option value="">All stages<\/option>/);
-  assert.doesNotMatch(analysis, /id="managerDemandCostSummary"/);
-  const stationMatrixPanel = between(analysis, 'data-demand-analysis-panel="quantity"', '</section>');
-  assert.match(stationMatrixPanel, /managerQuantityMatrixTable/);
-  assert.match(stationMatrixPanel, /id="managerQuantityCarryoverLedger"/);
-  assert.doesNotMatch(stationMatrixPanel, /Unit Split Dashboard/);
-  assert.doesNotMatch(stationMatrixPanel, /managerQuantitySummary/);
-  assert.doesNotMatch(stationMatrixPanel, /managerQuantityUnitDashboard/);
+test("Cost Manager review embeds protected Demand Analysis baseline instead of duplicate Project Context evidence", () => {
+  const managerView = between(html, '<section class="view" data-view="manager" data-approval-review-role="manager">', '<section class="view" data-view="procurement">');
+  const reviewPanel = between(managerView, 'data-manager-panel="review"', 'data-manager-panel="history"');
+  const analysisPanel = between(managerView, 'data-manager-panel="analysis"', 'data-manager-panel="demand"');
+  assert.doesNotMatch(reviewPanel, /Cost Review Workbench/);
+  assert.match(app, /renderViewTabs/);
+  assert.match(reviewPanel, /id="managerApprovalQuantityTabs"/);
+  assert.match(reviewPanel, /Quantity Review/);
+  assert.match(analysisPanel, /Demand Cost Dashboard/);
+  assert.match(analysisPanel, /Station Matrix/);
+  assert.match(analysisPanel, /id="managerDemandCostTable"/);
+  assert.match(analysisPanel, /id="managerQuantityMatrixTable"/);
+  assert.match(analysisPanel, /id="managerDemandCostLineFilter"/);
+  assert.match(analysisPanel, /id="managerQuantityLineFilter"/);
+  assert.match(app, /function renderManagerDemandAnalysisEvidence/);
+  assert.match(app, /renderManagerDemandCostDashboard\(\{\s*showCarryoverEvidence:\s*true\s*\}\)/);
+  assert.match(app, /renderManagerQuantityMatrix\(\{\s*showCarryoverEvidence:\s*true\s*\}\)/);
+  assert.doesNotMatch(app, /renderManagerReviewEvidencePanel\(selectedRow,\s*rows\)/);
+  assert.match(app, /demand-cost-col-request/);
+  assert.match(app, /<th>Request ID<\/th>/);
+  assert.match(app, /managerQuantityGroupKey\(row\)[\s\S]*row\.id/);
+  assert.match(app, /data-manager-select-row/);
+  assert.match(app, /data-manager-authorized-select-row/);
+  assert.match(app, /requestLine:\s*document\.getElementById\("managerDemandCostLineFilter"\)/);
+  assert.match(app, /managerQuantityRequestLine/);
+  assert.match(app, /managerDemandCostRows\(\)[\s\S]*filters\.requestLine/);
+  assert.match(app, /managerQuantityFilteredEntries\(\)[\s\S]*filters\.requestLine/);
+  assert.match(app, /function approvedRowsForRole/);
+  assert.match(app, /role === "manager"/);
+  assert.match(app, /costManagerAuthorizedAt/);
+  assert.match(app, /costManagerAuthorizationStatus === COST_MANAGER_AUTH_APPROVED/);
+});
+
+test("Approval quantity review module provides row picker plus three-layer matrix views", () => {
+  const moduleSource = fs.readFileSync("app-modules/approval-quantity-review.js", "utf8");
+  assert.match(html, /app-modules\/approval-quantity-review\.js/);
+  assert.match(moduleSource, /renderViewTabs/);
+  assert.match(moduleSource, /renderRowPicker/);
+  assert.match(moduleSource, /approval-quantity-chip-action/);
+  assert.doesNotMatch(moduleSource, /renderProjectItemMatrixOverview/);
+  assert.match(moduleSource, /renderDashboardParts/);
+  assert.match(moduleSource, /renderItemUnitMatrixParts/);
+  assert.match(moduleSource, /\["dashboard", "Dashboard"\]/);
+  assert.match(moduleSource, /\["mfg", "MFG Station Detail"\]/);
+  assert.match(moduleSource, /\["nonMfg", "Non-MFG Department Detail"\]/);
+  assert.ok(moduleSource.indexOf('["dashboard", "Dashboard"]') < moduleSource.indexOf('["mfg", "MFG Station Detail"]'));
+  assert.match(moduleSource, /data-approval-quantity-tab="\$\{id\}"/);
+  assert.match(moduleSource, /data-approval-dashboard-request-id/);
+  assert.match(moduleSource, /data-approval-dashboard-project/);
+  assert.match(moduleSource, /data-approval-dashboard-item/);
+  assert.match(moduleSource, /data-approval-dashboard-unit/);
+  assert.match(styles, /\.approval-quantity-row-picker/);
+  assert.match(styles, /\.approval-quantity-row-chip/);
+  assert.match(styles, /\.approval-quantity-chip-action/);
+  assert.match(styles, /\.approval-item-unit-matrix-cell-btn/);
+  assert.match(app, /renderApprovalQuantityRowPicker/);
+  assert.match(app, /panel\.hidden = approvalQuantityReviewTab === "dashboard"/);
+  assert.match(app, /function priceReviewDetailScopeForTab/);
+  assert.doesNotMatch(app, /function renderProjectItemMatrixOverview/);
+  assert.match(app, /function renderPriceReviewItemUnitMatrix/);
+  assert.match(html, /Save Direct Edit/);
+  assert.match(app, /function saveItemQuantityReviewDirectEdit/);
+  assert.match(app, /Item quantity directly edited/);
+  assert.match(app, /itemQuantityReviewStatus:\s*"Direct Edit Applied"/);
+});
+
+test("Shared evidence renderers keep dashboard and matrix totals reusable", () => {
   assert.match(app, /function renderManagerDemandCostHead/);
   assert.match(app, /function renderManagerDemandCostUnitSummary/);
-  assert.match(app, /function renderManagerDemandCostCarryoverCompare/);
-  assert.match(app, /function renderManagerDemandCostLineCompare/);
-  assert.match(app, /function renderManagerCarryoverLedger/);
   assert.match(app, /function managerDemandCostCellImpact/);
   assert.match(app, /function renderManagerDemandCostValue/);
   assert.match(app, /function renderManagerQuantityMatrix/);
   assert.match(app, /function renderManagerQuantityHead/);
+  assert.match(app, /function renderPriceReviewCostDashboard/);
+  assert.match(app, /function renderPriceReviewStationMatrix/);
+  assert.match(app, /function renderApprovedEvidenceAnalysis/);
   assert.match(app, /function managerCarryoverIsApplied/);
   assert.match(app, /function managerCarryoverStatusBucket/);
   assert.match(app, /function managerCarryoverPhaseKey/);
-  assert.match(app, /function syncManagerQuantityScopeFromDemandCost/);
+  assert.match(app, /function renderManagerDemandCostCarryoverCompare/);
+  assert.match(app, /function renderManagerDemandCostLineCompare/);
+  assert.match(app, /function renderManagerCarryoverLedger/);
   assert.match(app, /procurement:carryover-updated/);
-  assert.match(app, /Flow: \$\{impact\.flowLabels\.join/);
   assert.doesNotMatch(app, /<tr class="demand-cost-total-row">/);
-  assert.match(app, /Department \/ Unit Cost by Selected Phase/);
+  assert.match(app, /MFG Total \/ Non-MFG Department Cost by Selected Phase/);
+  assert.match(app, /MFG is all station demand combined/);
   assert.match(app, /demand-cost-unit-head/);
-  assert.match(app, /Original Cost/);
-  assert.match(app, /Carryover Saving/);
-  assert.match(app, /Effective Cost/);
-  assert.doesNotMatch(app, /<span>Saving %<\/span>/);
-  assert.match(app, /Line Carryover Impact/);
-  assert.match(app, /Cost Saving/);
-  assert.match(app, /Needs DRI/);
-  assert.match(app, /Moved Items/);
-  assert.match(app, /managerCarryoverMovedItemsSummary/);
-  assert.match(app, /line-compare-moved-item/);
-  assert.doesNotMatch(app, /Line Original/);
-  assert.doesNotMatch(app, /Line Effective/);
-  assert.doesNotMatch(app, /qty before carryover/);
-  assert.doesNotMatch(app, /qty after carryover/);
-  assert.match(app, /saved-badge/);
   assert.match(app, /demand-cost-cell-main/);
   assert.match(app, /demand-cost-cell-sub/);
+  assert.match(app, /shared-total-highlight/);
+  assert.match(app, /quantity-total-head/);
   assert.match(app, /carryover-cell-applied/);
   assert.match(app, /carryover-cell-pending/);
-  assert.match(styles, /\.line-compare-strip/);
-  assert.match(styles, /\.line-compare-card\.moved/);
-  assert.match(styles, /\.line-compare-moved-list/);
+  assert.match(styles, /\.shared-total-highlight/);
   assert.match(styles, /\.carryover-cell-applied/);
   assert.match(styles, /\.demand-cost-cell-sub/);
   assert.match(app, /formatCompactCurrencyFromVnd/);
@@ -136,6 +203,40 @@ test("Manager Demand Analysis starts with Excel Dashboard-like item x unit cost 
   ["Highest Unit", "Highest Item", "Highest Phase"].forEach((label) => {
     assert.doesNotMatch(app, new RegExp(label));
   });
+});
+
+test("Item quantity review popup supports direct edit actions and audit counts", () => {
+  assert.match(html, /id="itemQuantityReviewModal"/);
+  assert.match(html, /id="itemQuantityReviewSummary"/);
+  assert.match(html, /id="itemQuantityReviewBody"/);
+  assert.match(html, /data-action="approveItemQuantityReview"/);
+  assert.match(html, /data-action="saveItemQuantityReviewDirectEdit"/);
+  assert.match(html, /data-action="rejectItemQuantityReview"/);
+  assert.match(app, /function openItemQuantityReview/);
+  assert.match(app, /function itemQuantityReviewExcelRow/);
+  assert.match(app, /data-item-quantity-cell="row-review"/);
+  assert.match(app, /data-item-quantity-review-input/);
+  assert.match(app, /data-item-quantity-review-mode/);
+  assert.match(app, /function addItemQuantityProposalAction/);
+  assert.match(app, /function itemQuantityReviewInputChanges/);
+  assert.match(app, /aggregateKey/);
+  assert.match(app, /function saveItemQuantityReviewDirectEdit/);
+  assert.match(app, /syncRowPhaseQtyFromStationBreakdown/);
+  assert.match(app, /function rejectItemQuantityReview/);
+  assert.match(app, /function approveItemQuantityReview/);
+  assert.match(app, /itemQuantityProposalCount/);
+  assert.match(app, /itemQuantityRequesterRevisionCount/);
+  assert.match(app, /itemQuantityChangeCount/);
+  assert.match(app, /Direct Edit Applied/);
+  assert.match(app, /save_direct_edit/);
+  assert.match(app, /function acceptItemQuantityProposal/);
+  assert.match(app, /data-item-quantity-accept-proposal/);
+  assert.match(app, /Requester accepted item quantity proposal/);
+  assert.match(app, /data-item-quantity-cell="demand-cost"/);
+  assert.match(app, /data-item-quantity-cell="station"/);
+  assert.match(styles, /\.item-quantity-review-table/);
+  assert.match(styles, /\.item-quantity-action-stack/);
+  assert.match(styles, /\.item-review-change-stack/);
 });
 
 test("Contacts are topbar popup only, not a top-level view", () => {
@@ -164,7 +265,7 @@ test("UAT feedback triage owners are limited to Admin and OM Leader in UI fallba
 });
 
 test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
-  const departmentView = between(html, '<section class="view active" data-view="department">', '<section class="view" data-view="manager">');
+  const departmentView = between(html, '<section class="view active" data-view="department">', '<section class="view" data-view="manager" data-approval-review-role="manager">');
   const opmTabs = between(departmentView, '<div class="inner-tabs" aria-label="Requester workspace sections">', "</div>");
   assert.match(opmTabs, /Request Workspace/);
   assert.match(opmTabs, /Warehouse Inventory/);
@@ -210,6 +311,7 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.doesNotMatch(pickerModal, /OM Assignee/);
   assert.doesNotMatch(pickerModal, /\bFTV\b/);
   assert.match(departmentView, /id="requestPackageNeedDate"/);
+  assert.match(departmentView, /id="requestPackageNeedDateLabel"/);
   assert.match(departmentView, /data-action="saveRequesterDraft"/);
   assert.match(departmentView, /data-action="submitRequests"/);
   assert.match(departmentView, /id="requestWorksheetHead"/);
@@ -266,6 +368,10 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.match(app, /compareEstimateToQuote/);
   assert.match(app, /const phases = STAGES/);
   assert.match(app, /requesterPackageRows\(\)/);
+  assert.match(app, /requestNeedDateScopeKey/);
+  assert.match(app, /requestNeedDateByScope/);
+  assert.match(app, /requestRowMatchesSubmitScope/);
+  assert.match(app, /requesterSubmitScopeAudit/);
   assert.doesNotMatch(app, /requestContextDemandType/);
   assert.doesNotMatch(app, /requestContextStation/);
   assert.doesNotMatch(pickerModal, /vendor/i);
@@ -276,14 +382,15 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.doesNotMatch(pickerModal, /FTV/i);
 
   const requestWorksheetHeadRenderer = between(app, "function renderRequestWorksheetHead", "function requestInputContextKey");
-  ["Item / Spec", "Row Total", "Hint", "Action"].forEach((label) => {
-    assert.match(requestWorksheetHeadRenderer, new RegExp(label.replace("/", "\\/")));
-  });
-  assert.doesNotMatch(requestWorksheetHeadRenderer, /<th class="request-col-phase">Phase<\/th>/);
-  assert.match(requestWorksheetHeadRenderer, /requestWorksheetColumns\(\)/);
-  assert.match(requestWorksheetHeadRenderer, /STAGES\.map/);
-  assert.match(requestWorksheetHeadRenderer, /STAGE_LABELS\[stage\]/);
-  assert.match(requestWorksheetHeadRenderer, /colspan="\$\{phaseColspan\}"/);
+  assert.match(requestWorksheetHeadRenderer, /requestWorksheetMatrixModule\(\)/);
+  assert.match(requestWorksheetHeadRenderer, /renderHead/);
+  assert.match(app, /function renderRequestWorksheetPhaseJumpBar/);
+  assert.match(app, /function syncRequestWorksheetVisiblePhase/);
+  assert.match(app, /function applyRequestWorksheetActiveState/);
+  assert.match(app, /data-request-phase-group/);
+  assert.match(app, /data-request-phase-jump/);
+  assert.match(html, /id="requestWorksheetPhaseJumpBar"/);
+  assert.match(html, /id="requestWorksheetCurrentPhaseIndicator"/);
 
   ["CG", "BG", "FATP", "Test", "Hybrid", "Auto", "ENG Pack", "Zombie", "Laser_pico", "Rework", "Repair", "WH"].forEach((label) => {
     assert.match(app, new RegExp(label.replace("/", "\\/")));
@@ -303,12 +410,20 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.match(styles, /\.request-item-picker-filterbar/);
   assert.match(styles, /\.request-picker-detail-cell/);
   assert.match(styles, /\.request-picker-spec-cell \.spec-summary[\s\S]*-webkit-line-clamp:\s*3/);
+  assert.match(styles, /\.request-phase-jump-row/);
+  assert.match(styles, /\.request-phase-jump-bar/);
+  assert.match(styles, /\.request-current-phase-indicator/);
   assert.match(styles, /\.request-phase-group-head/);
   assert.match(styles, /\.request-phase-group-head[\s\S]*text-align:\s*center !important/);
   assert.match(styles, /\.request-sticky-col[\s\S]*background:\s*#fff !important/);
   assert.match(styles, /\.request-sticky-col[\s\S]*background-color:\s*#fff !important/);
   assert.match(styles, /\.request-sticky-col[\s\S]*overflow:\s*hidden/);
   assert.match(styles, /\.request-sticky-col[\s\S]*z-index:\s*8/);
+  assert.match(styles, /\.request-sticky-right/);
+  assert.match(styles, /\.request-sticky-right-action/);
+  assert.match(styles, /\.request-sticky-right-hint/);
+  assert.match(styles, /\.request-sticky-right-total/);
+  assert.match(styles, /\.request-matrix-cell\.active-cell/);
   assert.match(styles, /\.request-item-spec-stack/);
   assert.match(styles, /\.request-spec-divider/);
   assert.match(styles, /\.request-item-spec-stack \.request-spec-summary[\s\S]*-webkit-line-clamp:\s*2/);
@@ -352,7 +467,9 @@ test("Reuse history import carries item identity only and resets target qty", ()
   assert.doesNotMatch(cloneReusableDemandRows, /phase:\s*stationBreakdownPhaseKey\(item\)\s*\|\|\s*targetPhase/);
   const requestFromRecord = between(app, "function requestFromRecord", "function suggestionToRecord");
   assert.match(requestFromRecord, /const draft = \{/);
-  assert.match(requestFromRecord, /return syncRowPhaseQtyFromStationBreakdown\(draft\)/);
+  assert.match(requestFromRecord, /normalizeRequestDemandDepartment\(draft, demandDepartment\)/);
+  assert.match(requestFromRecord, /requesterDept/);
+  assert.match(requestFromRecord, /demandDepartment/);
   const phaseQtySummary = between(app, "function phaseQtySummary", "function historyPackageKey");
   assert.match(phaseQtySummary, /stationBreakdownPhaseTotal\(row,\s*stage\)/);
   assert.match(app, /historyRequestOverrides\(row,\s*false,\s*context\)/);
@@ -393,6 +510,7 @@ test("Cost calculation uses USD canonical with VND display conversion", () => {
   assert.match(app, /timestampPatch\.updatedPriceUsd = normalizedValue/);
   assert.match(app, /timestampPatch\.updatedPriceVnd = clampQty\(value\)/);
   assert.match(app, /formatCompactCurrencyFromUsd\(managerDemandCostAmount/);
+  assert.match(app, /event\.target\.id === "currencyDisplaySelect"[\s\S]*renderPriceReview\(\)/);
 });
 
 test("Shared table and button layout standard is enforced", () => {
@@ -407,9 +525,12 @@ test("Shared table and button layout standard is enforced", () => {
   assert.match(styles, /\.dense-dashboard-table/);
   assert.match(styles, /\.workflow-table/);
   assert.match(styles, /\.matrix-table/);
+  assert.match(styles, /\.horizontal-table-nav/);
+  assert.match(styles, /\.horizontal-table-nav__group/);
 
-  const departmentView = between(html, '<section class="view active" data-view="department">', '<section class="view" data-view="manager">');
+  const departmentView = between(html, '<section class="view active" data-view="department">', '<section class="view" data-view="manager" data-approval-review-role="manager">');
   assert.match(departmentView, /table-shell form-table-shell/);
+  assert.match(departmentView, /data-horizontal-nav="requestWorksheet"/);
   assert.match(departmentView, /data-table table-fixed form-table matrix-table request-table request-worksheet-table/);
   assert.match(departmentView, /data-layout-managed="manual"/);
   assert.doesNotMatch(departmentView, /data-table table-fixed form-table search-table/);
@@ -417,6 +538,7 @@ test("Shared table and button layout standard is enforced", () => {
 
   const analysis = between(html, 'data-manager-panel="analysis"', 'data-manager-panel="demand"');
   assert.match(analysis, /table-wrap table-shell demand-cost-wrap/);
+  assert.match(analysis, /data-horizontal-nav="managerDemandCost"/);
   assert.match(analysis, /data-table table-fixed dense-dashboard-table demand-cost-table/);
 
   assert.doesNotMatch(app, />Add Item to Request<\/button>/);
@@ -429,7 +551,7 @@ test("Shared table and button layout standard is enforced", () => {
 });
 
 test("v1.3 layout contract prevents recurring table and button regressions", () => {
-  const departmentView = between(html, '<section class="view active" data-view="department">', '<section class="view" data-view="manager">');
+  const departmentView = between(html, '<section class="view active" data-view="department">', '<section class="view" data-view="manager" data-approval-review-role="manager">');
   assert.match(styles, /v1\.3 final layout authority/);
   assert.match(styles, /v2\.0 adaptive operation layout authority/);
   assert.match(styles, /body\s*\{[\s\S]*overflow-x:\s*hidden/);
@@ -450,8 +572,7 @@ test("v1.3 layout contract prevents recurring table and button regressions", () 
   assert.match(styles, /\.om-rate-utility \.om-rate-save[\s\S]*min-width:\s*72px !important/);
   assert.match(styles, /\.request-matrix-input[\s\S]*width:\s*64px/);
   const requestWorksheetHeadRenderer = between(app, "function renderRequestWorksheetHead", "function requestInputContextKey");
-  assert.match(requestWorksheetHeadRenderer, /request-col-actions/);
-  assert.match(requestWorksheetHeadRenderer, /request-col-hint/);
+  assert.match(requestWorksheetHeadRenderer, /requestWorksheetMatrixModule\(\)/);
   assert.doesNotMatch(requestWorksheetHeadRenderer, /request-col-detail/);
   assert.match(styles, /\.request-col-actions[\s\S]*width:\s*118px/);
   assert.doesNotMatch(styles, /\.request-table th:nth-child\(10\)/);
@@ -490,6 +611,8 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.match(app, /REQUESTER_RESPONSIBILITY_MASTER/);
   const loginForm = between(html, '<form class="login-card" id="loginForm">', "</form>");
   assert.match(loginForm, /<option value="requester">Requester<\/option>[\s\S]*<option value="dri">Dept DRI<\/option>[\s\S]*<option value="omLeader">OM Leader \(Mai\)<\/option>[\s\S]*<option value="omMember">OM Purchasing \(Giang \/ Linh\)<\/option>/);
+  assert.match(loginForm, /id="omOperatorField"/);
+  assert.match(loginForm, /id="omOperatorSelect"/);
   assert.match(loginForm, /<option value="projectDri">Budget Approver<\/option>/);
   assert.match(loginForm, /<option value="buyer">Buyer Handoff<\/option>/);
   assert.match(loginForm, /<option value="admin">Admin<\/option>/);
@@ -502,17 +625,109 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.match(html, /<option value="dri">Dept DRI<\/option>/);
   assert.match(html, /<option value="projectDri">Budget Approver<\/option>/);
   assert.match(html, /data-view="priceReview"/);
-  assert.match(html, /Pending Price Review/);
+  assert.match(html, /Review Queue/);
+  assert.match(html, /Project Review/);
+  assert.doesNotMatch(html, /Approved Analysis/);
+  assert.match(app, /pending:\s*"Review Queue"/);
+  assert.match(html, /data-budget-label="Project Review"/);
   assert.match(html, /Review History/);
+  assert.match(html, /id="priceReviewQueueTabs"/);
+  assert.match(app, /Submission Review/);
+  assert.match(app, /Price Exception Review/);
+  assert.match(app, /Stock \/ Carryover Review/);
+  assert.match(app, /Budget Exception Approval/);
+  assert.doesNotMatch(html, /data-price-review-tab="costDashboard"/);
+  assert.doesNotMatch(html, /data-price-review-tab="stationMatrix"/);
+  assert.match(html, /data-price-review-tab="projectReview"/);
+  assert.match(html, /data-price-review-panel="projectReview"/);
+  assert.match(html, /id="priceReviewApprovedAnalysis"/);
+  assert.match(html, /id="priceReviewInlineAnalysis"/);
+  assert.match(html, /Project Context/);
+  assert.doesNotMatch(html, /Project Review Evidence/);
+  assert.doesNotMatch(html, /Project Item Matrix Overview/);
+  assert.doesNotMatch(html, /Item Unit Matrix/);
+  assert.match(html, />Dashboard</);
+  assert.match(html, /Single project all-items MFG \/ Non-MFG dashboard/);
+  assert.match(html, /MFG Station Detail/);
+  assert.match(html, /Non-MFG Department Detail/);
+  assert.match(html, /data-approval-quantity-tab="mfg"/);
+  assert.match(html, /data-approval-quantity-tab="nonMfg"/);
+  assert.match(html, /data-approval-quantity-tab="dashboard"/);
+  assert.match(html, /id="priceReviewInlineDemandCostRows"/);
+  assert.match(app, /function renderPriceReviewCostDashboard/);
+  assert.doesNotMatch(app, /function renderProjectItemMatrixOverview/);
+  assert.match(app, /function renderPriceReviewItemUnitMatrix/);
+  assert.match(app, /renderDashboardParts/);
+  assert.match(app, /approvalQuantityMatrixRows\(dashboardSourceRows\)/);
+  assert.match(app, /function projectContextSwitcherHtml/);
+  assert.match(app, /data-project-context-project/);
+  assert.match(app, /function applyProjectContextSwitch/);
+  assert.match(styles, /\.project-context-switcher/);
+  assert.match(styles, /\.project-context-chip\.active/);
+  assert.match(app, /function approvalQuantityLineSummary/);
+  assert.match(app, /function approvalPipelineStatus/);
+  assert.match(app, /function approvalPipelineDetailHtml/);
+  assert.match(app, /Approval \/ Pipeline Detail/);
+  assert.match(app, /data-approval-pipeline-status/);
+  assert.match(styles, /\.approval-pipeline-pending/);
+  assert.match(styles, /\.approval-pipeline-current/);
+  assert.match(app, /itemMeta:\s*approvalQuantityLineSummary\(request\)/);
+  assert.match(app, /Mainline:\s*"MFG Mainline Station"/);
+  assert.match(app, /"Demand Unit":\s*"Non-MFG Department"/);
+  assert.match(app, /currencyDisplay/);
+  assert.match(app, /function renderPriceReviewStationMatrix/);
+  assert.match(app, /function renderManagerDemandCostDashboard/);
+  assert.match(app, /function renderManagerQuantityMatrix/);
+  assert.match(app, /currentRole === "dri"[\s\S]*Item Switcher/);
+  assert.doesNotMatch(app, /workspace\.hidden = isDeptDriPendingReview/);
+  assert.doesNotMatch(app, /workspace\.innerHTML = ""/);
+  assert.match(app, /function normalizeRequestDemandDepartment/);
+  assert.match(app, /row\.demandUnit && normalizeQuantityDashboardUnit\(row\.demandUnit\) !== "MFG"/);
+  assert.match(app, /station:\s*demandType === DEMAND_TYPE_MFG/);
+  assert.match(app, /demandUnit:\s*demandType === DEMAND_TYPE_MFG \? "" : demandUnitFor\(entry\)/);
+  assert.match(app, /function rowDemandDepartment/);
+  assert.match(app, /const entryDemandDepartment = rowDemandDepartment\(entry, demandDepartment\)/);
+  assert.match(app, /requesterDept: entry\.requesterDept \|\| entryDemandDepartment/);
+  assert.match(app, /demandDepartment: entry\.demandDepartment \|\| entryDemandDepartment/);
+  assert.match(app, /data-item-quantity-request/);
+  assert.match(app, /item-quantity-compact-summary/);
+  assert.match(styles, /\.demand-cost-col-request/);
+  assert.match(html, /approval-quantity-review\.js/);
+  assert.doesNotMatch(app, /function renderApprovalQuantityReviewWorkspace/);
+  const priceReviewInlineAnalysis = between(html, 'id="priceReviewInlineAnalysis"', 'data-price-review-panel="projectReview"');
+  const priceReviewApprovedAnalysis = between(html, 'id="priceReviewApprovedAnalysis"', 'data-price-review-panel="history"');
+  assert.doesNotMatch(priceReviewInlineAnalysis, /Confirmed Carryover Saving/);
+  assert.doesNotMatch(priceReviewInlineAnalysis, /Line Carryover Impact/);
+  assert.doesNotMatch(priceReviewInlineAnalysis, /Carryover Ledger/);
+  assert.doesNotMatch(priceReviewApprovedAnalysis, /Confirmed Carryover Saving|Line Carryover Impact|Carryover Ledger/);
   assert.match(html, /data-view="adminSetup"/);
   assert.match(html, /Access & Approval Setup/);
+  assert.match(html, /User Lifecycle/);
+  assert.match(html, /Roles & Permissions/);
+  assert.match(html, /Sensitive Field Access/);
+  assert.match(html, /Audit Log/);
   assert.match(html, /History Price Delta Threshold \(USD\)/);
+  assert.match(html, /OM Assignment Rules/);
+  assert.match(html, /data-action="createOmAssignmentRule"/);
+  assert.match(html, /id="adminOmAssignmentRuleRows"/);
+  assert.match(html, /data-action="createAdminUser"/);
+  assert.match(html, /data-action="importAdminUsers"/);
+  assert.match(html, /data-action="exportAdminUsers"/);
   assert.doesNotMatch(html, /Computer Threshold %/);
   assert.doesNotMatch(html, /MFG Threshold %/);
   assert.match(app, /Need Date is required/);
   assert.match(app, /requestPackageNeedDate/);
   assert.match(app, /requestPackageNeedDateValue/);
+  assert.match(app, /currentRequestScopeNeedDate/);
   assert.match(app, /function renderPriceReview/);
+  assert.match(app, /function renderPriceReviewAnalysis/);
+  assert.match(app, /function renderPriceReviewInlineAnalysis/);
+  assert.match(app, /const visible = isPriceReviewInlineAnalysisRole\(\) && currentPriceReviewTab === "pending"/);
+  assert.match(app, /function priceReviewSelectedRowScope/);
+  assert.match(app, /function priceReviewScopedAnalysisRows/);
+  assert.match(app, /function priceReviewAnalysisRows/);
+  assert.match(app, /function updatePriceReviewAnalysisScopeLabel/);
+  assert.match(app, /function updatePriceReviewInlineScopeLabel/);
   assert.match(app, /function applyPriceReviewDecision/);
   assert.match(app, /function priceReviewRequiresBudgetApprover/);
   assert.match(app, /DEPT_DRI_SUBMISSION_PENDING/);
@@ -523,6 +738,12 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.doesNotMatch(app, /Dept DRI approved\. Row moved to OM Export Package queue/);
   assert.match(app, /Waiting Budget Approver/);
   assert.match(app, /function saveAdminApprovalSetup/);
+  assert.match(app, /function createAdminUserFromForm/);
+  assert.match(app, /function updateAdminRolePermission/);
+  assert.match(app, /function updateAdminFieldVisibility/);
+  assert.match(app, /function exportAdminAuditLog/);
+  assert.match(app, /clearPriceReviewDemandCostFilters/);
+  assert.match(app, /clearPriceReviewQuantityFilters/);
   assert.match(app, /PRICE_AUTO_CLEARED/);
   assert.match(app, /PRICE_ESCALATION_REQUIRED/);
   assert.match(app, /USER_CONFIRMATION_NOT_REQUIRED/);
@@ -536,10 +757,29 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.match(app, /function applyCostManagerAuthorization/);
   assert.match(app, /data-cost-manager-authorization/);
   assert.match(app, /Dept DRI approved\. Waiting Cost Manager authorization/);
-  assert.match(priceReviewPendingRowsForRole, /currentRole === "dri"[\s\S]*isDeptDriSubmissionPending\(row\)/);
-  assert.match(priceReviewPendingRowsForRole, /if \(currentRole === "projectDri"\) return priceReviewRequiresBudgetApprover\(row\) && Boolean\(row\.driApprovedAt\) && !row\.projectDriApprovedAt;/);
-  assert.match(priceReviewPendingRowsForRole, /return false;/);
-  assert.doesNotMatch(priceReviewPendingRowsForRole, /currentRole === "admin"/);
+  assert.match(app, /function priceReviewSubmissionRows/);
+  assert.match(app, /function priceReviewExceptionRows/);
+  assert.match(app, /function priceReviewBudgetRows/);
+  assert.match(app, /function priceReviewStockRows/);
+  assert.match(app, /function availablePriceReviewQueues/);
+  assert.match(app, /currentRole === "dri"/);
+  assert.match(app, /currentRole === "projectDri"/);
+  assert.match(app, /data-price-review-queue/);
+  assert.match(app, /priceReviewTabs: \["pending", "projectReview", "history"\]/);
+  const budgetApproverWorkspaceConfig = between(app, '  projectDri: {\n    mainViews: ["priceReview"],', '  buyer: {');
+  assert.match(budgetApproverWorkspaceConfig, /priceReviewTabs: \["pending", "projectReview", "history"\]/);
+  assert.doesNotMatch(budgetApproverWorkspaceConfig, /costDashboard|stationMatrix/);
+  assert.match(app, /function approvedRowsForRole/);
+  assert.match(app, /function priceReviewProjectRowsForRole/);
+  assert.match(app, /<th>Sent To<\/th>/);
+  assert.match(app, /<th>Current Owner<\/th>/);
+  assert.match(app, /<th>PO Status<\/th>/);
+  assert.match(app, /data-price-review-select-row/);
+  assert.match(app, /shouldScrollPriceReviewInlineAnalysis/);
+  assert.match(app, /scrollIntoView\(\{ behavior: "smooth", block: "start" \}\)/);
+  assert.match(app, /function preserveApprovalViewport/);
+  assert.match(app, /function restoreApprovalViewport/);
+  assert.match(applyPriceReviewDecision, /preserveApprovalViewport\("priceReview"/);
   assert.match(applyPriceReviewDecision, /currentRole === "admin"/);
   assert.match(applyPriceReviewDecision, /Admin manages setup only and cannot approve business price reviews/);
   assert.match(applyPriceReviewDecision, /priceReviewReworkRequired:\s*true/);
@@ -553,6 +793,13 @@ test("Need Date and DRI price review layer are wired", () => {
 	  assert.match(needConfirmationRows, /isOmRejectReworkRequired\(row\)/);
 	  assert.match(renderNeedConfirmationRows, /Price \/ Budget Review Rejected/);
 	  assert.match(renderNeedConfirmationRows, /OM Rework Required/);
+  assert.match(roleGuards, /admin\.mapping/);
+  assert.match(roleGuards, /admin\.user_scope/);
+  assert.match(roleGuards, /scopeMode === "priceReviewScoped"/);
+  assert.ok(fs.existsSync("app-modules/horizontal-table-navigator.js"));
+  assert.ok(fs.existsSync("app-modules/request-worksheet-matrix.js"));
+  assert.ok(fs.existsSync("app-modules/approval-workbench.js"));
+  assert.ok(fs.existsSync("app-modules/role-queue-config.js"));
 	});
 
 test("OM tabs and PAS quote result contract are consolidated", () => {
@@ -631,8 +878,8 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
     "Assigned To",
     "Actions",
     "Detail",
-  ].forEach((label) => assert.match(quoteTable, new RegExp(`<th>${label.replace("/", "\\/")}<\\/th>`)));
-  assert.match(quoteTable, /<th>Assigned To<\/th>/);
+  ].forEach((label) => assert.match(quoteTable, new RegExp(`<th[^>]*>${label.replace("/", "\\/")}<\\/th>`)));
+  assert.match(quoteTable, /<th[^>]*>Assigned To<\/th>/);
   assert.doesNotMatch(quoteTable, /<th>PAS Tracking<\/th>/);
   assert.doesNotMatch(quoteTable, /<th>Quote Result<\/th>/);
   assert.doesNotMatch(quoteTable, /<th>Quote Validity<\/th>/);
@@ -741,6 +988,17 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(schema, /CREATE TABLE IF NOT EXISTS ftv_code_master/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS ftv_mapping_staging/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS customs_audit_records/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS sap_po_import_batches/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS sap_po_raw_lines/);
+  assert.match(schema, /header_version VARCHAR\(80\) NOT NULL DEFAULT 'raw-data-a-bn-20260608'/);
+  assert.match(schema, /factory_material_no VARCHAR\(120\)/);
+  assert.match(schema, /sap_material_no VARCHAR\(120\)/);
+  assert.match(schema, /normalized_item_name VARCHAR\(240\)/);
+  assert.match(schema, /raw_payload_json JSON/);
+  assert.match(schema, /INDEX idx_sap_po_raw_factory_material \(factory_material_no\)/);
+  assert.match(schema, /INDEX idx_sap_po_raw_sap_material \(sap_material_no\)/);
+  assert.match(sapPoRawMigration, /CREATE TABLE IF NOT EXISTS sap_po_import_batches/);
+  assert.match(sapPoRawMigration, /CREATE TABLE IF NOT EXISTS sap_po_raw_lines/);
   assert.match(schema, /route_type VARCHAR\(40\) NOT NULL/);
   assert.match(schema, /quote_owner VARCHAR\(40\) NOT NULL/);
   assert.match(schema, /demand_department VARCHAR\(120\) NOT NULL/);
@@ -750,7 +1008,21 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(fs.readFileSync("app-modules/ftv-code.js", "utf8"), /function costAllocationKey/);
   assert.match(fs.readFileSync("app-modules/ftv-code.js", "utf8"), /ROUTE_LOCAL_BUY/);
   assert.match(fs.readFileSync("app-modules/ftv-code.js", "utf8"), /ROUTE_EXTERNAL_IMPORT/);
+  assert.match(html, /app-modules\/sap-po-raw-contract\.js/);
+  assert.match(sapPoRawContractModule, /MATERIAL_NO_TYPE_FACTORY = "factory_material_no"/);
+  assert.match(sapPoRawContractModule, /\["A", "料號", "factory_material_no"\]/);
+  assert.match(sapPoRawContractModule, /\["H", "料號", "sap_material_no"\]/);
+  assert.match(sapPoRawContractModule, /\["Q", "正規化", "normalized_item_name"\]/);
+  assert.match(sapPoRawContractModule, /\["BL", "Lv1", "lv1"\]/);
+  assert.match(sapPoRawContractModule, /`\$\{column\.excelColumn\}:\$\{column\.header\}`/);
+  assert.match(projectDecisions, /Raw Data.*column A.*Factory Material No/);
+  assert.match(projectDecisions, /Column H.*SAP Material No/);
+  assert.match(dataDictionary, /factory_material_no \| A `料號`/);
+  assert.match(dataDictionary, /sap_material_no \| H `料號`/);
+  assert.match(namingRulesZh, /Factory Material No.*A 欄 `料號`/);
+  assert.match(namingRulesZh, /SAP Material No.*H 欄 `料號`/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/ftv-code\.js/);
+  assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-contract\.js/);
   assert.match(server, /\/api\/uat-feedback/);
   assert.match(server, /\/api\/attachments/);
   assert.match(server, /attachment\.uploaded/);

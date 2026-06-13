@@ -29,7 +29,7 @@
 
 ### Workflow Status Table
 
-用途：Requester Request Status、Cost Manager Submission Monitor、OM Submission Dashboard。
+用途：Requester Request Status、Cost Manager Review History、OM Submission Dashboard。
 
 共用模型：`WorkflowStatusModule`。
 
@@ -85,7 +85,7 @@
 使用者：
 
 - Requester Request Status
-- Cost Manager Submission Monitor
+- Cost Manager Review History
 - OM Submission Dashboard
 
 ### RoleGuardModule
@@ -94,19 +94,23 @@
 
 - Requester 隱藏採購內部欄位。
 - Dept DRI scope-limited review。
-- Cost Manager final authorization。
+- Cost Manager scoped cost authorization。
 - OM Leader assignment / exchange rate / feedback。
 - OM Purchasing assigned row only。
 - Budget Approver price/budget final approval。
 - Admin setup only。
 
-### CostDashboardTable
+### ApprovalQuantityReview
 
-封裝 Cost Manager Cost Dashboard。保護 UI 與數字邏輯，不接受一般 status/table refactor 直接改動。
+封裝 Dept DRI、Cost Manager、Budget Approver 共用的 quantity review evidence。Dept DRI 使用 dashboard-first Item Quantity Review：Dashboard 顯示 active project 全品項 MFG aggregate 與 Non-MFG department columns，item switcher 只切換 active item 與 detail scope；Cost Manager、Budget Approver 保留其角色 evidence 視角。同一套輸入資料支援 Dashboard、MFG Station Detail、Non-MFG Department Detail、row picker、Approve / Reject / Detail callbacks，以及 Item Quantity Review direct edit popup 入口。
+
+### CostDashboardTable / DemandCostEvidence
+
+封裝 Dashboard summary。Dept DRI、Cost Manager、Budget Approver 共用同一套 Dashboard renderer；Dashboard 不綁 selected row，`MFG` 欄為全部 station 加總，右側為 Non-MFG department columns。Cost Manager 不再有獨立全域 Demand Analysis tab。數字邏輯與 total highlight 共用，不接受各角色硬編碼分裂。
 
 ### StationMatrixTable
 
-封裝 Station Matrix。保持 Excel-like detail，避免被 dashboard 或 workflow table CSS 污染。
+封裝 MFG station matrix / Non-MFG department matrix。Dept DRI、Cost Manager、Budget Approver 共用同一套 selected row / dashboard cell drill-in renderer；保持 Excel-like detail，避免被 dashboard 或 workflow table CSS 污染。
 
 ### ItemPickerTable
 

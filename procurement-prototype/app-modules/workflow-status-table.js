@@ -9,6 +9,7 @@
     "vendorPartNo",
     "pasMaterialNo",
     "factoryMaterialNo",
+    "sapMaterialNo",
     "omAssignee",
     "assignedTo",
   ]);

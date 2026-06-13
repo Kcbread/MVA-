@@ -15,7 +15,9 @@ echo "== Syntax checks =="
 "$NODE_BIN" --check app-modules/quote-validity.js
 "$NODE_BIN" --check app-modules/demand-cost-dashboard.js
 "$NODE_BIN" --check app-modules/role-guards.js
+"$NODE_BIN" --check app-modules/approval-quantity-review.js
 "$NODE_BIN" --check app-modules/ftv-code.js
+"$NODE_BIN" --check app-modules/sap-po-raw-contract.js
 "$NODE_BIN" --check app-modules/workflow-status-table.js
 "$NODE_BIN" --check tests/accessibility-smoke.js
 "$NODE_BIN" --check tests/layout-smoke.js
