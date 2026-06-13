@@ -2731,6 +2731,10 @@ function projectStatusDashboardFilters() {
   };
 }
 
+function projectStatusDashboardModeLabel(filters = projectStatusDashboardFilters()) {
+  return filters.viewMode === "qty" ? "Qty" : "Amount";
+}
+
 function projectStatusRowEntries(row = {}) {
   return managerQuantityFlattenRows([row]);
 }
@@ -2777,33 +2781,88 @@ function filteredProjectStatusRows() {
   return rows.filter((row) => projectStatusRowMatchesFilters(row, filters));
 }
 
-function preserveManagerDemandCostFilterValues() {
-  return Object.fromEntries([
-    "managerDemandCostProjectFilter",
-    "managerDemandCostLineFilter",
-    "managerDemandCostPhaseFilter",
-    "managerDemandCostLineCount",
-    "managerDemandCostViewMode",
-  ].map((id) => [id, document.getElementById(id)?.value || ""]));
+function projectStatusDemandCostRows(rows = [], filters = projectStatusDashboardFilters()) {
+  const itemGroups = new Map();
+  managerQuantityFlattenRows(rows)
+    .filter((entry) =>
+      (!filters.project || entry.request.project === filters.project)
+      && (!filters.requestLine || entry.requestLine === filters.requestLine)
+      && (!filters.phase || entry.phase === filters.phase)
+    )
+    .forEach((entry) => {
+      const unit = managerQuantityEntryUnit(entry);
+      const key = managerQuantityGroupKey(entry.request);
+      if (!itemGroups.has(key)) {
+        const price = managerQuantityResolvePrice([managerQuantityPriceCandidate(entry.request)]);
+        itemGroups.set(key, {
+          key,
+          keyId: key.replace(/[^a-z0-9]+/gi, "-"),
+          requestId: entry.request.id,
+          request: entry.request,
+          project: entry.request.project || "-",
+          item: entry.request.name || "-",
+          cnEngName: userVisibleItemDetail(entry.request) || itemDetail(entry.request) || "-",
+          vnName: entry.request.vnName || entry.request.localName || "-",
+          spec: userVisibleItemDetail(entry.request) || itemDetail(entry.request) || "-",
+          unitTotals: Object.fromEntries(QUANTITY_DASHBOARD_UNITS.map((unitName) => [unitName, 0])),
+          phaseUnitTotals: Object.fromEntries(STAGES.map((stage) => [stage, Object.fromEntries(QUANTITY_DASHBOARD_UNITS.map((unitName) => [unitName, 0]))])),
+          qty: 0,
+          unitPrice: price.unitPrice,
+          priceSource: price.source,
+          amount: 0,
+          pricePending: price.unitPrice ? 0 : 1,
+        });
+      }
+      const item = itemGroups.get(key);
+      if (QUANTITY_DASHBOARD_UNITS.includes(unit)) {
+        item.unitTotals[unit] += entry.qty;
+        if (item.phaseUnitTotals[entry.phase]) item.phaseUnitTotals[entry.phase][unit] += entry.qty;
+      }
+      item.qty += entry.qty;
+      if (item.unitPrice) item.amount += item.unitPrice * entry.qty;
+    });
+  return [...itemGroups.values()]
+    .sort((left, right) => right.qty - left.qty || left.item.localeCompare(right.item));
 }
 
-function restoreManagerDemandCostFilterValues(values = {}) {
-  Object.entries(values).forEach(([id, value]) => {
-    const control = document.getElementById(id);
-    if (control) control.value = value;
-  });
+function projectStatusDashboardImpact(unit, total = {}, filters = projectStatusDashboardFilters()) {
+  const carryoverRows = managerCarryoverRowsForScope({ ...filters, unit }, true);
+  return {
+    ...total,
+    status: managerCarryoverStatusBucket(carryoverRows),
+    flowLabels: managerCarryoverFlowLabels(carryoverRows),
+    carryoverRows,
+  };
 }
 
-function applyProjectStatusFiltersToManagerDemandCost() {
-  const filters = projectStatusDashboardFilters();
-  syncManagerDemandCostFilters();
-  ensureSelectValue("managerDemandCostProjectFilter", filters.project);
-  ensureSelectValue("managerDemandCostLineFilter", filters.requestLine);
-  ensureSelectValue("managerDemandCostPhaseFilter", filters.phase, filters.phase ? STAGE_LABELS[filters.phase] : "");
-  const lineCount = document.getElementById("managerDemandCostLineCount");
-  if (lineCount) lineCount.value = String(filters.lineCount || 1);
-  const viewMode = document.getElementById("managerDemandCostViewMode");
-  if (viewMode) viewMode.value = filters.viewMode || "amount";
+function renderProjectStatusDashboardHead(filters = projectStatusDashboardFilters()) {
+  const head = document.getElementById("projectStatusDashboardHead");
+  const colgroup = document.getElementById("projectStatusDashboardColgroup");
+  if (colgroup) {
+    colgroup.innerHTML = QUANTITY_DASHBOARD_UNITS.map(() => `<col class="demand-cost-col-unit">`).join("");
+  }
+  if (!head) return;
+  head.innerHTML = `
+    <tr>
+      <th class="dashboard-quantity-review-head shared-total-highlight shared-total-highlight--band" colspan="${QUANTITY_DASHBOARD_UNITS.length}">
+        <div class="demand-cost-summary-head demand-cost-summary-head--in-table">
+          <strong>Dashboard Quantity Review</strong>
+          <span>${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · ${filters.project || "All projects"} · single-request qty · ${projectStatusDashboardModeLabel(filters)}</span>
+          <span class="quantity-dashboard-legend">MFG = all station total · Non-MFG departments continue right</span>
+        </div>
+      </th>
+    </tr>
+    <tr>
+      ${QUANTITY_DASHBOARD_UNITS.map((unit) => `<th class="demand-cost-unit-head" data-demand-cost-unit-group="${htmlAttr(unit)}">${htmlText(unit)}</th>`).join("")}
+    </tr>`;
+}
+
+function syncProjectStatusDashboardTableWidth() {
+  const table = document.getElementById("projectStatusDashboardTable");
+  if (!table) return;
+  const width = Math.max(1180, QUANTITY_DASHBOARD_UNITS.length * 108);
+  table.style.minWidth = `${width}px`;
+  table.style.width = `${width}px`;
 }
 
 function sanitizeReadOnlyDashboardTable(tableId) {
@@ -2834,32 +2893,29 @@ function sanitizeReadOnlyDashboardTable(tableId) {
   });
 }
 
-function copyManagerDemandCostDashboardToProjectStatus() {
-  copyAnalysisNodeContent("managerDemandCostColgroup", "projectStatusDashboardColgroup");
-  copyAnalysisNodeContent("managerDemandCostHead", "projectStatusDashboardHead");
-  copyAnalysisNodeContent("managerDemandCostRows", "projectStatusDashboardRows");
-  copyAnalysisNodeContent("managerDemandCostUnitSummary", "projectStatusDemandCostUnitSummary");
-  const managerTable = document.getElementById("managerDemandCostTable");
-  const targetTable = document.getElementById("projectStatusDashboardTable");
-  if (managerTable && targetTable) {
-    targetTable.style.width = managerTable.style.width;
-    targetTable.style.minWidth = managerTable.style.minWidth;
-  }
-  const sourceMeta = document.getElementById("managerDemandCostCurrencyMeta");
-  const targetMeta = document.getElementById("projectStatusDashboardMeta");
-  if (sourceMeta && targetMeta) targetMeta.textContent = sourceMeta.textContent || "VND view";
-  sanitizeReadOnlyDashboardTable("projectStatusDashboardTable");
-}
-
 function renderProjectStatusDashboard(rows = []) {
-  const previousOverride = priceReviewAnalysisRowsOverride;
-  const previousFilters = preserveManagerDemandCostFilterValues();
-  priceReviewAnalysisRowsOverride = rows;
-  applyProjectStatusFiltersToManagerDemandCost();
-  renderManagerDemandCostDashboard({ showCarryoverEvidence: false });
-  copyManagerDemandCostDashboardToProjectStatus();
-  priceReviewAnalysisRowsOverride = previousOverride;
-  restoreManagerDemandCostFilterValues(previousFilters);
+  const filters = projectStatusDashboardFilters();
+  const demandRows = projectStatusDemandCostRows(rows, filters);
+  const unitTotals = managerDemandCostUnitTotals(demandRows, filters);
+  const body = document.getElementById("projectStatusDashboardRows");
+  const meta = document.getElementById("projectStatusDashboardMeta");
+  const summary = document.getElementById("projectStatusDemandCostUnitSummary");
+  if (meta) meta.textContent = `${filters.requestLine || "All lines"} · ${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · ${currencyDisplay} view`;
+  if (summary) summary.innerHTML = "";
+  renderProjectStatusDashboardHead(filters);
+  syncProjectStatusDashboardTableWidth();
+  if (!body) return;
+  body.innerHTML = demandRows.length ? `
+    <tr>
+      ${QUANTITY_DASHBOARD_UNITS.map((unit) => {
+        const total = unitTotals[unit] || {};
+        const impact = projectStatusDashboardImpact(unit, total, filters);
+        const mode = unit === "MFG" ? "mfg" : "nonMfg";
+        const buttonAttrs = `data-project-status-cell="" data-project-status-unit="${htmlAttr(unit)}" data-project-status-mode="${htmlAttr(mode)}"`;
+        return `<td class="${total.originalQty ? managerDemandCostCellClass(impact, "demand-cost-number") : "muted-cell"}" title="${htmlAttr(managerDemandCostImpactTitle(impact))}">${renderManagerDemandCostValue(impact, filters.viewMode, { hasPrice: Boolean(total.effectiveAmount || !total.originalQty), buttonAttrs })}</td>`;
+      }).join("")}
+    </tr>` : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
+  sanitizeReadOnlyDashboardTable("projectStatusDashboardTable");
 }
 
 function projectStatusMatrixRows(rows = [], mode = "mfg") {
@@ -10218,7 +10274,7 @@ function refreshGlobalHorizontalNavigators() {
     positions: [],
     onStateChange: () => syncRequestWorksheetVisiblePhase(),
   });
-  ["managerDemandCost", "priceReviewDemandCost", "priceReviewInlineDemandCost", "managerAuthorizedDemandCost"].forEach((id) => refreshHorizontalTableNavigator(id, {
+  ["managerDemandCost", "priceReviewDemandCost", "priceReviewInlineDemandCost", "managerAuthorizedDemandCost", "projectStatusDashboard"].forEach((id) => refreshHorizontalTableNavigator(id, {
     label: "Unit Cost Columns",
     groups: demandCostNavigatorGroups(),
   }));

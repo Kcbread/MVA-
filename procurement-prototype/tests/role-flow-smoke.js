@@ -77,7 +77,7 @@ async function clickPriceReviewSelection(page, requestId) {
     await expectNoPageErrors(pageErrors, `Project Status ${role}`);
     await expectText(page, `Project Status ${role}`, [
       /Project Status/,
-      /Demand Cost Dashboard/,
+      /Dashboard Quantity Review/,
       /Line Count/,
       /View Mode/,
       /MFG Station Detail/,
@@ -575,6 +575,7 @@ async function clickPriceReviewSelection(page, requestId) {
         visible: visible(panel),
       })),
       tabCount: document.querySelectorAll("[data-project-status-tab]").length,
+      dashboardHead: text(document.getElementById("projectStatusDashboardHead")),
       dashboard: text(document.getElementById("projectStatusDashboardRows")),
       mfgHead: text(document.getElementById("projectStatusMfgHead")),
       mfgBody: text(document.getElementById("projectStatusMfgRows")),
@@ -587,12 +588,42 @@ async function clickPriceReviewSelection(page, requestId) {
   if (projectStatusTrackingState.tabCount || projectStatusTrackingState.panels.some((panel) => !panel.visible)) {
     fail("Project Status should render Dashboard, MFG, and Non-MFG as three visible tables without inner tabs", projectStatusTrackingState);
   }
-  if (!projectStatusTrackingState.dashboard.includes("Dept DRI Quantity Smoke Item 2")
+  if (!projectStatusTrackingState.dashboardHead.includes("Dashboard Quantity Review")
+    || projectStatusTrackingState.dashboard.includes("Dept DRI Quantity Smoke Item 2")
+    || !(`${projectStatusTrackingState.mfgBody} ${projectStatusTrackingState.nonMfgBody}`).includes("Dept DRI Quantity Smoke Item 2")
     || !projectStatusTrackingState.mfgHead.includes("Review Status")
     || !projectStatusTrackingState.mfgHead.includes("MFG Mainline Station")
     || !projectStatusTrackingState.nonMfgHead.includes("Review Status")
     || !projectStatusTrackingState.nonMfgHead.includes("Department")) {
     fail("Project Status did not carry Dept DRI selected row into the three-table tracking surface", projectStatusTrackingState);
+  }
+  const projectStatusCurrencyState = await page.evaluate(() => {
+    const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
+    const select = document.getElementById("currencyDisplaySelect");
+    const setCurrency = (value) => {
+      select.value = value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return {
+        meta: text(document.getElementById("projectStatusDashboardMeta")),
+        dashboard: text(document.getElementById("projectStatusDashboardRows")),
+        mfg: text(document.getElementById("projectStatusMfgRows")),
+        nonMfg: text(document.getElementById("projectStatusNonMfgRows")),
+      };
+    };
+    const vnd = setCurrency("VND");
+    const usd = setCurrency("USD");
+    setCurrency("VND");
+    return { vnd, usd };
+  });
+  if (!projectStatusCurrencyState.vnd.meta.includes("VND")
+    || !projectStatusCurrencyState.vnd.dashboard.includes("VND")
+    || !projectStatusCurrencyState.vnd.mfg.includes("VND")
+    || !projectStatusCurrencyState.vnd.nonMfg.includes("VND")
+    || !projectStatusCurrencyState.usd.meta.includes("USD")
+    || !projectStatusCurrencyState.usd.dashboard.includes("$")
+    || !projectStatusCurrencyState.usd.mfg.includes("$")
+    || !projectStatusCurrencyState.usd.nonMfg.includes("$")) {
+    fail("Project Status VND/USD toggle should update dashboard and both detail matrices", projectStatusCurrencyState);
   }
   await switchRole(page, "dri", "priceReview");
   await clickPriceReviewSelection(page, submittedMfgRequest.id);

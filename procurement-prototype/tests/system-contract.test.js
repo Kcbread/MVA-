@@ -127,7 +127,7 @@ test("Project Status is a separate read-only dashboard surface", () => {
   const projectStatusView = between(html, '<section class="view" data-view="projectStatus">', '<section class="view active" data-view="department">');
   assert.match(html, /data-view="projectStatus"[\s\S]*Project Status/);
   assert.match(projectStatusView, /class="project-status-stack"/);
-  assert.match(projectStatusView, /data-project-status-panel="dashboard"[\s\S]*Demand Cost Dashboard/);
+  assert.match(projectStatusView, /data-project-status-panel="dashboard"[\s\S]*Dashboard Quantity Review/);
   assert.match(projectStatusView, /id="projectStatusProjectFilter"/);
   assert.match(projectStatusView, /id="projectStatusLineFilter"/);
   assert.match(projectStatusView, /id="projectStatusPhaseFilter"/);
@@ -143,8 +143,9 @@ test("Project Status is a separate read-only dashboard surface", () => {
   assert.match(app, /function syncProjectStatusScopeFromRow/);
   assert.match(app, /function renderProjectStatusMatrixDetail/);
   assert.match(app, /function renderProjectStatusDashboard/);
-  assert.match(app, /renderManagerDemandCostDashboard\(\{\s*showCarryoverEvidence:\s*false\s*\}\)/);
-  assert.match(app, /function copyManagerDemandCostDashboardToProjectStatus/);
+  assert.match(app, /function projectStatusDemandCostRows/);
+  assert.match(app, /function renderProjectStatusDashboardHead/);
+  assert.doesNotMatch(app, /function copyManagerDemandCostDashboardToProjectStatus/);
   assert.match(app, /function sanitizeReadOnlyDashboardTable/);
   assert.match(app, /function seedProjectStatusCostDashboardDemoData/);
   assert.match(app, /project:\s*"P26"[\s\S]*requestLine:\s*"Line 2"[\s\S]*prefix:\s*"P26-L2"/);
@@ -725,8 +726,8 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.doesNotMatch(html, /Project Item Matrix Overview/);
   assert.doesNotMatch(html, /Item Unit Matrix/);
   const projectStatusView = between(html, '<section class="view" data-view="projectStatus">', '<section class="view active" data-view="department">');
-  assert.match(projectStatusView, /Demand Cost Dashboard/);
-  assert.match(projectStatusView, /Manager baseline cost dashboard/);
+  assert.match(projectStatusView, /Dashboard Quantity Review/);
+  assert.match(projectStatusView, /Manager line-opening cost dashboard/);
   assert.match(projectStatusView, /MFG Station Detail/);
   assert.match(projectStatusView, /Non-MFG Department Detail/);
   assert.match(projectStatusView, /id="projectStatusMfgMatrixTable"/);

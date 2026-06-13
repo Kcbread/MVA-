@@ -11728,6 +11728,23 @@ tr.approval-pipeline-current td {
   vertical-align: middle;
 }
 
+.project-status-dashboard-table .dashboard-quantity-review-head {
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+}
+
+.project-status-dashboard-table .demand-cost-summary-head--in-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.project-status-dashboard-table.demand-cost-summary-table th:last-child,
+.project-status-dashboard-table.demand-cost-summary-table td:last-child {
+  width: 108px;
+  max-width: 108px;
+}
+
 .project-status-owner-cell {
   min-width: 150px;
 }
