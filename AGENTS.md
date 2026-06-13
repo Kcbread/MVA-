@@ -7,12 +7,14 @@ This workspace is the source for the MVA procurement system prototype, database 
 When starting work in this workspace, read only what is needed, in this order:
 
 1. `README.md` for workspace entry points.
-2. `procurement-prototype/_context/README.zh-TW.md` for current role, flow, module, and API context.
-3. The specific role file under `procurement-prototype/_context/roles/` for the role being changed.
-4. `procurement-prototype/PROJECT_DECISIONS.md` only when `_context/` is missing a required locked decision.
-5. `procurement-prototype/IMPLEMENTATION_LOG.md` and `project-progress/PROJECT_PROGRESS.md` for recent progress, if the task depends on history.
-6. `procurement-prototype/_doc/testing-standard-op.zh-TW.md` before changing tests or verification flow.
-7. `procurement-prototype/_doc/ui-quality-review.zh-TW.md` before UI changes.
+2. `project-progress/MASTER_PM_LEDGER.md` when the task touches cross-thread PM memory, handoff, dirty worktree cleanup, branch/commit hygiene, or thread coordination.
+3. `project-progress/WORKTREE_TRIAGE_20260613.md` when the worktree is dirty, unmerged, or the task touches existing staged/unstaged changes.
+4. `procurement-prototype/_context/README.zh-TW.md` for current role, flow, module, and API context.
+5. The specific role file under `procurement-prototype/_context/roles/` for the role being changed.
+6. `procurement-prototype/PROJECT_DECISIONS.md` only when `_context/` is missing a required locked decision.
+7. `procurement-prototype/IMPLEMENTATION_LOG.md` and `project-progress/PROJECT_PROGRESS.md` for recent progress, if the task depends on history.
+8. `procurement-prototype/_doc/testing-standard-op.zh-TW.md` before changing tests or verification flow.
+9. `procurement-prototype/_doc/ui-quality-review.zh-TW.md` before UI changes.
 
 Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old Kuso files, or `_doc/v*.md` unless the user asks for handoff documentation or the current docs are missing a required decision.
 
@@ -26,6 +28,9 @@ Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old 
 - Do not let UI changes redefine business ownership. Lock who creates, approves, views, and edits before implementation.
 - Do not update IT handoff packages unless business flow, canonical data, role ownership, or external handoff requirements changed.
 - Prefer existing prototype patterns over adding new architecture.
+- At the start of a material implementation thread, inspect `git status --short`. If the worktree is dirty, unmerged, or on `main`, identify ownership before editing. Do not mix unrelated workstream changes in one commit.
+- If `deploy/mac-mini/deploy.sh` remains `AA` or any path is unmerged, resolve that index conflict before staging or committing unrelated changes.
+- Treat large archive, handoff package, review-output, screenshot, and generated-artifact deletions as high-risk until explicitly confirmed. Do not commit those deletions with feature work.
 
 ## MCP, Skills, And Agents
 
@@ -38,6 +43,12 @@ Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old 
 - General internal-system collaboration rules come from `internal-system-delivery-workflow`; this repo's procurement-specific truth still comes from `procurement-prototype/PROJECT_DECISIONS.md` and the procurement skills.
 - For new thread or subagent startup, prefer `procurement-prototype/_context/README.zh-TW.md` plus the relevant role file before reading long history.
 - Use MCP/thread tools for PM memory only when the user asks to coordinate threads, create automations, or inspect another Codex thread.
+- Use Notion as the cross-thread PM coordination layer for this project:
+  - Hub: `MVA Procurement Cross-Thread PM Hub`
+  - URL: `https://app.notion.com/p/37e51fb7c1518144b408e200fcd68d36`
+  - Required databases: `Thread Updates`, `Decision Log`, `Risks & Actions`
+  - Notion records thread state, decisions, risks, and actions; it does not replace repo source-of-truth files.
+- Current tool limits: do not assume Codex can directly read other desktop thread transcripts. Until a real Codex thread-history reader is available, cross-thread memory must come from explicit thread handoffs, repo-backed summaries, or Notion records.
 - Use subagents for bounded work only: read-only research, spec/story shaping, implementation slices, verification, or validation.
 - Do not delegate product decisions to subagents. Bring unresolved ownership or policy questions back to the main thread.
 - If subagent capacity is unavailable, continue in the main thread and state that the agent limit was hit.
@@ -61,7 +72,25 @@ Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old 
 
 ## PM Memory And Context Compression
 
-- Use `Master PM Handoff` as the stable baseline when available.
+- Use `MVA Procurement Cross-Thread PM Hub` in Notion as the stable PM coordination baseline when available.
+- Keep `project-progress/MASTER_PM_LEDGER.md` as the repo-local index for the Notion PM Hub and its operating rules.
+- Repo truth remains authoritative:
+  - `procurement-prototype/_context/` is the first onboarding source.
+  - `procurement-prototype/PROJECT_DECISIONS.md` is the full locked-decision source when `_context/` is insufficient.
+  - Notion is for cross-thread retrieval, PM alignment, risk/action tracking, and handoff summaries.
 - Daily summaries should be delta-based: yesterday's changes, newly locked decisions, current status, risks, and next actions.
 - A handoff is useful only if a future thread can continue from it without rereading the old conversation.
 - Prefer one readable canonical handoff over many partial summaries.
+- Every material thread must hand off before closing or switching scope:
+  - `Findings`: evidence-backed discoveries only.
+  - `Decision`: locked or proposed decisions, or `none`.
+  - `Risk`: cross-thread drift, blockers, conflicts, or `none`.
+  - `Next`: concrete next action and owner if known.
+  - `Evidence`: repo paths, Notion URLs, test output, screenshots, commits, or `evidence_missing`.
+- Promote a Notion `Decision Log` entry only when the change affects role ownership, canonical data, workflow state, API/DB behavior, testing standards, or IT handoff content.
+- If Notion and repo conflict, treat the repo as authoritative, open a `Risks & Actions` conflict in Notion, and update the relevant repo source only after the decision is confirmed.
+- Future threads must follow the current conclusions:
+  - Notion PM Hub is the cross-thread coordination layer.
+  - Repo `_context/` and `PROJECT_DECISIONS.md` remain authoritative for product truth.
+  - Dirty worktree cleanup must use ownership triage, not broad reset/restore commands.
+  - PM memory / worktree hygiene updates must be mirrored in project-level docs when they affect future threads.

@@ -5,14 +5,35 @@ internal testing.
 
 ## Development And Deployment Baseline
 
-- MacBook Pro is the development machine. Source changes, tests, commits, and
-  GitHub pushes should happen here.
+- MacBook Pro is the primary feature-development and review machine. Larger
+  source changes, test updates, commits, and GitHub pushes normally happen here.
 - GitHub `origin/main` is the deployable source of truth.
-- Mac mini is the host / UAT deployment machine. Do not edit deployed source
-  directly on the Mac mini; deploy the same commit that passed tests on
-  MacBook Pro.
+- Mac mini is the host / UAT deployment machine and the allowed hotfix machine
+  for UAT-blocking fixes. Hotfixes must still be made in the Git working copy,
+  validated, committed, and pushed back to GitHub; do not patch running
+  containers or untracked deployed files by hand.
 - Docker / Compose deployment assets live in `deploy/mac-mini/`.
 - The detailed sync runbook is `MACBOOK_PRO_SYNC_GUIDE.md`.
+
+## Thread Startup And PM Memory
+
+- Project-level rules live in `AGENTS.md`.
+- Cross-thread PM coordination lives in Notion:
+  - Hub: `MVA Procurement Cross-Thread PM Hub`
+  - URL: `https://app.notion.com/p/37e51fb7c1518144b408e200fcd68d36`
+- Repo-local PM memory index:
+  - `project-progress/MASTER_PM_LEDGER.md`
+- Current dirty worktree triage:
+  - `project-progress/WORKTREE_TRIAGE_20260613.md`
+
+Future Codex threads should not assume they can read other desktop thread
+transcripts directly. Use explicit thread handoffs, Notion PM Hub records, and
+repo-backed summaries.
+
+Before material edits, run or inspect `git status --short`. If the worktree is
+dirty, unmerged, or already contains staged work, identify ownership before
+editing. Do not mix feature work, deployment work, PM memory updates, and
+archive/generated cleanup in one commit.
 
 ## Start Local Test Server
 

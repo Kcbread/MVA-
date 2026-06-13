@@ -33,6 +33,9 @@
   - `Decision`
   - `Risk`
   - `Next`
+- 重要 thread 交接還必須附 `Evidence`：repo path、Notion URL、測試輸出、截圖、commit，或標 `evidence_missing`。
+- 跨 thread PM 記憶以 Notion `MVA Procurement Cross-Thread PM Hub` 管理；repo `_context/` 與 `PROJECT_DECISIONS.md` 仍是產品決策真相來源。
+- 新 thread 若涉及 PM memory、handoff、dirty worktree、branch/commit hygiene，先讀 `project-progress/MASTER_PM_LEDGER.md`；若 worktree 已髒或有 unmerged path，先讀 `project-progress/WORKTREE_TRIAGE_20260613.md`。
 - subagent 只能做有限任務：研究、規格、實作切片、測試、驗證；不能自行改產品決策。
 
 ## 不要預設讀取
@@ -59,9 +62,12 @@
 
 ## 核心原則
 
+- 實作前先確認目前 `git status --short` 的 ownership；不要把功能、部署、PM memory、archive/generated cleanup 混在同一個 commit。
+- 大量 archive、handoff package、review-output、截圖或 generated artifact 刪除，在未確認前一律視為高風險，不得跟功能變更一起提交。
 - 先定角色權責，再改 UI。
 - Warehouse 是 evidence；只有經 workflow ledger/lock 的結果才影響成本。
-- Cost Manager 的 `Demand Analysis > Cost Dashboard / Station Matrix` 是受保護 baseline，非必要不要改。
+- Dept DRI 的審批主視覺是 dashboard-first `Item Quantity Review`：Dashboard 顯示 active project 全品項 MFG aggregate 與 Non-MFG department columns；item switcher / row click 只切換 active item 與 detail scope，不縮減 Dashboard rows。MFG Station Detail / Non-MFG Department Detail 才展開 selected item 明細。Item Quantity Review popup 可 audited direct edit 正式需求數量。
+- Cost Manager、Budget Approver 繼續使用共用 Quantity Review evidence；不要用 Dept DRI 的 item switcher 改寫其角色權責。
 - Requester 畫面不得顯示 vendor、PAS material、factory material、OM assignee、FTV 等內部採購欄位。
 - OM Leader 負責追蹤、派工、匯率、feedback triage；OM Purchasing 處理 assigned rows。
 - Buyer Handoff 是 OM export 後的 PR/PO 所屬階段，不再使用容易誤解的 `Downstream` 作為使用者文案。
