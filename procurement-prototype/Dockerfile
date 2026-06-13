@@ -6,12 +6,16 @@ ENV NODE_ENV=uat
 ENV PORT=8080
 ENV UPLOAD_ROOT=/var/lib/mva-procurement/uploads
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 python3-openpyxl \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY . .
 
-RUN mkdir -p /var/lib/mva-procurement/uploads
+RUN mkdir -p /var/lib/mva-procurement/uploads /var/lib/mva-procurement/imports
 
 EXPOSE 8080
 

@@ -25,6 +25,13 @@ const dataDictionary = fs.existsSync("docs-current/data-dictionary-en.md") ? fs.
 const namingRulesZh = fs.existsSync("docs-current/it-handoff/zh-TW/00-naming-rules.md")
   ? fs.readFileSync("docs-current/it-handoff/zh-TW/00-naming-rules.md", "utf8")
   : "";
+const dockerfile = fs.existsSync("Dockerfile") ? fs.readFileSync("Dockerfile", "utf8") : "";
+const macMiniCompose = fs.existsSync("../deploy/mac-mini/docker-compose.yml")
+  ? fs.readFileSync("../deploy/mac-mini/docker-compose.yml", "utf8")
+  : "";
+const sapPoRawCommitScript = fs.existsSync("scripts/commit-sap-po-raw-import.js")
+  ? fs.readFileSync("scripts/commit-sap-po-raw-import.js", "utf8")
+  : "";
 
 function between(source, start, end) {
   const startIndex = source.indexOf(start);
@@ -41,6 +48,16 @@ test("Docker runtime does not expose private source and workflow schema is migra
   assert.doesNotMatch(schema, /CREATE TABLE IF NOT EXISTS item_master_requests/);
   assert.match(workflowMigration, /CREATE TABLE IF NOT EXISTS item_master_requests/);
   assert.match(workflowMigration, /CONSTRAINT fk_item_master_requests_request_item/);
+});
+
+test("Mac mini Docker runtime supports SAP PO Raw Excel import", () => {
+  assert.match(dockerfile, /python3-openpyxl/);
+  assert.match(dockerfile, /\/var\/lib\/mva-procurement\/imports/);
+  assert.match(macMiniCompose, /SAP_PO_RAW_WORKBOOK_PATH/);
+  assert.match(macMiniCompose, /\.\/imports:\/var\/lib\/mva-procurement\/imports:ro/);
+  assert.match(sapPoRawCommitScript, /--require-clean-preview/);
+  assert.match(sapPoRawCommitScript, /commitSapPoRawImport/);
+  assert.match(sapPoRawCommitScript, /postCommitChecks/);
 });
 
 test("Cost Manager top-level tabs are consolidated", () => {
@@ -1024,6 +1041,9 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(sapPoRawScopeMigration, /003_sap_po_raw_scope/);
   assert.match(sapPoRawScopeMigration, /information_schema\.columns/);
   assert.match(sapPoRawScopeMigration, /idx_sap_po_raw_scope/);
+  assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /資訊類::電腦週邊::鍵盤/);
+  assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /資訊類::條碼設備::條碼打印機/);
+  assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /SUPPLEMENTAL_LV3_PREFIX_BY_PATH/);
   assert.match(schema, /route_type VARCHAR\(40\) NOT NULL/);
   assert.match(schema, /quote_owner VARCHAR\(40\) NOT NULL/);
   assert.match(schema, /demand_department VARCHAR\(120\) NOT NULL/);
@@ -1051,6 +1071,7 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/ftv-code\.js/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-contract\.js/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-importer\.js/);
+  assert.match(fs.readFileSync("test.sh", "utf8"), /scripts\/commit-sap-po-raw-import\.js/);
   assert.match(server, /\/api\/uat-feedback/);
   assert.match(server, /\/api\/attachments/);
   assert.match(server, /\/api\/admin\/sap-po-raw-import\/status/);

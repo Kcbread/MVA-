@@ -98,6 +98,22 @@ BUY_SCOPE_MFG_BUY = "mfg_buy"
 SCOPE_SOURCE_EXCEL_YELLOW_FILL = "excel_yellow_fill"
 SCOPE_SOURCE_DEFAULT_NON_YELLOW = "default_non_yellow"
 
+SUPPLEMENTAL_LV3_PREFIX_BY_PATH = {
+    "資訊類::電腦週邊::鍵盤": "ITKEY",
+    "資訊類::顯示器::螢幕": "ITMON",
+    "資訊類::電腦週邊::滑鼠": "ITMOU",
+    "資訊類::電腦::工務電腦": "ITPCA",
+    "資訊類::電腦::品保電腦": "ITPCQ",
+    "資訊類::電腦::辦公電腦": "ITPCO",
+    "資訊類::電腦::工業電腦A級": "ITIPA",
+    "資訊類::電腦::工業電腦A+級": "ITIPB",
+    "資訊類::電腦::工業電腦A++級": "ITIPC",
+    "資訊類::條碼設備::有線標準型條碼掃描器": "ITQWS",
+    "資訊類::條碼設備::有線高級型條碼掃描器": "ITQWA",
+    "資訊類::條碼設備::無線條碼掃描器": "ITQWL",
+    "資訊類::條碼設備::條碼打印機": "ITPRT",
+}
+
 
 def normalize_text(value) -> str:
     if value is None:
@@ -168,11 +184,16 @@ def parse_lv_rules(wb):
     return {
         "lv1_by_name": lv1_by_name,
         "lv2_by_lv1_and_name": lv2_by_lv1_and_name,
+        "supplemental_lv3_prefix_by_path": SUPPLEMENTAL_LV3_PREFIX_BY_PATH,
         "warnings": [],
     }
 
 
-def expected_prefix(lv1: str, lv2: str, lv_rules) -> str:
+def expected_prefix(lv1: str, lv2: str, lv_rules, lv3: str = "") -> str:
+    supplemental = lv_rules.get("supplemental_lv3_prefix_by_path", {})
+    supplemental_prefix = supplemental.get(f"{lv1}::{lv2}::{lv3}")
+    if supplemental_prefix:
+        return supplemental_prefix
     lv1_code = lv_rules["lv1_by_name"].get(lv1)
     if not lv1_code:
         return "XXXXX" if not lv1 and not lv2 else ""
@@ -192,7 +213,7 @@ def validate_row(row, lv_rules):
         errors.append({"code": "missing_factory_material_no", "message": "Raw Data A factory_material_no is required for import"})
     if factory_no and sap_no and factory_no == sap_no:
         errors.append({"code": "material_no_mixed", "message": "Factory Material No and SAP Material No must not be the same value"})
-    prefix = expected_prefix(fields.get("lv1", ""), fields.get("lv2", ""), lv_rules)
+    prefix = expected_prefix(fields.get("lv1", ""), fields.get("lv2", ""), lv_rules, fields.get("lv3", ""))
     row["expected_factory_prefix"] = prefix
     if fields.get("lv1") or fields.get("lv2"):
         if not prefix:

@@ -19,6 +19,50 @@ deploy/mac-mini/deploy.sh
 
 The script refuses to deploy the wrong branch or commit when `EXPECTED_BRANCH` and `EXPECTED_SHA` are provided by GitHub Actions. It then rebuilds the app container and verifies `http://127.0.0.1:8080/api/health`.
 
+## SAP PO Raw Import
+
+Use this flow for the first yellow-row OM scope import and future controlled SAP PO Raw imports.
+
+1. Place the workbook on the Mac mini, outside Git tracking:
+
+```bash
+mkdir -p deploy/mac-mini/imports
+cp "/path/to/Source DB regularize_0608_renumbered.xlsx" "deploy/mac-mini/imports/Source DB regularize_0608_renumbered.xlsx"
+```
+
+2. Rebuild the app container so Python and `openpyxl` are available:
+
+```bash
+deploy/mac-mini/deploy.sh
+```
+
+3. Apply the raw scope migration to an existing UAT volume:
+
+```bash
+set -a
+source deploy/mac-mini/.env
+set +a
+docker compose --env-file deploy/mac-mini/.env -f deploy/mac-mini/docker-compose.yml exec -T mysql \
+  mysql -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" \
+  < procurement-prototype/db/migrations/003_sap_po_raw_scope.sql
+```
+
+4. Preview yellow OM rows. The clean gate for the first batch is `selected_row_count=13`, `om_scope=13`, `mfg_buy=0`, `error_count=0`, and `warning_count=0`.
+
+```bash
+docker compose --env-file deploy/mac-mini/.env -f deploy/mac-mini/docker-compose.yml exec app \
+  node scripts/commit-sap-po-raw-import.js --preview --scope yellow-only
+```
+
+5. Commit only after the preview is clean:
+
+```bash
+docker compose --env-file deploy/mac-mini/.env -f deploy/mac-mini/docker-compose.yml exec app \
+  node scripts/commit-sap-po-raw-import.js --commit --scope yellow-only --require-clean-preview
+```
+
+The command prints a JSON receipt with `import_batch_id`, source checksum, inserted row count, and post-commit DB counts. If duplicate `factory_material_no` rows already exist, commit stops before writing.
+
 ## Mac mini hotfix flow
 
 Use hotfix only for UAT-blocking issues, deployment failures, health-check failures, or small fixes that must be verified on the Mac mini.

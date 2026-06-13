@@ -169,6 +169,8 @@ SAP PO raw import/export keeps the Excel `Raw Data` A-BN shape as a mirror layer
 | normalized_item_name | Q `正規化` | Main item matching / master key candidate |
 | lv1 / lv2 / lv3 | BL / BM / BN | Category coding source for future `AABBB00001` rules |
 
+`資訊類` currently has a supplemental Lv1-Lv3 rule set for the yellow OM rows: `電腦週邊`, `顯示器`, `電腦`, and `條碼設備` map to existing `IT...` Factory Material No prefixes at exact Lv3 path level. The importer validates those paths without rewriting column A.
+
 ## 7. Attachments
 
 | Field | Meaning | Owner |

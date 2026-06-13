@@ -218,6 +218,7 @@
 - For SAP PO `Raw Data` imports, Excel yellow-filled rows are `OM scope` (`buy_scope = om_scope`, `scope_source = excel_yellow_fill`). Non-yellow rows are `MFG buy` (`buy_scope = mfg_buy`, `scope_source = default_non_yellow`) during full imports.
 - `Raw Data` Q pink/purple highlighting is not an OM scope signal. Import scope is determined by yellow fill on the source row across A-BN.
 - `Raw Data` BL/BM/BN must be validated against the `編碼規則` sheet before commit. Missing LV code rules are surfaced as import warnings and must not silently rewrite A-column `Factory Material No`.
+- `資訊類` rows use the supplemental Lv1-Lv3 rule confirmed from the user-provided screenshot: `電腦週邊` covers `鍵盤`/`滑鼠`, `顯示器` covers `螢幕`, `電腦` covers office/QA/industrial computer variants, and `條碼設備` covers scanner/printer variants. Current Factory Material No prefixes such as `ITKEY`, `ITMON`, `ITMOU`, `ITPCA`, and `ITPRT` are accepted for these exact Lv3 paths.
 - `Reuse Item` history only includes PO issued/completed rows that have Factory Material No, item/spec, price, and PO trace. Adding from history never carries active Factory Material No into the new request; Factory Material No remains reference only until the new PO.
 - Reusable History row-level `Add` must append a new current-project draft and must not replace existing Draft Items. It resolves both static purchase records and completed request rows because completed PO rows can become reusable history sources.
 - Demand source picker has three official modes:
