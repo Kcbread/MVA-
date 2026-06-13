@@ -876,6 +876,7 @@ let localUatFeedbackRows = [];
 let activeUatFeedbackContext = null;
 let currentView = "department";
 let currentProject = "P26";
+let currentProjectCode = "";
 let currentProjectType = "G";
 let currentRequesterPersonaId = "";
 let currencyDisplay = "VND";
@@ -1208,6 +1209,8 @@ function realMvaPurchaseRecords() {
       id: item.id || `REAL-MVA-${String(index + 1).padStart(4, "0")}`,
       poNo: item.poNo || item.purRequestNo || `REAL-MVA-${String(index + 1).padStart(4, "0")}`,
       project: item.project || "P26",
+      yearProject: item.yearProject || item.project || "P26",
+      projectCode: item.projectCode || item.sourceProject || "",
       projectType: item.projectType || projectTypeFor(item.project || "P26"),
       sourceProject: item.sourceProject || item.yearProject || item.project || "",
       sourceSheet: item.sourceSheet || "Excel Source",
@@ -2697,6 +2700,8 @@ function projectStatusWarehouseRows() {
       id: row.id || row.targetRequestId,
       workbenchType: "stockCarryover",
       project: row.targetProject || row.project || "-",
+      yearProject: row.targetYearProject || row.targetProject || row.yearProject || row.project || "-",
+      projectCode: row.targetProjectCode || row.projectCode || "",
       name: row.item || "-",
       detail: row.spec || "-",
       status: row.status || "Pending review",
@@ -2724,6 +2729,7 @@ function projectStatusDashboardFilters() {
   const phaseValue = document.getElementById("projectStatusPhaseFilter")?.value || "";
   return {
     project: document.getElementById("projectStatusProjectFilter")?.value || "",
+    projectCode: document.getElementById("projectStatusProjectCodeFilter")?.value || "",
     requestLine: document.getElementById("projectStatusLineFilter")?.value || "",
     phase: STAGES.includes(phaseValue) ? phaseValue : "",
     lineCount: Math.max(1, clampQty(document.getElementById("projectStatusLineCount")?.value || 1)),
@@ -2741,22 +2747,36 @@ function projectStatusRowEntries(row = {}) {
 
 function projectStatusRowMatchesFilters(row = {}, filters = projectStatusDashboardFilters()) {
   const entries = projectStatusRowEntries(row);
-  return (!filters.project || row.project === filters.project || row.targetProject === filters.project)
+  return (!filters.project || yearProjectForRow(row) === filters.project || row.targetProject === filters.project)
+    && (!filters.projectCode || projectCodeForRow(row) === filters.projectCode)
     && (!filters.requestLine || entries.some((entry) => entry.requestLine === filters.requestLine))
     && (!filters.phase || entries.some((entry) => entry.phase === filters.phase));
 }
 
 function syncProjectStatusFilters(rows = projectStatusSourceRows()) {
   const projectSelect = document.getElementById("projectStatusProjectFilter");
+  const projectCodeSelect = document.getElementById("projectStatusProjectCodeFilter");
   const lineSelect = document.getElementById("projectStatusLineFilter");
   const phaseSelect = document.getElementById("projectStatusPhaseFilter");
   const entries = managerQuantityFlattenRows(rows);
+  let selectedProject = projectSelect?.value || "";
   if (projectSelect) {
     const currentValue = projectSelect.value || "";
-    const projects = [...new Set(rows.map((row) => row.project || row.targetProject).filter(Boolean))]
+    const projects = [...new Set(rows.map((row) => yearProjectForRow(row)).filter(Boolean))]
       .sort((left, right) => String(left).localeCompare(String(right)));
-    projectSelect.innerHTML = `<option value="">All projects</option>${projects.map((project) => `<option value="${htmlAttr(project)}" ${project === currentValue ? "selected" : ""}>${htmlText(project)}</option>`).join("")}`;
+    projectSelect.innerHTML = `<option value="">All year projects</option>${projects.map((project) => `<option value="${htmlAttr(project)}" ${project === currentValue ? "selected" : ""}>${htmlText(project)}</option>`).join("")}`;
     projectSelect.value = projects.includes(currentValue) ? currentValue : "";
+    selectedProject = projectSelect.value || "";
+  }
+  if (projectCodeSelect) {
+    const currentValue = projectCodeSelect.value || "";
+    const projectCodes = [...new Set(rows
+      .filter((row) => !selectedProject || yearProjectForRow(row) === selectedProject)
+      .map((row) => projectCodeForRow(row))
+      .filter(Boolean))]
+      .sort((left, right) => String(left).localeCompare(String(right)));
+    projectCodeSelect.innerHTML = `<option value="">All projects</option>${projectCodes.map((project) => optionHtml(project, currentValue)).join("")}`;
+    projectCodeSelect.value = projectCodes.includes(currentValue) ? currentValue : "";
   }
   if (lineSelect) {
     const currentValue = lineSelect.value || "";
@@ -2785,7 +2805,8 @@ function projectStatusDemandCostRows(rows = [], filters = projectStatusDashboard
   const itemGroups = new Map();
   managerQuantityFlattenRows(rows)
     .filter((entry) =>
-      (!filters.project || entry.request.project === filters.project)
+      (!filters.project || yearProjectForRow(entry.request) === filters.project)
+      && (!filters.projectCode || projectCodeForRow(entry.request) === filters.projectCode)
       && (!filters.requestLine || entry.requestLine === filters.requestLine)
       && (!filters.phase || entry.phase === filters.phase)
     )
@@ -2799,7 +2820,7 @@ function projectStatusDemandCostRows(rows = [], filters = projectStatusDashboard
           keyId: key.replace(/[^a-z0-9]+/gi, "-"),
           requestId: entry.request.id,
           request: entry.request,
-          project: entry.request.project || "-",
+          project: projectScopeLabel(entry.request) || "-",
           item: entry.request.name || "-",
           cnEngName: userVisibleItemDetail(entry.request) || itemDetail(entry.request) || "-",
           vnName: entry.request.vnName || entry.request.localName || "-",
@@ -2847,7 +2868,7 @@ function renderProjectStatusDashboardHead(filters = projectStatusDashboardFilter
       <th class="dashboard-quantity-review-head shared-total-highlight shared-total-highlight--band" colspan="${QUANTITY_DASHBOARD_UNITS.length}">
         <div class="demand-cost-summary-head demand-cost-summary-head--in-table">
           <strong>Dashboard Quantity Review</strong>
-          <span>${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · ${filters.project || "All projects"} · single-request qty · ${projectStatusDashboardModeLabel(filters)}</span>
+          <span>${filters.phase ? STAGE_LABELS[filters.phase] : "All stages"} · ${[filters.project || "All year projects", filters.projectCode].filter(Boolean).join(" / ")} · single-request qty · ${projectStatusDashboardModeLabel(filters)}</span>
           <span class="quantity-dashboard-legend">MFG = all station total · Non-MFG departments continue right</span>
         </div>
       </th>
@@ -3235,6 +3256,8 @@ function itemPickerDemandContext() {
   syncItemPickerDemandContext();
   return {
     targetProject: requestCarryoverProject(),
+    targetYearProject: requestCarryoverProject(),
+    targetProjectCode: currentProjectCode,
     requestLine: itemPickerRequestLine,
     targetPhase: itemPickerStage,
     demandType: itemPickerDemandType,
@@ -3305,7 +3328,7 @@ function renderRequesterInputContext() {
   const columns = requestWorksheetColumns();
   root.innerHTML = `
     <div class="request-input-context-copy">
-      <strong>${htmlText(currentProject)} / ${htmlText(requestWorksheetLine)}</strong>
+      <strong>${htmlText(currentProject)} / ${htmlText(currentProjectCode || "Project code")} / ${htmlText(requestWorksheetLine)}</strong>
       <span>${isMfg ? "MFG station worksheet" : "Non-MFG department worksheet"} · ${columns.length} input columns</span>
     </div>
     <div class="request-input-context-controls">
@@ -3990,6 +4013,55 @@ function projectTypeFor(projectCode) {
   return projectConfigFor(projectCode)?.projectType || "G";
 }
 
+function yearProjectForRow(row = {}) {
+  return row.yearProject || row.project || row.targetYearProject || row.targetProject || row.projectCode || "-";
+}
+
+function projectCodeForRow(row = {}) {
+  if (row.projectCode) return row.projectCode;
+  if (row.targetProjectCode) return row.targetProjectCode;
+  if (row.sourceSheet === "G Project MVA EQ Request" && row.sourceProject) return row.sourceProject;
+  if (row.actualProject) return row.actualProject;
+  return "";
+}
+
+function rowMatchesCurrentRequesterProjectScope(row = {}) {
+  if (yearProjectForRow(row) !== currentProject && row.project !== currentProject) return false;
+  const projectCode = projectCodeForRow(row);
+  return !currentProjectCode || !projectCode || projectCode === currentProjectCode;
+}
+
+function projectScopeLabel(row = {}, { includeLine = false } = {}) {
+  const yearProject = yearProjectForRow(row);
+  const projectCode = projectCodeForRow(row);
+  const parts = [yearProject];
+  if (projectCode && projectCode !== yearProject) parts.push(projectCode);
+  if (includeLine) parts.push(row.requestLine || row.line || "Line 1");
+  return parts.filter(Boolean).join(" / ");
+}
+
+function projectCodesForYearProject(yearProject = currentProject) {
+  const values = new Set();
+  const matches = (row) => yearProjectForRow(row) === yearProject;
+  [...purchaseRecords, ...requests].forEach((row) => {
+    if (!matches(row)) return;
+    const code = projectCodeForRow(row);
+    if (code) values.add(code);
+  });
+  return [...values].sort((left, right) => String(left).localeCompare(String(right)));
+}
+
+function syncProjectCodeInput() {
+  const input = document.getElementById("projectCodeInput");
+  const datalist = document.getElementById("projectCodeOptions");
+  const codes = projectCodesForYearProject(currentProject);
+  if (input && input.value !== currentProjectCode) input.value = currentProjectCode;
+  if (datalist) {
+    datalist.innerHTML = codes.map((code) => `<option value="${htmlAttr(code)}"></option>`).join("");
+  }
+  return currentProjectCode;
+}
+
 function projectTypesForFilter() {
   return PROJECT_TYPES;
 }
@@ -4110,6 +4182,7 @@ function syncProjectControls() {
   const userProject = syncProjectSelect("projectSelect", { openOnly: true, projectType: currentProjectType });
   if (!projectCodesByType(currentProjectType, { openOnly: true }).includes(currentProject)) currentProject = userProject || currentProject;
   if (document.getElementById("projectSelect")) document.getElementById("projectSelect").value = currentProject;
+  syncProjectCodeInput();
   syncProjectTypeSelect("managerDemandProjectTypeFilter", { includeAll: true });
   syncProjectSelect("historySourceProject", { includeAll: true, allLabel: "All source projects" });
   syncProjectSelect("historyPackageSourceProject", { includeAll: true, allLabel: "All source projects" });
@@ -8713,18 +8786,22 @@ function requestFromRecord(record, overrides = {}) {
   const masterRecord = materialMasterRecordFor(record);
   const project = overrides.project || record.project || currentProject;
   const stage = overrides.phase || overrides.defaultPhase || currentStageForProject(project);
+  const yearProject = overrides.yearProject || record.yearProject || project;
+  const projectCode = overrides.projectCode ?? record.projectCode ?? (project === currentProject ? currentProjectCode : projectCodeForRow(record));
   const omPatch = omResponsibilityPatch({ ...record, ...overrides, project });
   const demandDepartment = rowDemandDepartment({ ...record, ...overrides }, currentRequesterDepartment());
   const draft = {
     id: `DRAFT-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
     project,
+    yearProject,
+    projectCode,
     projectType: overrides.projectType || record.projectType || projectTypeFor(project),
     timelineSource: `${projectTypeFor(project)} Requester Timeline`,
     lineOpenDate: overrides.lineOpenDate || record.lineOpenDate || stageDateForProject(project, stage),
     requiredDeliveryDate: overrides.requiredDeliveryDate || record.requiredDeliveryDate || requiredDeliveryDateForProject(project, stage),
     sourceRecordId: record.id,
     sourceSuggestionId: record.sourceSuggestionId || "",
-    sourceProject: record.sourceProject || record.project || currentProject,
+    sourceProject: overrides.sourceProject || record.sourceProject || record.project || currentProject,
     sourceFactoryMaterialNo: record.sourceFactoryMaterialNo || record.factoryMaterialNo || "",
     partNo: record.partNo,
     materialId: record.materialId || masterRecord?.materialId || "",
@@ -10129,7 +10206,7 @@ function draftDemandScopeCell(row) {
   const disabled = canRequesterEditRequest(row) ? "" : "disabled";
   return `
     <div class="item-primary">${context.demandType} · ${stageLabel(context.phase)}</div>
-    <div class="reason-text request-compact-meta">${row.project || currentProject} · ${context.requestLine}</div>
+    <div class="reason-text request-compact-meta">${projectScopeLabel(row)} · ${context.requestLine}</div>
     ${context.demandType === DEMAND_TYPE_NON_MFG ? `
       <select class="request-unit-select" data-request-demand-unit="${htmlAttr(row.id)}" ${disabled} aria-label="Demand unit for ${htmlAttr(row.name || "request item")}">
         ${demandUnitOptionsHtml(context.stationOrUnit)}
@@ -10156,8 +10233,8 @@ function requestSourceTraceCell(row) {
   const copied = sourceProject && sourceProject !== "OM Catalog";
   if (!copied) return `<span class="reason-text">New draft</span>`;
   return `
-    <div class="source-trace-block" title="${htmlAttr(`Target ${row.project || currentProject} / ${targetLine}\nCopied from ${sourceProject} / ${sourceLine}`)}">
-      <strong>Target ${htmlText(row.project || currentProject)} / ${htmlText(targetLine)}</strong>
+    <div class="source-trace-block" title="${htmlAttr(`Target ${projectScopeLabel(row)} / ${targetLine}\nCopied from ${sourceProject} / ${sourceLine}`)}">
+      <strong>Target ${htmlText(projectScopeLabel(row))} / ${htmlText(targetLine)}</strong>
       <span>Copied from ${htmlText(sourceProject)} / ${htmlText(sourceLine)}</span>
       <small>Qty starts at 0</small>
     </div>`;
@@ -10388,14 +10465,14 @@ function requestRowMatchesInputContext(row, context = itemPickerDemandContext())
 
 function requesterInputRows() {
   syncRequestWorksheetContext();
-  return activeProjectRequests().filter((row) => stationBreakdownRowsForDetail(row).some((item) =>
+  return activeProjectRequests().filter((row) => rowMatchesCurrentRequesterProjectScope(row) && stationBreakdownRowsForDetail(row).some((item) =>
     requestWorksheetBreakdownMatches(item, { mode: requestWorksheetMode, requestLine: requestWorksheetLine })
   ));
 }
 
 function requesterPackageRows() {
   syncRequestWorksheetContext();
-  return activeProjectRequests().filter((row) => stationBreakdownRowsForDetail(row).some((item) =>
+  return activeProjectRequests().filter((row) => rowMatchesCurrentRequesterProjectScope(row) && stationBreakdownRowsForDetail(row).some((item) =>
     requestBreakdownMatchesScope(item)
   ));
 }
@@ -10569,26 +10646,13 @@ function requestWorksheetSourceBadge(label) {
 }
 
 function requestWorksheetSourceHaystack(row) {
-  return normalize([
-    row.project,
-    row.sourceProject,
-    row.name,
-    userVisibleItemDetail(row),
-    itemDetail(row),
-    row.level1,
-    row.level2,
-    row.level3,
-    row.omCategoryLevel1,
-    row.omCategoryLevel2,
-    row.omCategoryLevel3,
-    phaseQtySummary(row),
-  ].join(" "));
+  return normalize(row.name || row.item || "");
 }
 
 function requestWorksheetMergedSources(query = requestWorksheetAddQuery) {
   const keyword = normalize(query);
   const rawQuery = String(query || "").trim();
-  const catalogRows = [...omCatalogRows(currentProject), ...purchaseRecords.filter((row) => row.project === currentProject)]
+  const catalogRows = [...omCatalogRows(currentProject), ...purchaseRecords.filter(rowMatchesCurrentRequesterProjectScope)]
     .map((row) => ({ type: "catalog", badge: "Catalog", row }));
   const reuseRows = reusableHistoryRows()
     .map((row) => ({ type: "reuse", badge: "Reuse", row }));
@@ -10608,6 +10672,8 @@ function requestWorksheetMergedSources(query = requestWorksheetAddQuery) {
       row: {
         id: `new:${keyword}`,
         project: currentProject,
+        yearProject: currentProject,
+        projectCode: currentProjectCode,
         name: rawQuery,
         detail: rawQuery,
         spec: rawQuery,
@@ -10726,7 +10792,7 @@ function renderRequestItemPicker() {
   const copyDemandPanel = document.getElementById("requestCopyDemandPanel");
   const copyDemandActive = requestItemPickerSourceMode === "copy";
   if (target) {
-    target.textContent = `${currentProject} / ${requestWorksheetLine} / ${requestWorksheetMode}. Add item/spec; all phase qty cells start at 0.`;
+    target.textContent = `${currentProject} / ${currentProjectCode || "Project code"} / ${requestWorksheetLine} / ${requestWorksheetMode}. Add item/spec; all phase qty cells start at 0.`;
   }
   if (query && query.value !== requestItemPickerQuery) query.value = requestItemPickerQuery;
   syncRequestItemPickerFilters();
@@ -10841,6 +10907,8 @@ function requestWorksheetOverrides(record, source, phases = [requestWorksheetAdd
   return {
     ...zeroStageOverrides,
     project: currentProject,
+    yearProject: currentProject,
+    projectCode: currentProjectCode,
     projectType: projectTypeFor(currentProject),
     phase: phases[0] || requestWorksheetAddPhase,
     defaultPhase: phases[0] || requestWorksheetAddPhase,
@@ -10952,7 +11020,7 @@ function userDemandOverviewSourceRows() {
   const personaName = normalize(persona?.name || "");
   const personaEmail = normalize(persona?.email || "");
   return requests.filter((row) => {
-    if (row.project !== currentProject) return false;
+    if (!rowMatchesCurrentRequesterProjectScope(row)) return false;
     if (["Rejected", USER_CANCELLED_REQUEST, "Cancelled"].includes(row.status) || isSupersededRequest(row)) return false;
     if (!stationBreakdownHasDemand(row)) return false;
     if (row.status === "Draft") return true;
@@ -10976,7 +11044,7 @@ function userDemandOverviewGroups() {
     return {
       keyId: row.id,
       row,
-      project: row.project,
+      project: projectScopeLabel(row),
       item: row.name || "-",
       spec: userVisibleItemDetail(row) || itemDetail(row) || "-",
       requests: new Map([[row.id, row]]),
@@ -10994,7 +11062,7 @@ function renderUserDemandOverview() {
   const groups = userDemandOverviewGroups();
   const summary = document.getElementById("userDemandOverviewSummary");
   const badge = document.getElementById("userDemandPackageBadge");
-  if (badge) badge.textContent = `${currentProject} package view`;
+  if (badge) badge.textContent = `${currentProject}${currentProjectCode ? ` / ${currentProjectCode}` : ""} package view`;
   if (summary) {
     const packageCount = new Set(groups.map((group) => group.packageId)).size;
     const draftCount = groups.filter((group) => group.row.status === "Draft").length;
@@ -11020,7 +11088,7 @@ function renderUserDemandOverview() {
         <td class="cell-action">${group.row.status === "Draft" ? `<button class="mini approve" title="Edit demand rows" data-edit-demand="${group.row.id}">Edit</button>` : `<span class="reason-text">Submitted</span>`}</td>
         <td class="cell-action">${itemDetailButton("request", group.row.id)}</td>
       </tr>`).join("")
-    : `<tr><td colspan="12" class="empty-cell">No demand rows for ${currentProject}. Add items and edit demand rows first.</td></tr>`;
+    : `<tr><td colspan="12" class="empty-cell">No demand rows for ${currentProject}${currentProjectCode ? ` / ${currentProjectCode}` : ""}. Add items and edit demand rows first.</td></tr>`;
 }
 
 function sourceRecordForRequest(row) {
@@ -11123,7 +11191,8 @@ function openDriContact(requestId) {
         ${detailRow("Request ID", row.id)}
         ${detailRow("Package", row.requestPackageId || "-")}
         ${detailRow("Project Type", row.projectType || projectTypeFor(row.project))}
-        ${detailRow("Project", row.project)}
+        ${detailRow("Year Project", yearProjectForRow(row))}
+        ${detailRow("Project", projectCodeForRow(row) || "-")}
         ${detailRow("Process", row.process || "-")}
         ${detailRow("Demand Unit", stationBreakdownRowsForDetail(row).map((item) => item.demandUnit).filter(Boolean).join(" / ") || row.department || "-")}
       </div>
@@ -12487,7 +12556,7 @@ function submissionEstimateVarianceCell(row) {
 function renderSubmissionRows() {
   const userRows = new Map(userDemandOverviewSourceRows().map((row) => [row.id, row]));
   requests
-    .filter((row) => row.project === currentProject && row.status !== "Draft")
+    .filter((row) => rowMatchesCurrentRequesterProjectScope(row) && row.status !== "Draft")
     .forEach((row) => userRows.set(row.id, row));
   const rows = [...userRows.values()]
     .sort((a, b) => {
@@ -12503,7 +12572,7 @@ function renderSubmissionRows() {
       return `
       <tr>
         <td>${row.id}</td>
-        <td>${row.project}</td>
+        <td>${projectScopeLabel(row)}</td>
         <td>
           <div class="item-primary">${row.name}</div>
           <div class="reason-text">${userVisibleItemDetail(row) || partName(row) || "-"}</div>
@@ -12520,7 +12589,7 @@ function renderSubmissionRows() {
         <td class="cell-action">${itemDetailButton("request", row.id)}</td>
       </tr>`;
     }).join("")
-    : `<tr><td colspan="9" class="empty-cell">No draft or submitted demand for ${currentProject} yet.</td></tr>`;
+    : `<tr><td colspan="9" class="empty-cell">No draft or submitted demand for ${currentProject}${currentProjectCode ? ` / ${currentProjectCode}` : ""} yet.</td></tr>`;
 }
 
 function timelineFor(row) {
@@ -12845,6 +12914,8 @@ function addRecord(recordId) {
   const draft = requestFromRecord(record, {
     ...zeroStageOverrides,
     project: targetProject,
+    yearProject: targetProject,
+    projectCode: context.targetProjectCode || currentProjectCode,
     phase: targetPhase,
     defaultPhase: targetPhase,
     demandType: context.demandType,
@@ -12959,6 +13030,7 @@ function createMaintenanceDraftFromRequest(row, { open = true } = {}) {
 function cloneReusableDemandRows(record, {
   useSourceQty = true,
   targetProject = requestCarryoverProject(),
+  targetProjectCode = currentProjectCode,
   targetPhase = requestCarryoverPhase(targetProject),
   requestLine = itemPickerRequestLine,
   demandType = lastDemandType,
@@ -13014,6 +13086,7 @@ function reusableReferenceFields(record) {
 
 function historyRequestOverrides(record, useSourceQty = true, {
   targetProject = requestCarryoverProject(),
+  targetProjectCode = currentProjectCode,
   targetPhase = requestCarryoverPhase(targetProject),
   requestLine = itemPickerRequestLine,
   demandType = lastDemandType,
@@ -13027,6 +13100,8 @@ function historyRequestOverrides(record, useSourceQty = true, {
   return {
     ...stageOverrides,
     project: targetProject,
+    yearProject: targetProject,
+    projectCode: targetProjectCode || (targetProject === currentProject ? currentProjectCode : "") || projectCodeForRow(record),
     projectType: projectTypeFor(targetProject),
     phase: targetPhase,
     defaultPhase: targetPhase,
@@ -14293,11 +14368,11 @@ function managerProgressRawRows() {
 }
 
 function managerProgressYearProject(row) {
-  return row.sourceSheet === "G Project MVA EQ Request" ? (row.project || row.yearProject || "-") : (row.project || "-");
+  return yearProjectForRow(row);
 }
 
 function managerProgressProject(row) {
-  return row.sourceSheet === "G Project MVA EQ Request" ? (row.sourceProject || row.project || "-") : (row.project || "-");
+  return projectCodeForRow(row) || row.project || "-";
 }
 
 function managerProgressStage(row) {
@@ -15594,14 +15669,16 @@ function renderItemDetail(row, sourceType) {
   const identityRows = currentRole === "requester" ? [
     detailRow("Item", row.name),
     detailRow("Record Source", rowSourceLabel(row)),
-    detailRow("Project", row.project),
+    detailRow("Year Project", yearProjectForRow(row)),
+    detailRow("Project", projectCodeForRow(row) || "-"),
     detailRow("Need Date", needDateForRow(row) || "-"),
     detailRow("Detail / Spec", userVisibleItemDetail(row)),
     detailRow("Item Type", type),
   ] : isCostManagerRole ? [
     detailRow("Item", row.name),
     detailRow("Record Source", rowSourceLabel(row)),
-    detailRow("Project", row.project),
+    detailRow("Year Project", yearProjectForRow(row)),
+    detailRow("Project", projectCodeForRow(row) || "-"),
     detailRow("Need Date", needDateForRow(row) || "-"),
     detailRow("Detail / Spec", itemDetail(row)),
     detailRow("Item Type", type),
@@ -15626,7 +15703,8 @@ function renderItemDetail(row, sourceType) {
     detailRow("Created From", row.sourceRecordId || row.sourceSuggestionId || row.id || "-"),
     detailRow("Source Project", row.sourceProject || row.project || "-"),
     detailRow("Item Type", type),
-    detailRow("Project", row.project),
+    detailRow("Year Project", yearProjectForRow(row)),
+    detailRow("Project", projectCodeForRow(row) || "-"),
     detailRow("Need Date", needDateForRow(row) || "-"),
   ];
 
@@ -23051,6 +23129,7 @@ document.addEventListener("change", async (event) => {
     currentProjectType = event.target.value || currentProjectType;
     const firstProject = projectCodesByType(currentProjectType, { openOnly: true })[0];
     if (firstProject) currentProject = firstProject;
+    currentProjectCode = "";
     currentDeptDemandPhase = nextBuyStageForProject(currentProject) || currentStageForProject(currentProject);
     updateRequestCarryover({ project: currentProject, phase: currentDeptDemandPhase });
     searchResults = [];
@@ -23065,6 +23144,7 @@ document.addEventListener("change", async (event) => {
   if (event.target.id === "projectSelect") {
     currentProject = event.target.value;
     currentProjectType = projectTypeFor(currentProject);
+    currentProjectCode = "";
     currentDeptDemandPhase = nextBuyStageForProject(currentProject) || currentStageForProject(currentProject);
     updateRequestCarryover({ project: currentProject, phase: currentDeptDemandPhase });
     searchResults = [];
@@ -23072,6 +23152,12 @@ document.addEventListener("change", async (event) => {
     historyResults = [];
     historySearchActive = false;
     historySelections.clear();
+    syncProjectControls();
+    renderDepartment();
+  }
+
+  if (event.target.id === "projectCodeInput") {
+    currentProjectCode = String(event.target.value || "").trim();
     renderDepartment();
   }
 
@@ -23094,6 +23180,7 @@ document.addEventListener("change", async (event) => {
   ].includes(event.target.id)) renderManagerStageTracking();
   if ([
     "projectStatusProjectFilter",
+    "projectStatusProjectCodeFilter",
     "projectStatusLineFilter",
     "projectStatusPhaseFilter",
     "projectStatusLineCount",
@@ -23598,6 +23685,9 @@ document.addEventListener("change", async (event) => {
 
 document.addEventListener("input", (event) => {
   if (event.target.id === "warehouseSearch") renderWarehouseMaintenance();
+  if (event.target.id === "projectCodeInput") {
+    currentProjectCode = String(event.target.value || "").trim();
+  }
   if (event.target.id === "requestItemPickerQuery") {
     requestItemPickerQuery = event.target.value || "";
     renderRequestItemPicker();

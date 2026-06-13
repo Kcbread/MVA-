@@ -131,6 +131,33 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   await page.getByRole("button", { name: "MFG", exact: true }).waitFor();
   await page.getByRole("button", { name: "Non-MFG", exact: true }).waitFor();
   await page.getByRole("button", { name: "Add Item", exact: true }).waitFor();
+  const projectCodeAudit = await page.evaluate(async () => {
+    const projectSelect = document.getElementById("projectSelect");
+    const projectCodeInput = document.getElementById("projectCodeInput");
+    const projectCodeOptions = document.getElementById("projectCodeOptions");
+    if (!projectSelect || !projectCodeInput || !projectCodeOptions) return { missing: true };
+    const originalProject = projectSelect.value;
+    const originalProjectCode = projectCodeInput.value;
+    projectSelect.value = "P26 Demo Line";
+    projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const result = {
+      value: projectCodeInput.value,
+      options: [...projectCodeOptions.querySelectorAll("option")].map((option) => option.value),
+    };
+    projectSelect.value = originalProject;
+    projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    projectCodeInput.value = originalProjectCode;
+    projectCodeInput.dispatchEvent(new Event("input", { bubbles: true }));
+    projectCodeInput.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return result;
+  });
+  if (projectCodeAudit.missing) throw new Error("Requester toolbar should expose Year Project select and Project datalist.");
+  if (!projectCodeAudit.options.includes("4CS4") || !projectCodeAudit.options.includes("CGY4")) {
+    throw new Error(`P26 Demo Line Project datalist should include 4CS4 / CGY4, got ${JSON.stringify(projectCodeAudit)}`);
+  }
   const phaseHeaderAlign = await page.locator(".request-phase-group-head", { hasText: "EVT" }).first().evaluate((header) => getComputedStyle(header).textAlign);
   if (phaseHeaderAlign !== "center") throw new Error(`Requester phase group headers should be centered, got ${phaseHeaderAlign}`);
   await assertVisibleTableCellsDoNotOverlap(page, ".request-table", "User A worksheet initial table");
@@ -156,6 +183,22 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   if (!pickerAudit.hasLevelFilters) throw new Error("Add Item popup should expose Lv1 / Lv2 / Lv3 filters.");
   if (!pickerAudit.shellScrolls) throw new Error("Add Item popup table shell should own scrolling.");
   if (!pickerAudit.tabbarFits) throw new Error("Add Item popup source tabs should wrap inside their tabbar.");
+  await page.locator("#requestItemPickerQuery").fill("monitor");
+  await page.waitForTimeout(50);
+  const monitorSearchAudit = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll("#requestItemPickerRows tr[data-request-picker-row]")];
+    return rows.map((row) => ({
+      item: row.querySelector(".request-picker-item-name")?.textContent?.trim() || "",
+      detail: row.querySelector(".request-picker-detail-cell")?.textContent?.trim() || "",
+      spec: row.querySelector(".request-picker-spec-cell")?.textContent?.trim() || "",
+    }));
+  });
+  if (!monitorSearchAudit.length) throw new Error("Add Item monitor search should return catalog rows.");
+  const monitorNonMatches = monitorSearchAudit.filter((row) => !/monitor/i.test(row.item));
+  if (monitorNonMatches.length) {
+    throw new Error(`Add Item search must only fuzzy match Item column. Non-item matches: ${JSON.stringify(monitorNonMatches.slice(0, 3))}`);
+  }
+  await page.locator("#requestItemPickerQuery").fill("");
   const lvFilterAudit = await page.evaluate(async () => {
     const source = window.requestWorksheetMergedSources?.("")
       .find((item) => item.type === "catalog" && (item.row.level1 || item.row.omCategoryLevel1));

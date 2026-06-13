@@ -101,8 +101,14 @@
           </div>
           <div class="page-toolbar compact-toolbar">
             <label>
-              Project
+              Year Project
               <select id="projectStatusProjectFilter">
+                <option value="">All year projects</option>
+              </select>
+            </label>
+            <label>
+              Project
+              <select id="projectStatusProjectCodeFilter">
                 <option value="">All projects</option>
               </select>
             </label>
@@ -198,11 +204,16 @@
               </select>
             </label>
             <label class="project-picker">
-              Project
+              Year Project
               <select id="projectSelect">
                 <option value="P26">P26</option>
                 <option value="OR5">OR5</option>
               </select>
+            </label>
+            <label class="project-picker">
+              Project
+              <input id="projectCodeInput" list="projectCodeOptions" placeholder="4CS4, CGY4, PKK4..." />
+              <datalist id="projectCodeOptions"></datalist>
             </label>
           </div>
 
@@ -1766,8 +1777,8 @@
           <div class="request-item-picker-toolbar">
             <div class="request-item-picker-filterbar">
               <label>
-                Search Item / Spec
-                <input id="requestItemPickerQuery" type="search" placeholder="Search catalog, reuse, copy demand, or type new item/spec..." />
+                Search Item
+                <input id="requestItemPickerQuery" type="search" placeholder="Search item name only, or type a new item name..." />
               </label>
               <label>
                 Lv1

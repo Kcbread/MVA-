@@ -129,6 +129,8 @@ test("Project Status is a separate read-only dashboard surface", () => {
   assert.match(projectStatusView, /class="project-status-stack"/);
   assert.match(projectStatusView, /data-project-status-panel="dashboard"[\s\S]*Dashboard Quantity Review/);
   assert.match(projectStatusView, /id="projectStatusProjectFilter"/);
+  assert.match(projectStatusView, /Year Project[\s\S]*id="projectStatusProjectFilter"/);
+  assert.match(projectStatusView, /id="projectStatusProjectCodeFilter"/);
   assert.match(projectStatusView, /id="projectStatusLineFilter"/);
   assert.match(projectStatusView, /id="projectStatusPhaseFilter"/);
   assert.match(projectStatusView, /id="projectStatusLineCount"/);
@@ -144,6 +146,8 @@ test("Project Status is a separate read-only dashboard surface", () => {
   assert.match(app, /function renderProjectStatusMatrixDetail/);
   assert.match(app, /function renderProjectStatusDashboard/);
   assert.match(app, /function projectStatusDemandCostRows/);
+  assert.match(app, /projectCode:\s*document\.getElementById\("projectStatusProjectCodeFilter"\)/);
+  assert.match(app, /projectCodeForRow\(entry\.request\) === filters\.projectCode/);
   assert.match(app, /function renderProjectStatusDashboardHead/);
   assert.doesNotMatch(app, /function copyManagerDemandCostDashboardToProjectStatus/);
   assert.match(app, /function sanitizeReadOnlyDashboardTable/);
@@ -348,6 +352,9 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.match(opmTabs, /Action Required/);
   assert.match(opmTabs, /Request Status/);
   assert.match(departmentView, /request-workspace-layout/);
+  assert.match(departmentView, /Year Project[\s\S]*id="projectSelect"/);
+  assert.match(departmentView, /Project[\s\S]*id="projectCodeInput"/);
+  assert.match(departmentView, /id="projectCodeOptions"/);
   assert.match(departmentView, /Request Worksheet/);
   assert.match(departmentView, /data-request-worksheet-tab="MFG"/);
   assert.match(departmentView, /data-request-worksheet-tab="Non-MFG"/);
@@ -364,10 +371,19 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.match(html, /data-request-picker-source-tab="copy"/);
   assert.match(html, /data-request-picker-source-tab="new"/);
   const pickerModal = between(html, '<div class="modal-backdrop" id="requestItemPickerModal"', '<div class="modal-backdrop" id="contactPopupModal"');
+  assert.match(pickerModal, /Search Item/);
+  assert.match(pickerModal, /Search item name only/);
+  assert.doesNotMatch(pickerModal, /Search Item \/ Spec/);
   assert.match(pickerModal, /<th class="picker-col-add">Add<\/th>/);
   assert.match(pickerModal, /<th class="picker-col-item">Item<\/th>/);
   assert.match(pickerModal, /<th class="picker-col-detail">Detail<\/th>/);
   assert.match(pickerModal, /<th class="picker-col-spec">Spec<\/th>/);
+  assert.match(app, /function yearProjectForRow/);
+  assert.match(app, /function projectCodeForRow/);
+  assert.match(app, /function rowMatchesCurrentRequesterProjectScope/);
+  assert.match(app, /function requestWorksheetSourceHaystack\(row\)[\s\S]*normalize\(row\.name \|\| row\.item \|\| ""\)/);
+  assert.match(app, /function managerProgressYearProject\(row\)[\s\S]*return yearProjectForRow\(row\)/);
+  assert.match(app, /function managerProgressProject\(row\)[\s\S]*return projectCodeForRow\(row\)/);
   assert.match(pickerModal, /<th class="picker-col-action">Action<\/th>/);
   assert.match(pickerModal, /id="requestCopyDemandPanel"/);
   assert.match(pickerModal, /id="historyPackageSourceProject"/);
