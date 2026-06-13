@@ -42,6 +42,17 @@
     };
   }
 
+  function reviewStatusFallback(row = {}) {
+    const pipeline = pipelineMeta(row);
+    const label = row.reviewStatusLabel || pipeline.status || "Pending Review";
+    const owner = pipeline.owner ? `<span class="review-status-owner">Current: ${esc(pipeline.owner)}</span>` : "";
+    return `
+      <div class="review-status-cell review-status-${esc(pipeline.tone)}">
+        <span class="review-status-label">${esc(label)}</span>
+        ${owner}
+      </div>`;
+  }
+
   function renderViewTabs({ activeTab = "dashboard", label = "Approval quantity review" } = {}) {
     const tabs = [
       ["dashboard", "Dashboard"],
@@ -102,7 +113,7 @@
     formatCompactCurrency = null,
     emptyText = "No review rows are available for this project dashboard.",
   } = {}) {
-    const tableWidth = 760 + (units.length * 112) + 196;
+    const tableWidth = 868 + (units.length * 112) + 196;
     const formatFull = typeof formatMoney === "function"
       ? formatMoney
       : (value) => value ? `${Number(value).toFixed(2)} USD` : "-";
@@ -118,6 +129,7 @@
         tableWidth,
         summaryHtml: `<div class="decision-explain-strip"><div><strong>Dashboard</strong><span>${esc(emptyText)}</span></div></div>`,
         colgroup: `
+          <col class="demand-cost-col-review-status">
           <col class="demand-cost-col-request">
           <col class="demand-cost-col-eng">
           <col class="demand-cost-col-cn">
@@ -127,6 +139,7 @@
           <col class="demand-cost-col-action">`,
         head: `
           <tr>
+            <th>Review Status</th>
             <th>Request ID</th>
             <th>Item</th>
             <th>Spec</th>
@@ -135,7 +148,7 @@
             <th class="demand-cost-total-head shared-total-highlight shared-total-highlight--head">Total</th>
             <th>Detail</th>
           </tr>`,
-        rows: `<tr><td colspan="${units.length + 6}" class="empty-cell">${esc(emptyText)}</td></tr>`,
+        rows: `<tr><td colspan="${units.length + 7}" class="empty-cell">${esc(emptyText)}</td></tr>`,
       };
     }
     return {
@@ -148,6 +161,7 @@
           <span class="quantity-dashboard-legend">Total ${esc(qtyText(totalQty) || "0")} qty${totalAmountUsd ? ` / ${esc(formatCompact(totalAmountUsd))}` : ""}</span>
         </div>`,
       colgroup: `
+        <col class="demand-cost-col-review-status">
         <col class="demand-cost-col-request">
         <col class="demand-cost-col-eng">
         <col class="demand-cost-col-cn">
@@ -157,6 +171,7 @@
         <col class="demand-cost-col-action">`,
       head: `
         <tr>
+          <th>Review Status</th>
           <th>Request ID</th>
           <th>Item</th>
           <th>Spec</th>
@@ -172,6 +187,7 @@
         const totalAmount = Number(row.totalAmountUsd || 0);
         return `
           <tr class="${requestId === selectedId ? "active-row" : ""} ${pipeline.className}" ${rowAttrs}>
+            <td class="review-status-table-cell">${row.reviewStatusHtml || reviewStatusFallback(row)}</td>
             <td class="cell-identity" title="${esc(requestId || "-")}"><strong>${esc(requestId || "-")}</strong><div class="reason-text">${esc(row.project || "-")}</div></td>
             <td class="cell-identity" title="${esc(row.item || "-")}">
               <button type="button" class="approval-dashboard-item-button" data-price-review-select-cell="${esc(requestId)}" data-approval-dashboard-request-id="${esc(requestId)}" data-approval-dashboard-project="${esc(row.project || "")}" data-approval-dashboard-item="${esc(row.item || "")}">

@@ -10,11 +10,14 @@ Cost Manager 是 Dept DRI 後的下一層成本授權者。它不需要獨立 to
 - Cost Review 內嵌 Demand Analysis evidence：
   - `Demand Cost Dashboard`：以現有 `managerDemandCostTable` 欄位、密度、金額/數量呈現為基準。
   - `Station Matrix`：以現有 `managerQuantityMatrixTable` 欄位、密度、phase/station/unit 計算呈現為基準。
+  - 兩張 protected baseline table 的第一欄固定為 `Review Status`，放在 `Actions` 前面；後續成本、數量、phase/station 欄位順序與數字語意不可重排。
   - `Line` filter：由 `stationBreakdown[].requestLine` 產生 `All / Line 1 / Line 2...`，用來切 request line scope。
   - `Line Count`：仍是既有成本計算乘數，不代表 requester line scope。
 - Cost Manager 自己的 authorize / reject 歷史。
 - 必要的 item/spec、qty、phase、requester、Dept DRI decision context、next owner。
-- Carryover 只作 secondary evidence；主畫面不顯示大型 carryover card、line impact strip 或空 ledger。
+- `Review Status` 只表示審批鏈：待授權 row 顯示 `Dept DRI approved` / `Pending Cost Manager`，授權後仍留在 Cost Review evidence，顯示 `You authorized` 與目前派往 OM；reject row 顯示 Cost Manager reject reason 並 read-only。
+- Submission Monitor / Progress Tracking 的必要資訊併入 Cost Review queue 與 selected-row detail，不再作獨立入口或重複表格。
+- Carryover 只作 selected-row contextual evidence；主 Demand Analysis 不顯示大型 carryover card、line impact strip 或空 ledger。
 
 ## 可操作功能
 
@@ -67,9 +70,10 @@ Cost Manager 是 Dept DRI 後的下一層成本授權者。它不需要獨立 to
 
 - Cost Manager 只看到 top-level `Cost Review / Review History`。
 - Cost Review 內必須有 review queue/actions，並嵌入 `Demand Cost Dashboard / Station Matrix` baseline tables。
+- `Demand Cost Dashboard / Station Matrix` 第一欄必須是 `Review Status`，不可命名為 `Status` 或 `Project Status`；authorized rows 仍可見但不可再顯示 Authorize / Reject 操作。
 - `Line` filter 必須可切 P26 `Line 1 / Line 2`；`Line Count` 仍維持乘數行為。
 - 不顯示 `Authorized Analysis`、`Demand Analysis`、`Progress Tracking`、`Project Setup` tab。
-- Carryover 作 secondary evidence；當 Line filter 有值時只顯示 matching target/request line。
+- Carryover evidence 僅在 selected-row detail 出現；Demand Analysis main 必須保持乾淨，只保留 baseline dashboard/matrix。
 - Dept DRI approve 後才出現在 Cost Manager。
 - Cost Manager authorize 後才進 OM Leader intake；reject 回 Requester Action Required。
 

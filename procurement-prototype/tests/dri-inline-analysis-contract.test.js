@@ -10,7 +10,9 @@ const approvalQuantityModule = fs.readFileSync("app-modules/approval-quantity-re
 test("Dept DRI renders item switcher, project dashboard, and unchanged detail matrix", () => {
   assert.match(html, /id="priceReviewInlineAnalysis"/);
   assert.match(html, /id="priceReviewApprovedAnalysis"/);
-  assert.match(html, /Project Review/);
+  assert.match(app, /priceReviewTabs:\s*\["pending", "history"\]/);
+  assert.match(app, /pending:\s*"Dept Review"/);
+  assert.match(app, /pending:\s*"Budget Review"/);
   assert.match(html, /Project Context/);
   assert.doesNotMatch(html, /Project Review Evidence/);
   assert.match(app, /Item Switcher/);
@@ -25,7 +27,7 @@ test("Dept DRI renders item switcher, project dashboard, and unchanged detail ma
   assert.match(html, /MFG Station Detail/);
   assert.match(html, /Non-MFG Department Detail/);
   assert.match(html, /id="priceReviewInlineDemandCostTable"/);
-  assert.match(app, /priceReviewTabs: \["pending", "projectReview", "history"\]/);
+  assert.match(app, /priceReviewTabs: \["pending", "history"\]/);
   assert.match(app, /function renderPriceReviewCostDashboard/);
   assert.match(app, /function approvalQuantityMatrixRows/);
   assert.doesNotMatch(app, /function renderProjectItemMatrixOverview/);
@@ -43,6 +45,15 @@ test("Dept DRI renders item switcher, project dashboard, and unchanged detail ma
   assert.match(app, /function renderPriceReviewStationMatrix/);
   assert.match(app, /function renderManagerDemandCostDashboard/);
   assert.match(app, /function renderManagerQuantityMatrix/);
+  assert.match(app, /function reviewStatusForRole/);
+  assert.match(app, /function roleReviewRows/);
+  assert.match(app, /<th>Review Status<\/th>/);
+  assert.match(app, /reviewStatusCellHtml/);
+  assert.match(approvalQuantityModule, /<th>Review Status<\/th>/);
+  assert.match(approvalQuantityModule, /reviewStatusHtml/);
+  assert.match(approvalQuantityModule, /reviewStatusFallback/);
+  assert.doesNotMatch(app, /Project Status/);
+  assert.doesNotMatch(approvalQuantityModule, /Project Status/);
   assert.match(app, /data-item-quantity-request/);
   assert.match(app, /<th>Request ID<\/th>/);
   assert.match(app, /demand-cost-col-request/);

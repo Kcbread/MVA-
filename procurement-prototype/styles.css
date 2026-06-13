@@ -2729,6 +2729,10 @@ a {
   width: 78px;
 }
 
+.demand-cost-col-review-status {
+  width: 108px;
+}
+
 .demand-cost-table .demand-cost-unit-head,
 .demand-cost-table .demand-cost-unit-cell {
   text-align: right;
@@ -5358,6 +5362,65 @@ td.approval-pipeline-po {
 tr.approval-pipeline-current td {
   background: #fff7d6;
   box-shadow: inset 0 0 0 1px rgba(217, 184, 79, 0.38);
+}
+
+.review-status-table-cell {
+  min-width: 108px;
+}
+
+.review-status-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: #21313d;
+}
+
+.review-status-cell span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-status-label {
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eef2f5;
+  color: #102f46;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.review-status-secondary,
+.review-status-owner,
+.review-status-po {
+  font-size: 10px;
+  line-height: 1.12;
+  color: var(--muted);
+}
+
+.review-status-approved .review-status-label,
+.review-status-po .review-status-label {
+  background: #dff4e7;
+  color: #126336;
+}
+
+.review-status-sent .review-status-label {
+  background: #e3f0ff;
+  color: #174f83;
+}
+
+.review-status-pending .review-status-label {
+  background: #fff1b8;
+  color: #6b5200;
+}
+
+.review-status-rejected .review-status-label {
+  background: #ffe0e3;
+  color: #9c2431;
 }
 
 .approval-pipeline-summary {
@@ -10671,24 +10734,24 @@ tr.approval-pipeline-current td {
 
 .manager-quantity-table th:nth-child(1),
 .manager-quantity-table td:nth-child(1) {
-  width: 76px;
+  width: 108px;
 }
 
 .manager-quantity-table th:nth-child(2),
 .manager-quantity-table td:nth-child(2) {
-  width: 110px;
+  width: 76px;
   white-space: normal;
 }
 
 .manager-quantity-table th:nth-child(3),
 .manager-quantity-table td:nth-child(3) {
-  width: 46px;
+  width: 110px;
   white-space: normal;
 }
 
 .manager-quantity-table th:nth-child(4),
 .manager-quantity-table td:nth-child(4) {
-  width: 120px;
+  width: 46px;
   white-space: normal;
 }
 
@@ -10703,7 +10766,9 @@ tr.approval-pipeline-current td {
 .manager-quantity-wide-table thead tr:first-child th:nth-child(5),
 .manager-quantity-wide-table tbody td:nth-child(5),
 .manager-quantity-wide-table thead tr:first-child th:nth-child(6),
-.manager-quantity-wide-table tbody td:nth-child(6) {
+.manager-quantity-wide-table tbody td:nth-child(6),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(7),
+.manager-quantity-wide-table tbody td:nth-child(7) {
   position: sticky;
   z-index: 3;
   background: #fff;
@@ -10716,27 +10781,32 @@ tr.approval-pipeline-current td {
 
 .manager-quantity-wide-table thead tr:first-child th:nth-child(2),
 .manager-quantity-wide-table tbody td:nth-child(2) {
-  left: 76px;
+  left: 108px;
 }
 
 .manager-quantity-wide-table thead tr:first-child th:nth-child(3),
 .manager-quantity-wide-table tbody td:nth-child(3) {
-  left: 186px;
+  left: 184px;
 }
 
 .manager-quantity-wide-table thead tr:first-child th:nth-child(4),
 .manager-quantity-wide-table tbody td:nth-child(4) {
-  left: 232px;
+  left: 294px;
 }
 
 .manager-quantity-wide-table thead tr:first-child th:nth-child(5),
 .manager-quantity-wide-table tbody td:nth-child(5) {
-  left: 352px;
+  left: 340px;
 }
 
 .manager-quantity-wide-table thead tr:first-child th:nth-child(6),
 .manager-quantity-wide-table tbody td:nth-child(6) {
-  left: 562px;
+  left: 460px;
+}
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(7),
+.manager-quantity-wide-table tbody td:nth-child(7) {
+  left: 670px;
   box-shadow: 2px 0 0 #9aa9b2;
 }
 
@@ -10745,31 +10815,55 @@ tr.approval-pipeline-current td {
 .manager-quantity-wide-table thead tr:first-child th:nth-child(3),
 .manager-quantity-wide-table thead tr:first-child th:nth-child(4),
 .manager-quantity-wide-table thead tr:first-child th:nth-child(5),
-.manager-quantity-wide-table thead tr:first-child th:nth-child(6) {
+.manager-quantity-wide-table thead tr:first-child th:nth-child(6),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(7) {
   z-index: 6;
   background: #eaf1f5;
 }
 
+.manager-quantity-wide-table tbody tr.approval-pipeline-pending td:nth-child(-n + 7) {
+  background: #fff9df;
+}
+
+.manager-quantity-wide-table tbody tr.approval-pipeline-sent td:nth-child(-n + 7) {
+  background: #edf5ff;
+}
+
+.manager-quantity-wide-table tbody tr.approval-pipeline-approved td:nth-child(-n + 7),
+.manager-quantity-wide-table tbody tr.approval-pipeline-po td:nth-child(-n + 7) {
+  background: #eef8f2;
+}
+
+.manager-quantity-wide-table tbody tr.approval-pipeline-rejected td:nth-child(-n + 7) {
+  background: #fff0f1;
+}
+
 .manager-quantity-table th:nth-child(5),
 .manager-quantity-table td:nth-child(5) {
-  width: 210px;
+  width: 120px;
   white-space: normal;
 }
 
 .manager-quantity-table th:nth-child(6),
 .manager-quantity-table td:nth-child(6) {
-  width: 86px;
+  width: 210px;
   white-space: normal;
 }
 
 .manager-quantity-table th:nth-child(7),
 .manager-quantity-table td:nth-child(7) {
-  width: 92px;
+  width: 86px;
   white-space: normal;
 }
 
 .manager-quantity-table th:nth-child(8),
 .manager-quantity-table td:nth-child(8) {
+  width: 92px;
+  white-space: normal;
+}
+
+.manager-quantity-table th:nth-child(9),
+.manager-quantity-table td:nth-child(9) {
   width: 100px;
   white-space: normal;
 }

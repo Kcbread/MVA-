@@ -618,8 +618,6 @@
               </div>
               <div id="managerDemandCostExplain" class="decision-explain-strip"></div>
               <div id="managerDemandCostUnitSummary" class="demand-cost-unit-summary"></div>
-              <div id="managerDemandCostCarryoverCompare" class="demand-cost-carryover-compare"></div>
-              <div id="managerDemandCostLineCompare" class="demand-cost-line-compare"></div>
               <div data-horizontal-nav="managerDemandCost" class="horizontal-table-nav-anchor"></div>
               <div class="table-wrap table-shell demand-cost-wrap">
                 <table class="data-table table-fixed dense-dashboard-table demand-cost-table" id="managerDemandCostTable">
@@ -628,7 +626,6 @@
                   <tbody id="managerDemandCostRows"></tbody>
                 </table>
               </div>
-              <div id="managerDemandCostCarryoverLedger" class="demand-cost-carryover-ledger"></div>
             </section>
             </section>
 
@@ -695,114 +692,6 @@
                 <table class="data-table manager-quantity-table manager-quantity-wide-table" id="managerQuantityMatrixTable">
                   <thead id="managerQuantityHead"></thead>
                   <tbody id="managerQuantityRows"></tbody>
-                </table>
-              </div>
-              <div id="managerQuantityCarryoverLedger" class="demand-cost-carryover-ledger compact"></div>
-            </section>
-          </section>
-
-          <section class="manager-panel" data-manager-panel="demand">
-            <div class="manager-progress-toolbar">
-              <div class="toolbar-label">Scope Filters</div>
-              <div class="manager-progress-controls">
-                <label>
-                  Year Project
-                  <select id="managerProgressYearFilter">
-                    <option value="">All year projects</option>
-                  </select>
-                </label>
-                <label>
-                  Project
-                  <select id="managerProgressProjectFilter">
-                    <option value="">All projects</option>
-                  </select>
-                </label>
-                <label>
-                  Process
-                  <select id="managerProgressProcessFilter">
-                    <option value="">All process</option>
-                  </select>
-                </label>
-                <label>
-                  Stage
-                  <select id="managerProgressStageFilter">
-                    <option value="">All stage</option>
-                  </select>
-                </label>
-                <label>
-                  Department
-                  <select id="managerProgressDepartmentFilter">
-                    <option value="">All departments</option>
-                  </select>
-                </label>
-              </div>
-              <div class="manager-risk-controls" aria-label="Demand risk filters">
-                <label class="risk-toggle">
-                  <input id="managerProgressLateOnly" type="checkbox" />
-                  <span>Late only</span>
-                </label>
-                <label class="risk-toggle">
-                  <input id="managerProgressPendingOnly" type="checkbox" />
-                  <span>Pending only</span>
-                </label>
-                <button class="ghost" type="button" data-action="clearManagerProgressFilters">Clear Filters</button>
-              </div>
-            </div>
-            <div class="summary-grid" id="managerStageSummary"></div>
-            <div class="table-wrap manager-cost-wrap">
-              <table class="data-table manager-cost-table" id="managerDemandOverviewTable">
-                <thead>
-                  <tr>
-                    <th>Year Project</th>
-                    <th>Project</th>
-                    <th>Item</th>
-                    <th>Department</th>
-                    <th>Quantity</th>
-                    <th>Submitted / Received Date</th>
-                    <th>Pending Owner</th>
-                    <th>Current Stage</th>
-                    <th>Days Pending</th>
-                    <th>Quote Status</th>
-                    <th>Next Action</th>
-                    <th>Pending / Risk Reason</th>
-                    <th>Detail</th>
-                  </tr>
-                </thead>
-                <tbody id="managerStageRows"></tbody>
-              </table>
-            </div>
-            <section class="work-panel manager-stage-detail-panel" id="managerStageDetailPanel" hidden>
-              <div class="panel-title section-head-tight">
-                <div>
-                  <h3 id="managerStageDetailTitle">Demand Detail</h3>
-                </div>
-                <button class="ghost" type="button" data-action="closeManagerStageDetail">Close</button>
-              </div>
-              <div class="table-wrap stage-demand-wrap">
-                <table class="data-table stage-demand-table" id="managerStageDetailTable">
-                  <thead>
-                    <tr>
-                      <th>Phase</th>
-                      <th>CG</th>
-                      <th>BG</th>
-                      <th>FATP</th>
-                      <th>Test</th>
-                      <th>Hybrid</th>
-                      <th>Auto</th>
-                      <th>ENG Pack</th>
-                      <th>Zombie</th>
-                      <th>Laser_pico</th>
-                      <th>Rework</th>
-                      <th>Repair</th>
-                      <th>WH</th>
-                      <th>Buffer</th>
-                      <th>Total Demand for EQ</th>
-                      <th>Stock</th>
-                      <th>Actual Need QTY</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody id="managerStageDetailRows"></tbody>
                 </table>
               </div>
             </section>
@@ -1403,7 +1292,7 @@
           </div>
           <div class="inner-tabs price-review-tabs" aria-label="Price review sections">
             <button class="inner-tab active" data-price-review-tab="pending">Review Queue</button>
-            <button class="inner-tab" data-price-review-tab="projectReview" data-budget-label="Project Review">Project Review</button>
+            <button class="inner-tab" data-price-review-tab="projectReview">Pipeline Evidence</button>
             <button class="inner-tab" data-price-review-tab="history">Review History</button>
           </div>
 
@@ -1502,7 +1391,7 @@
             <section class="work-panel">
               <div class="panel-title">
                 <div>
-                  <h3 id="priceReviewApprovedTitle" data-budget-label="Project Review">Project Review</h3>
+                  <h3 id="priceReviewApprovedTitle">Pipeline Evidence</h3>
                   <p class="muted">Role-visible project rows with shared quantity evidence, pipeline status, and scoped item drilldown.</p>
                 </div>
                 <span class="record-count" id="priceReviewApprovedCount">0 rows</span>
@@ -1516,7 +1405,7 @@
                   </div>
                   <span class="status-pill info" id="priceReviewAnalysisScope">Select a row</span>
                 </div>
-                <div class="approval-quantity-view-tabs" role="tablist" aria-label="Project Review quantity views">
+                <div class="approval-quantity-view-tabs" role="tablist" aria-label="Pipeline evidence quantity views">
                   <button class="inner-tab active" type="button" data-approval-quantity-tab="dashboard" role="tab" aria-selected="true">Dashboard</button>
                   <button class="inner-tab" type="button" data-approval-quantity-tab="mfg" role="tab" aria-selected="false">MFG Station Detail</button>
                   <button class="inner-tab" type="button" data-approval-quantity-tab="nonMfg" role="tab" aria-selected="false">Non-MFG Department Detail</button>

@@ -427,20 +427,18 @@ const roleWorkspaceConfigs = {
   dri: {
     mainViews: ["priceReview"],
     defaultPriceReviewTab: "pending",
-    priceReviewTabs: ["pending", "projectReview", "history"],
+    priceReviewTabs: ["pending", "history"],
     priceReviewTabLabels: {
-      pending: "Review Queue",
-      projectReview: "Project Review",
+      pending: "Dept Review",
       history: "Review History",
     },
   },
   projectDri: {
     mainViews: ["priceReview"],
     defaultPriceReviewTab: "pending",
-    priceReviewTabs: ["pending", "projectReview", "history"],
+    priceReviewTabs: ["pending", "history"],
     priceReviewTabLabels: {
-      pending: "Review Queue",
-      projectReview: "Project Review",
+      pending: "Budget Review",
       history: "Review History",
     },
   },
@@ -4470,10 +4468,12 @@ function renderManagerStageTracking() {
 
 function managerQuantitySourceRows() {
   const sourceRows = Array.isArray(priceReviewAnalysisRowsOverride) ? priceReviewAnalysisRowsOverride : requests;
+  const allowReviewStatusRows = Array.isArray(priceReviewAnalysisRowsOverride);
   return sourceRows.filter((row) => {
     const status = row.status || "";
     return status
-      && !["Draft", "Rejected", USER_CANCELLED_REQUEST, "Cancelled"].includes(status)
+      && !["Draft", USER_CANCELLED_REQUEST, "Cancelled"].includes(status)
+      && (allowReviewStatusRows || status !== "Rejected")
       && !isSupersededRequest(row)
       && stationBreakdownHasDemand(row);
   });
@@ -5631,6 +5631,7 @@ function renderManagerDemandCostHead() {
   const colgroup = document.getElementById("managerDemandCostColgroup");
   if (colgroup) {
     colgroup.innerHTML = `
+      <col class="demand-cost-col-review-status">
       <col class="demand-cost-col-actions">
       <col class="demand-cost-col-request">
       <col class="demand-cost-col-eng">
@@ -5644,11 +5645,12 @@ function renderManagerDemandCostHead() {
   }
   head.innerHTML = `
     <tr>
-      <th colspan="6" class="demand-cost-phase-head">Item Master</th>
+      <th colspan="8" class="demand-cost-phase-head">Item Master</th>
       <th colspan="${QUANTITY_DASHBOARD_UNITS.length}" class="demand-cost-phase-head">MFG Total / Non-MFG Department Cost by Selected Phase</th>
       <th colspan="2" class="demand-cost-phase-head shared-total-highlight shared-total-highlight--head">Total</th>
     </tr>
         <tr>
+          <th>Review Status</th>
           <th>Actions</th>
           <th>Request ID</th>
           <th>ENG Name</th>
@@ -5665,7 +5667,7 @@ function renderManagerDemandCostHead() {
 function syncManagerDemandCostTableWidth() {
   const table = document.getElementById("managerDemandCostTable");
   if (!table) return;
-  const width = 864 + (QUANTITY_DASHBOARD_UNITS.length * 108) + 236;
+  const width = 972 + (QUANTITY_DASHBOARD_UNITS.length * 108) + 236;
   table.style.minWidth = `${width}px`;
   table.style.width = `${width}px`;
 }
@@ -5949,12 +5951,7 @@ function approvedRowsForRole(role = currentRole) {
   return [];
 }
 
-function priceReviewProjectRowsForRole(role = currentRole) {
-  const rows = [
-    ...priceReviewPendingRowsForRole(),
-    ...priceReviewAnalysisRows(role),
-    ...approvedRowsForRole(role),
-  ];
+function dedupeReviewRows(rows = []) {
   const seen = new Set();
   return rows.filter((row) => {
     const key = isPriceReviewStockRow(row)
@@ -5964,6 +5961,20 @@ function priceReviewProjectRowsForRole(role = currentRole) {
     seen.add(key);
     return true;
   });
+}
+
+function roleReviewRows(role = currentRole) {
+  if (role === "manager") return managerRows();
+  const rows = [
+    ...(role === currentRole ? priceReviewPendingRowsForRole() : []),
+    ...priceReviewAnalysisRows(role),
+    ...approvedRowsForRole(role),
+  ];
+  return dedupeReviewRows(rows);
+}
+
+function priceReviewProjectRowsForRole(role = currentRole) {
+  return roleReviewRows(role);
 }
 
 function normalizePriceReviewScopeValue(value) {
@@ -5992,8 +6003,12 @@ function priceReviewAnalysisBaseRows(role = currentRole) {
   }
   if (role === "projectDri") {
     return requests.filter((row) =>
-      priceReviewRequiresBudgetApprover(row)
-      && (Boolean(row.driApprovedAt) || Boolean(row.projectDriApprovedAt) || Boolean(row.priceEscalationRejectedAt) || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_PROJECT_DRI)
+      Boolean(row.projectDriApprovedAt)
+      || Boolean(row.priceEscalationRejectedAt)
+      || (
+        priceReviewRequiresBudgetApprover(row)
+        && (Boolean(row.driApprovedAt) || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_PROJECT_DRI)
+      )
     );
   }
   return [];
@@ -6011,7 +6026,10 @@ function priceReviewAnalysisRows(role = currentRole) {
       return normalizePriceReviewScopeValue(rowDemandDepartment(row)) === normalizedScope;
     }
     if (scopeType === "project-mapping") {
-      if (scopeValue === "Temporary Budget") return priceReviewRequiresBudgetApprover(row);
+      if (scopeValue === "Temporary Budget") {
+        return priceReviewRequiresBudgetApprover(row)
+          || (role === "projectDri" && Boolean(row.projectDriApprovedAt || row.priceEscalationRejectedAt));
+      }
       const normalizedProject = normalizePriceReviewScopeValue(row.project || "");
       const normalizedDepartment = normalizePriceReviewScopeValue(rowDemandDepartment(row));
       const normalizedCategory = normalizePriceReviewScopeValue(row.priceThresholdCategory || "");
@@ -6301,6 +6319,8 @@ function approvalQuantityMatrixRows(sourceRows = []) {
         actionHtml: "",
         detailHtml: "",
         requestMeta: priceReviewPendingOwner(request),
+        reviewStatusHtml: reviewStatusCellHtml(request, currentRole),
+        reviewStatusLabel: reviewStatusForRole(request, currentRole).label,
         pipeline,
       });
     }
@@ -6585,9 +6605,12 @@ function renderManagerDemandCostDashboard({ showCarryoverEvidence = false } = {}
     }, { originalQty: 0, carryoverQty: 0, effectiveQty: 0, originalAmount: 0, savingAmount: 0, effectiveAmount: 0, carryoverRows: [] });
     rowImpact.status = managerCarryoverStatusBucket(rowImpact.carryoverRows);
     rowImpact.flowLabels = managerCarryoverFlowLabels(rowImpact.carryoverRows);
+    const reviewStatus = reviewStatusForRole(row.request || {}, currentRole);
+    const pipelineClass = `approval-pipeline-${reviewStatus.tone || "pending"}`;
     const activeRowClass = row.requestId === selectedManagerRequestId ? "active-row" : "";
     return `
-      <tr class="${activeRowClass}" data-manager-authorized-select-row="${htmlAttr(row.requestId || "")}">
+      <tr class="${activeRowClass} ${pipelineClass}" data-manager-authorized-select-row="${htmlAttr(row.requestId || "")}" data-review-status="${htmlAttr(reviewStatus.label || "")}">
+        <td class="review-status-table-cell">${reviewStatusCellHtml(row.request || {}, currentRole)}</td>
         <td class="cell-action item-quantity-inline-actions">${itemQuantityReviewActionButtons(row.requestId || "", row.keyId)}</td>
         <td class="cell-identity demand-cost-request-cell"><strong>${htmlText(row.requestId || "-")}</strong><div class="reason-text">${htmlText(row.project || "-")}</div></td>
         <td title="${htmlAttr(`${row.item} / ${row.project}`)}"><strong>${row.item}</strong><div class="reason-text">${row.project}</div></td>
@@ -6603,7 +6626,7 @@ function renderManagerDemandCostDashboard({ showCarryoverEvidence = false } = {}
         <td class="demand-cost-total-cell shared-total-highlight shared-total-highlight--cell ${managerDemandCostCellClass(rowImpact)}" title="${htmlAttr(managerDemandCostImpactTitle(rowImpact))}">${renderManagerDemandCostValue(rowImpact, filters.viewMode, { hasPrice: Boolean(row.unitPrice) })}</td>
         <td class="demand-cost-detail-cell"><button class="mini return" type="button" data-manager-demand-cost-unit="${htmlAttr(row.item)}">Open Matrix</button></td>
       </tr>`;
-  }).join("") : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length + 9}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
+  }).join("") : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length + 10}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
   refreshGlobalHorizontalNavigators();
 }
 
@@ -6772,6 +6795,7 @@ function renderManagerQuantityColgroup() {
   const columns = managerQuantityPhaseColumns();
   return `
     <colgroup>
+      <col style="width:108px" />
       <col style="width:76px" />
       <col style="width:110px" />
       <col style="width:46px" />
@@ -6787,14 +6811,14 @@ function renderManagerQuantityColgroup() {
 }
 
 function managerQuantityTableWidth() {
-  const fixedColumnsWidth = 76 + 110 + 46 + 120 + 210 + 86 + 92 + 100 + 52 + 62;
+  const fixedColumnsWidth = 108 + 76 + 110 + 46 + 120 + 210 + 86 + 92 + 100 + 52 + 62;
   const matrixWidth = managerQuantityVisibleStages().length
     * managerQuantityPhaseColumns().reduce((sum, column) => sum + managerQuantityColumnWidth(column), 0);
   return fixedColumnsWidth + matrixWidth;
 }
 
 function managerQuantityColumnCount() {
-  const fixedLeftColumns = 8;
+  const fixedLeftColumns = 9;
   const rightColumns = 2;
   return fixedLeftColumns + (managerQuantityVisibleStages().length * managerQuantityPhaseColumns().length) + rightColumns;
 }
@@ -7659,7 +7683,7 @@ function renderManagerQuantityHead() {
   if (!head) return;
   const stages = managerQuantityVisibleStages();
   const groupColspans = managerQuantityGroupColspans();
-  const rowSpanHeaders = ["Actions", "Request ID", "Project", "Item", "Spec", "Changes", "Unit Price", "Est. Amount"];
+  const rowSpanHeaders = ["Review Status", "Actions", "Request ID", "Project", "Item", "Spec", "Changes", "Unit Price", "Est. Amount"];
   head.innerHTML = `
     <tr>
       ${rowSpanHeaders.map((label) => `<th class="quantity-sticky-head" rowspan="3">${label}</th>`).join("")}
@@ -7703,8 +7727,10 @@ function renderManagerQuantityMatrix({ showCarryoverEvidence = false } = {}) {
       const pipeline = approvalPipelineStatus(representative, currentRole);
       const pipelineClass = `approval-pipeline-${pipeline.tone || "pending"}`;
       const pipelineTitle = approvalPipelineTitle(representative, currentRole);
+      const reviewStatus = reviewStatusForRole(representative, currentRole);
       return `
-      <tr class="${expandedManagerQuantityRows.has(`${group.keyId}:item`) || expandedManagerQuantityRows.has(`${group.keyId}:spec`) ? "quantity-row-expanded" : ""} ${pipelineClass}" data-approval-pipeline-status="${htmlAttr(pipeline.tone || "pending")}" title="${htmlAttr(pipelineTitle)}">
+      <tr class="${expandedManagerQuantityRows.has(`${group.keyId}:item`) || expandedManagerQuantityRows.has(`${group.keyId}:spec`) ? "quantity-row-expanded" : ""} ${pipelineClass}" data-approval-pipeline-status="${htmlAttr(pipeline.tone || "pending")}" data-review-status="${htmlAttr(reviewStatus.label || "")}" title="${htmlAttr(pipelineTitle)}">
+        <td class="review-status-table-cell">${reviewStatusCellHtml(representative, currentRole)}</td>
         <td class="cell-action item-quantity-inline-actions">${itemQuantityReviewActionButtons(representative.id || "", group.keyId)}</td>
         <td class="cell-identity manager-quantity-request-cell"><strong>${htmlText(group.requestId || representative.id || "-")}</strong><div class="reason-text">${htmlText(group.project || "-")}</div></td>
         <td>${group.project}</td>
@@ -12065,6 +12091,47 @@ function managerAuditTimelineHtml(row) {
     </div>`;
 }
 
+function managerCarryoverEvidenceHtml(row = {}) {
+  const rows = managerCarryoverRowsForScope({
+    project: row.project || "",
+    item: row.name || row.item || "",
+  }, true);
+  if (!rows.length) return "";
+  return `
+    <section class="work-panel detail-subsection">
+      <div class="panel-title section-head-tight">
+        <div>
+          <h4>Carryover Evidence</h4>
+          <p class="panel-subcopy">Contextual trace only. Demand Analysis stays focused on baseline demand and station tables.</p>
+        </div>
+      </div>
+      <div class="table-wrap compact-wrap">
+        <table class="data-table workflow-table carryover-ledger-table">
+          <thead>
+            <tr>
+              <th>Flow</th>
+              <th>Phase / Unit</th>
+              <th>Qty</th>
+              <th>Status</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((item) => `
+              <tr>
+                <td class="cell-identity">${htmlText(item.sourceLine || "-")} → ${htmlText(item.targetLine || "-")}</td>
+                <td>${htmlText(STAGE_LABELS[item.phase] || item.phase || "-")}<div class="reason-text">${htmlText(item.stationOrUnit || "-")}</div></td>
+                <td class="cell-number">${clampQty(item.carryoverQty)}</td>
+                <td><span class="${managerCarryoverStatusClass(item.reviewStatus === "Pending DRI" || item.reviewStatus === "Pending Dept DRI" ? "Pending Dept DRI" : item.status)}">${managerCarryoverStatusLabel(item.reviewStatus === "Pending DRI" || item.reviewStatus === "Pending Dept DRI" ? "Pending Dept DRI" : item.status)}</span></td>
+                <td class="cell-audit-reason"><div class="audit-reason-text">${htmlText(item.reason || "-")}</div></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
 function stationBreakdownDetailHtml(row) {
   const rows = stationBreakdownRowsForDetail(row);
   if (!rows.length) return `<div class="empty-state">No station breakdown has been entered for this request.</div>`;
@@ -13513,15 +13580,19 @@ function renderManagerQueueRows(rows) {
 	    </tr>`).join("") : `<tr><td colspan="9" class="empty-cell">No requests match the selected filters.</td></tr>`;
 }
 
-function approvalQuantityPickerItemHtml(row) {
+function approvalQuantityPickerItemHtml(row, role = currentRole) {
   const identity = row.name || row.item || "Review row";
   const spec = isPriceReviewStockRow(row) ? (row.spec || "") : (userVisibleItemDetail(row) || itemDetail(row) || "");
   const qty = isPriceReviewStockRow(row) ? warehouseTransactionQty(row) : totalQty(row);
   const scope = isPriceReviewStockRow(row) ? warehouseTargetLabel(row) : minDemandUnitSummary(row);
+  const workflow = !isPriceReviewStockRow(row) && role === "manager" ? workflowStatusForRow(row, "costOwner") : null;
+  const workflowText = workflow
+    ? `${workflow.pendingOwner || "-"} · ${workflow.currentStage || "-"} · ${workflow.daysPending === null || workflow.daysPending === undefined ? "Done" : `${workflow.daysPending}d`}`
+    : "";
   return `
     <span class="approval-quantity-chip-primary">${htmlText(identity)}</span>
     <span class="approval-quantity-chip-secondary">${htmlText(row.id || row.targetRequestId || "-")} · Qty ${htmlText(qty)}</span>
-    <span class="approval-quantity-chip-tertiary">${htmlText([scope, spec].filter(Boolean).join(" · "))}</span>`;
+    <span class="approval-quantity-chip-tertiary">${htmlText([scope, workflowText, spec].filter(Boolean).join(" · "))}</span>`;
 }
 
 function approvalQuantityPickerMetaHtml(row, role = currentRole) {
@@ -13535,6 +13606,22 @@ function approvalQuantityPickerMetaHtml(row, role = currentRole) {
   const next = isPriceReviewStockRow(row) ? warehouseOwnerLabel(row) : row.nextStep || managerQueueNextStep(row);
   const minUnitLabel = isPriceReviewStockRow(row) ? "Target" : minDemandUnitLabel(row);
   const minUnitValue = isPriceReviewStockRow(row) ? warehouseTargetLabel(row) : minDemandUnitValue(row);
+  const workflow = !isPriceReviewStockRow(row) && role === "manager" ? workflowStatusForRow(row, "costOwner") : null;
+  if (workflow) {
+    const daysLabel = workflow.daysPending === null || workflow.daysPending === undefined ? "Done" : `${workflow.daysPending}d`;
+    return `
+      <div class="approval-quantity-selected-identity">
+        <strong>${htmlText(row.name || row.item || "Selected row")}</strong>
+        <span>${htmlText(row.id || row.targetRequestId || "-")} · ${htmlText(row.project || row.targetProject || "-")}</span>
+      </div>
+      <div class="approval-quantity-selected-metrics">
+        <span><em>Current Owner</em><strong>${htmlText(workflow.pendingOwner || "-")}</strong></span>
+        <span><em>Current Stage</em><strong>${htmlText(workflow.currentStage || "-")}</strong></span>
+        <span><em>Aging</em><strong>${htmlText(daysLabel)}</strong></span>
+        <span><em>Quote</em><strong>${htmlText(workflow.quoteStatus || "-")}</strong></span>
+        <span><em>Next Action</em><strong>${htmlText(workflow.nextAction || next || "-")}</strong></span>
+      </div>`;
+  }
   return `
     <div class="approval-quantity-selected-identity">
       <strong>${htmlText(row.name || row.item || "Selected row")}</strong>
@@ -13583,7 +13670,7 @@ function renderApprovalQuantityRowPicker({
     title,
     helper,
     emptyText,
-    itemHtml: approvalQuantityPickerItemHtml,
+    itemHtml: (row) => approvalQuantityPickerItemHtml(row, role),
     metaHtml: (row) => approvalQuantityPickerMetaHtml(row, role),
     actionHtml,
   }) || "";
@@ -13613,8 +13700,8 @@ function renderManagerDemandAnalysisEvidence() {
     ensureSelectValue("managerDemandCostProjectFilter", reviewProject);
     ensureSelectValue("managerQuantityProjectFilter", reviewProject);
   }
-  renderManagerDemandCostDashboard({ showCarryoverEvidence: true });
-  renderManagerQuantityMatrix({ showCarryoverEvidence: true });
+  renderManagerDemandCostDashboard({ showCarryoverEvidence: false });
+  renderManagerQuantityMatrix({ showCarryoverEvidence: false });
 }
 
 function managerDecisionHistoryRows() {
@@ -15425,6 +15512,7 @@ function renderManagerDetail({ readonly = false } = {}) {
     </section>
     ${managerPhaseOverviewHtml(row)}
     ${managerBreakdownHtml(row)}
+    ${managerCarryoverEvidenceHtml(row)}
     <section class="work-panel detail-subsection">
       <div class="panel-title section-head-tight"><h4>Timeline / Evidence</h4></div>
       ${managerAuditTimelineHtml(row)}
@@ -19420,6 +19508,71 @@ function approvalPipelineTitle(row = {}, role = currentRole) {
   ].filter(Boolean).join(" / ");
 }
 
+function reviewStatusForRole(row = {}, role = currentRole) {
+  const pipeline = approvalPipelineStatus(row, role);
+  const rejected = row.status === "Rejected"
+    || row.deptDriReviewStatus === DEPT_DRI_SUBMISSION_REJECTED
+    || row.priceApprovalStatus === PRICE_ESCALATION_REJECTED
+    || row.costManagerAuthorizationStatus === COST_MANAGER_AUTH_REJECTED;
+  if (isPriceReviewStockRow(row)) {
+    const status = warehouseTransactionStatus(row);
+    return {
+      label: status === "Locked Use" ? "You approved" : status === "Rejected" ? "Rejected by Dept DRI" : "Pending Dept DRI",
+      secondary: status === "Locked Use" ? "Locked stock evidence" : warehouseOwnerLabel(row),
+      owner: pipeline.blockedAtOwner || warehouseOwnerLabel(row),
+      nextStep: pipeline.nextStep,
+      poStatus: pipeline.poStatus,
+      tone: pipeline.tone || "pending",
+      actionable: role === "dri" && isWarehousePendingUse(row),
+    };
+  }
+  if (role === "manager") {
+    if (row.costManagerAuthorizationStatus === COST_MANAGER_AUTH_REJECTED || row.costManagerRejectedAt) {
+      return { label: "Rejected by Cost Manager", secondary: row.costManagerRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "rejected", actionable: false };
+    }
+    if (row.costManagerAuthorizedAt || row.costManagerAuthorizationStatus === COST_MANAGER_AUTH_APPROVED) {
+      return { label: "You authorized", secondary: `Sent to ${pipeline.nextOwner || "OM"}`, owner: pipeline.blockedAtOwner || pipeline.nextOwner || "OM", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
+    }
+    if (isCostManagerAuthorizationPending(row)) {
+      return { label: "Pending Cost Manager", secondary: "Dept DRI approved", owner: "Cost Manager", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "pending", actionable: true };
+    }
+    return { label: pipeline.decisionStatus || "Dept DRI approved", secondary: pipeline.nextStep || "", owner: pipeline.blockedAtOwner || pipeline.nextOwner || "-", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone || "pending", actionable: false };
+  }
+  if (role === "projectDri") {
+    if (rejected) {
+      return { label: "Rejected by Budget Approver", secondary: row.priceEscalationRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "rejected", actionable: false };
+    }
+    if (row.projectDriApprovedAt) {
+      return { label: "Final approved", secondary: `Sent to ${pipeline.nextOwner || "OM Export"}`, owner: pipeline.blockedAtOwner || pipeline.nextOwner || "OM Export", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
+    }
+    if (row.priceApprovalStatus === PRICE_ESCALATION_PENDING_PROJECT_DRI || row.driApprovedAt) {
+      return { label: "Pending Budget Approver", secondary: "Dept DRI approved", owner: "Budget Approver", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "pending", actionable: true };
+    }
+    return { label: "Dept DRI approved", secondary: pipeline.nextStep || "", owner: pipeline.blockedAtOwner || pipeline.nextOwner || "-", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone || "pending", actionable: false };
+  }
+  if (rejected) {
+    return { label: "Rejected by Dept DRI", secondary: row.deptDriReviewRejectReason || row.priceEscalationRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "rejected", actionable: false };
+  }
+  if (row.deptDriSubmissionApprovedAt || row.driApprovedAt) {
+    return { label: "You approved", secondary: `Sent to ${pipeline.nextOwner || "next owner"}`, owner: pipeline.blockedAtOwner || pipeline.nextOwner || "-", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
+  }
+  if (isDeptDriSubmissionPending(row) || row.priceDecisionStatus === PRICE_ESCALATION_REQUIRED || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_DRI) {
+    return { label: "Pending Dept DRI", secondary: pipeline.nextStep || "Waiting review", owner: "Dept DRI", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "pending", actionable: true };
+  }
+  return { label: pipeline.decisionStatus || "Pending Dept DRI", secondary: pipeline.nextStep || "", owner: pipeline.blockedAtOwner || pipeline.nextOwner || "-", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone || "pending", actionable: false };
+}
+
+function reviewStatusCellHtml(row = {}, role = currentRole) {
+  const status = reviewStatusForRole(row, role);
+  return `
+    <div class="review-status-cell review-status-${htmlAttr(status.tone || "pending")}">
+      <span class="review-status-label">${htmlText(status.label || "-")}</span>
+      <span class="review-status-secondary">${htmlText(status.secondary || `Current: ${status.owner || "-"}`)}</span>
+      <span class="review-status-owner">${htmlText(`Current: ${status.owner || "-"}`)}</span>
+      <span class="review-status-po">${htmlText(status.poStatus || "-")}</span>
+    </div>`;
+}
+
 function priceReviewPendingRowsForRole() {
   return availablePriceReviewQueues().flatMap((queue) => queue.rows);
 }
@@ -19439,6 +19592,15 @@ function syncSelectedPriceReviewRequest(rows = priceReviewQueueRows(), preferred
   updateApprovalReviewState(currentRole, { selectedRowId: selectedPriceReviewRequestId || "" });
 }
 
+function syncPriceReviewDecisionSelection(requestId = selectedPriceReviewRequestId) {
+  const rows = roleReviewRows(currentRole);
+  syncSelectedPriceReviewRequest(rows, requestId);
+  const selectedRow = rows.find((row) => row.id === selectedPriceReviewRequestId)
+    || requests.find((row) => row.id === requestId)
+    || null;
+  syncProjectContextFromRow("inline", selectedRow);
+}
+
 function syncPriceReviewSelectionMarkers(requestId = selectedPriceReviewRequestId) {
   document.querySelectorAll("[data-price-review-select], [data-price-review-select-row], [data-price-review-select-cell]").forEach((node) => {
     const nodeId = node.dataset.priceReviewSelect || node.dataset.priceReviewSelectRow || node.dataset.priceReviewSelectCell || "";
@@ -19456,6 +19618,7 @@ function isPriceReviewStockRow(row) {
 }
 
 function priceReviewActionCell(row) {
+  if (!reviewStatusForRole(row, currentRole).actionable) return pendingWorkActionButtons();
   if (isPriceReviewStockRow(row)) {
     return pendingWorkActionButtons([
       `<button class="mini approve" data-warehouse-candidate-lock="${row.id}">Approve</button>`,
@@ -19779,8 +19942,8 @@ function renderPriceReview() {
   if (pendingTab) pendingTab.textContent = roleSurface?.tabLabels?.pending || roleMeta.pendingTabLabel || "Review Workbench";
   const queues = ensureCurrentPriceReviewQueue();
   const activeQueue = priceReviewQueueMeta();
-  const projectRows = priceReviewProjectRowsForRole(currentRole);
-  const selectedRows = currentPriceReviewTab === "projectReview" ? projectRows : activeQueue.rows;
+  const projectRows = roleReviewRows(currentRole);
+  const selectedRows = projectRows;
   syncSelectedPriceReviewRequest(selectedRows);
   updateApprovalReviewState(currentRole, {
     activeTab: currentPriceReviewTab,
@@ -19788,7 +19951,7 @@ function renderPriceReview() {
     quantityTab: approvalQuantityReviewTab,
   });
   renderPriceReviewWorkspaceBanner(queues, activeQueue);
-  const pending = activeQueue.rows;
+  const pending = projectRows;
   const selectedRow = selectedRows.find((row) => row.id === selectedPriceReviewRequestId) || null;
   const selectedScope = priceReviewSelectedRowScope(selectedRow);
   const pendingHeader = document.getElementById("priceReviewPendingHeader");
@@ -19811,10 +19974,10 @@ function renderPriceReview() {
   const queueHelper = document.getElementById("priceReviewQueueHelper");
   if (queueHelper) {
     queueHelper.hidden = false;
-    queueHelper.textContent = activeQueue.rows.length
+    queueHelper.textContent = pending.length
       ? currentRole === "dri"
-        ? "Select an item in the item switcher to highlight it in Dashboard and drive station or department detail."
-        : "Pick a row below, then use Dashboard / MFG / Non-MFG to review and edit official quantity."
+        ? "Select an item to highlight it in Dashboard. Approved rows stay visible as read-only review status."
+        : "Pick a row below, then use Dashboard / MFG / Non-MFG to review status and official quantity."
       : `${activeQueue.label}: no rows are waiting.`;
   }
   const workspace = document.getElementById("priceReviewPendingWorkspace");
@@ -19834,7 +19997,7 @@ function renderPriceReview() {
       });
   }
   const approvedTitle = document.getElementById("priceReviewApprovedTitle");
-  if (approvedTitle) approvedTitle.textContent = "Project Review";
+  if (approvedTitle) approvedTitle.textContent = "Pipeline Evidence";
   const approvedCount = document.getElementById("priceReviewApprovedCount");
   if (approvedCount) approvedCount.textContent = `${projectRows.length} row${projectRows.length === 1 ? "" : "s"}`;
   const approvedWorkspace = document.getElementById("priceReviewApprovedWorkspace");
@@ -19914,7 +20077,7 @@ function applyPriceReviewDecision(requestId, action) {
       } : item);
       const latest = requests.find((item) => item.id === requestId);
       addHandoffHistory(latest, "Dept DRI submission rejected", reason);
-      syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
+      syncPriceReviewDecisionSelection(requestId);
       renderPriceReview();
       restoreApprovalViewport("priceReview");
       renderDepartment();
@@ -19939,7 +20102,7 @@ function applyPriceReviewDecision(requestId, action) {
     const latest = requests.find((item) => item.id === requestId);
     addHandoffHistory(latest, "Price escalation rejected", reason);
     addOmHistory(latest, "Price escalation rejected", reason);
-    syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
+    syncPriceReviewDecisionSelection(requestId);
     renderPriceReview();
     restoreApprovalViewport("priceReview");
     renderOmPurchasing();
@@ -19964,7 +20127,7 @@ function applyPriceReviewDecision(requestId, action) {
       }) : item);
       const latest = requests.find((item) => item.id === requestId);
       addHandoffHistory(latest, "Dept DRI submission approved", "Waiting Cost Manager final authorization.");
-      syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
+      syncPriceReviewDecisionSelection(requestId);
       renderPriceReview();
       restoreApprovalViewport("priceReview");
       renderDepartment();
@@ -19982,7 +20145,7 @@ function applyPriceReviewDecision(requestId, action) {
     const latest = requests.find((item) => item.id === requestId);
     addHandoffHistory(latest, "Dept DRI approved", "Waiting Budget Approver approval.");
     addOmHistory(latest, "Dept DRI approved", "Waiting Budget Approver approval.");
-    syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
+    syncPriceReviewDecisionSelection(requestId);
     renderPriceReview();
     restoreApprovalViewport("priceReview");
     renderOmPurchasing();
@@ -20008,7 +20171,7 @@ function applyPriceReviewDecision(requestId, action) {
   const latest = requests.find((item) => item.id === requestId);
   addHandoffHistory(latest, "Budget Approver approved", "Price escalation approved; row moved to Export Package.");
   addOmHistory(latest, "Budget Approver approved", "Price escalation approved; row moved to Export Package.");
-  syncSelectedPriceReviewRequest(priceReviewQueueRows(), requestId);
+  syncPriceReviewDecisionSelection(requestId);
   renderPriceReview();
   restoreApprovalViewport("priceReview");
   renderOmPurchasing();

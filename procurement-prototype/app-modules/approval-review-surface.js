@@ -1,5 +1,5 @@
 (function registerApprovalReviewSurfaceModule(root) {
-  const TAB_IDS = ["pending", "projectReview", "history"];
+  const REVIEW_HISTORY_TABS = ["pending", "history"];
 
   // ApprovalReviewRoleConfig is the single contract for role-specific review UI.
   const ROLE_CONFIGS = {
@@ -11,10 +11,9 @@
       shellMode: "inline",
       defaultTab: "pending",
       defaultQueue: "submission",
-      tabs: TAB_IDS,
+      tabs: REVIEW_HISTORY_TABS,
       tabLabels: {
-        pending: "Review Queue",
-        projectReview: "Project Review",
+        pending: "Dept Review",
         history: "Review History",
       },
       queueDefinitions: [
@@ -61,10 +60,9 @@
       shellMode: "inline",
       defaultTab: "pending",
       defaultQueue: "budget",
-      tabs: TAB_IDS,
+      tabs: REVIEW_HISTORY_TABS,
       tabLabels: {
-        pending: "Review Queue",
-        projectReview: "Project Review",
+        pending: "Budget Review",
         history: "Review History",
       },
       queueDefinitions: [

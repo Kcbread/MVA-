@@ -87,6 +87,7 @@ test("Cost Manager top-level tabs are consolidated", () => {
   assert.match(app, /function renderManagerReviewEvidencePanel/);
   assert.doesNotMatch(app, /data-approval-shell="manager"/);
   assert.match(app, /managerTabs:\s*\["review",\s*"history"\]/);
+  assert.doesNotMatch(managerView, /data-manager-panel="demand"|managerDemandOverviewTable|managerStageRows|managerProgressYearFilter/);
 });
 
 test("Dept DRI, Cost Manager, and Budget Approver use one approval review surface contract", () => {
@@ -100,6 +101,9 @@ test("Dept DRI, Cost Manager, and Budget Approver use one approval review surfac
   assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Dept Review"/);
   assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Cost Review"/);
   assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Budget Review"/);
+  assert.match(approvalReviewSurfaceModule, /const REVIEW_HISTORY_TABS = \["pending", "history"\]/);
+  assert.match(approvalReviewSurfaceModule, /pending:\s*"Dept Review"/);
+  assert.match(approvalReviewSurfaceModule, /pending:\s*"Budget Review"/);
   assert.match(approvalReviewSurfaceModule, /defaultQueue:\s*"submission"/);
   assert.match(approvalReviewSurfaceModule, /defaultQueue:\s*"authorization"/);
   assert.match(approvalReviewSurfaceModule, /defaultQueue:\s*"budget"/);
@@ -122,7 +126,7 @@ test("Dept DRI, Cost Manager, and Budget Approver use one approval review surfac
 test("Cost Manager review embeds protected Demand Analysis baseline instead of duplicate Project Context evidence", () => {
   const managerView = between(html, '<section class="view" data-view="manager" data-approval-review-role="manager">', '<section class="view" data-view="procurement">');
   const reviewPanel = between(managerView, 'data-manager-panel="review"', 'data-manager-panel="history"');
-  const analysisPanel = between(managerView, 'data-manager-panel="analysis"', 'data-manager-panel="demand"');
+  const analysisPanel = between(managerView, 'data-manager-panel="analysis"', 'data-manager-panel="setup"');
   assert.doesNotMatch(reviewPanel, /Cost Review Workbench/);
   assert.match(app, /renderViewTabs/);
   assert.match(reviewPanel, /id="managerApprovalQuantityTabs"/);
@@ -133,9 +137,21 @@ test("Cost Manager review embeds protected Demand Analysis baseline instead of d
   assert.match(analysisPanel, /id="managerQuantityMatrixTable"/);
   assert.match(analysisPanel, /id="managerDemandCostLineFilter"/);
   assert.match(analysisPanel, /id="managerQuantityLineFilter"/);
+  assert.doesNotMatch(analysisPanel, /managerDemandCostCarryoverLedger|managerQuantityCarryoverLedger|Confirmed Carryover Saving|Line Carryover Impact|Carryover Ledger/);
   assert.match(app, /function renderManagerDemandAnalysisEvidence/);
-  assert.match(app, /renderManagerDemandCostDashboard\(\{\s*showCarryoverEvidence:\s*true\s*\}\)/);
-  assert.match(app, /renderManagerQuantityMatrix\(\{\s*showCarryoverEvidence:\s*true\s*\}\)/);
+  assert.match(app, /renderManagerDemandCostDashboard\(\{\s*showCarryoverEvidence:\s*false\s*\}\)/);
+  assert.match(app, /renderManagerQuantityMatrix\(\{\s*showCarryoverEvidence:\s*false\s*\}\)/);
+  assert.match(app, /function reviewStatusForRole/);
+  assert.match(app, /function reviewStatusCellHtml/);
+  assert.match(app, /function roleReviewRows/);
+  assert.match(app, /<th>Review Status<\/th>/);
+  assert.match(app, /"Review Status", "Actions", "Request ID"/);
+  assert.match(fs.readFileSync("app-modules/approval-quantity-review.js", "utf8"), /<th>Review Status<\/th>/);
+  assert.doesNotMatch(app, /Project Status/);
+  assert.match(styles, /\.demand-cost-col-review-status/);
+  assert.match(styles, /\.review-status-cell/);
+  assert.match(app, /function managerCarryoverEvidenceHtml/);
+  assert.match(app, /Current Owner[\s\S]*Current Stage[\s\S]*Aging[\s\S]*Next Action/);
   assert.doesNotMatch(app, /renderManagerReviewEvidencePanel\(selectedRow,\s*rows\)/);
   assert.match(app, /demand-cost-col-request/);
   assert.match(app, /<th>Request ID<\/th>/);
@@ -147,6 +163,11 @@ test("Cost Manager review embeds protected Demand Analysis baseline instead of d
   assert.match(app, /managerDemandCostRows\(\)[\s\S]*filters\.requestLine/);
   assert.match(app, /managerQuantityFilteredEntries\(\)[\s\S]*filters\.requestLine/);
   assert.match(app, /function approvedRowsForRole/);
+  assert.match(app, /You approved/);
+  assert.match(app, /You authorized/);
+  assert.match(app, /Final approved/);
+  assert.match(app, /Pending Cost Manager/);
+  assert.match(app, /Pending Budget Approver/);
   assert.match(app, /role === "manager"/);
   assert.match(app, /costManagerAuthorizedAt/);
   assert.match(app, /costManagerAuthorizationStatus === COST_MANAGER_AUTH_APPROVED/);
@@ -160,6 +181,10 @@ test("Approval quantity review module provides row picker plus three-layer matri
   assert.match(moduleSource, /approval-quantity-chip-action/);
   assert.doesNotMatch(moduleSource, /renderProjectItemMatrixOverview/);
   assert.match(moduleSource, /renderDashboardParts/);
+  assert.match(moduleSource, /<th>Review Status<\/th>/);
+  assert.match(moduleSource, /reviewStatusHtml/);
+  assert.match(moduleSource, /reviewStatusFallback/);
+  assert.doesNotMatch(moduleSource, /Project Status/);
   assert.match(moduleSource, /renderItemUnitMatrixParts/);
   assert.match(moduleSource, /\["dashboard", "Dashboard"\]/);
   assert.match(moduleSource, /\["mfg", "MFG Station Detail"\]/);
@@ -556,7 +581,7 @@ test("Shared table and button layout standard is enforced", () => {
   assert.doesNotMatch(departmentView, /data-table table-fixed form-table search-table/);
   assert.doesNotMatch(departmentView, /history-item-table/);
 
-  const analysis = between(html, 'data-manager-panel="analysis"', 'data-manager-panel="demand"');
+  const analysis = between(html, 'data-manager-panel="analysis"', 'data-manager-panel="setup"');
   assert.match(analysis, /table-wrap table-shell demand-cost-wrap/);
   assert.match(analysis, /data-horizontal-nav="managerDemandCost"/);
   assert.match(analysis, /data-table table-fixed dense-dashboard-table demand-cost-table/);
@@ -645,11 +670,12 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.match(html, /<option value="dri">Dept DRI<\/option>/);
   assert.match(html, /<option value="projectDri">Budget Approver<\/option>/);
   assert.match(html, /data-view="priceReview"/);
-  assert.match(html, /Review Queue/);
-  assert.match(html, /Project Review/);
   assert.doesNotMatch(html, /Approved Analysis/);
-  assert.match(app, /pending:\s*"Review Queue"/);
-  assert.match(html, /data-budget-label="Project Review"/);
+  assert.match(app, /priceReviewTabs:\s*\["pending", "history"\]/);
+  assert.match(app, /pending:\s*"Dept Review"/);
+  assert.match(app, /pending:\s*"Budget Review"/);
+  assert.match(approvalReviewSurfaceModule, /tabs:\s*REVIEW_HISTORY_TABS/);
+  assert.doesNotMatch(approvalReviewSurfaceModule, /projectReview:\s*"Project Review"/);
   assert.match(html, /Review History/);
   assert.match(html, /id="priceReviewQueueTabs"/);
   assert.match(app, /Submission Review/);
@@ -658,7 +684,6 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.match(app, /Budget Exception Approval/);
   assert.doesNotMatch(html, /data-price-review-tab="costDashboard"/);
   assert.doesNotMatch(html, /data-price-review-tab="stationMatrix"/);
-  assert.match(html, /data-price-review-tab="projectReview"/);
   assert.match(html, /data-price-review-panel="projectReview"/);
   assert.match(html, /id="priceReviewApprovedAnalysis"/);
   assert.match(html, /id="priceReviewInlineAnalysis"/);
@@ -785,9 +810,9 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.match(app, /currentRole === "dri"/);
   assert.match(app, /currentRole === "projectDri"/);
   assert.match(app, /data-price-review-queue/);
-  assert.match(app, /priceReviewTabs: \["pending", "projectReview", "history"\]/);
+  assert.match(app, /priceReviewTabs: \["pending", "history"\]/);
   const budgetApproverWorkspaceConfig = between(app, '  projectDri: {\n    mainViews: ["priceReview"],', '  buyer: {');
-  assert.match(budgetApproverWorkspaceConfig, /priceReviewTabs: \["pending", "projectReview", "history"\]/);
+  assert.match(budgetApproverWorkspaceConfig, /priceReviewTabs: \["pending", "history"\]/);
   assert.doesNotMatch(budgetApproverWorkspaceConfig, /costDashboard|stationMatrix/);
   assert.match(app, /function approvedRowsForRole/);
   assert.match(app, /function priceReviewProjectRowsForRole/);
