@@ -29,6 +29,19 @@ function normalizeSeedProjectCode(value) {
   return String(value || "").trim();
 }
 
+function isNonGExcelSeedRow(row = {}) {
+  return row?.sourceSheet === "NON G MVA EQ request" || row?.projectType === "Non-G";
+}
+
+function seedProjectCodeFromRow(row = {}) {
+  return normalizeSeedProjectCode(row.projectCode || row.sourceProject || row.project || "");
+}
+
+function seedYearProjectFromRow(row = {}) {
+  if (isNonGExcelSeedRow(row)) return seedProjectCodeFromRow(row);
+  return normalizeSeedProjectCode(row.yearProject || row.project || seedProjectCodeFromRow(row));
+}
+
 function seedStageKey(value) {
   const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
   const aliases = {
@@ -55,7 +68,7 @@ function deriveProjectConfigsFromRealRecords() {
   if (!records.length) return [];
   const configMap = new Map();
   records.forEach((row) => {
-    const code = normalizeSeedProjectCode(row?.project);
+    const code = seedYearProjectFromRow(row);
     if (!code) return;
     const stageKey = derivedSeedStageKey(row);
     const config = configMap.get(code) || {
@@ -1201,6 +1214,9 @@ function stableHash(value) {
 function realMvaPurchaseRecords() {
   const rows = Array.isArray(globalThis.REAL_MVA_PURCHASE_RECORDS) ? globalThis.REAL_MVA_PURCHASE_RECORDS : [];
   return rows.map((item, index) => {
+    const sourceSheet = item.sourceSheet || "Excel Source";
+    const projectCode = seedProjectCodeFromRow(item);
+    const yearProject = seedYearProjectFromRow(item) || projectCode || "P26";
     const stageQtys = STAGES.reduce((values, stage) => {
       values[stage] = clampQty(item[stage]);
       return values;
@@ -1208,12 +1224,12 @@ function realMvaPurchaseRecords() {
     const record = {
       id: item.id || `REAL-MVA-${String(index + 1).padStart(4, "0")}`,
       poNo: item.poNo || item.purRequestNo || `REAL-MVA-${String(index + 1).padStart(4, "0")}`,
-      project: item.project || "P26",
-      yearProject: item.yearProject || item.project || "P26",
-      projectCode: item.projectCode || item.sourceProject || "",
-      projectType: item.projectType || projectTypeFor(item.project || "P26"),
+      project: yearProject,
+      yearProject,
+      projectCode,
+      projectType: item.projectType || projectTypeFor(yearProject),
       sourceProject: item.sourceProject || item.yearProject || item.project || "",
-      sourceSheet: item.sourceSheet || "Excel Source",
+      sourceSheet,
       partNo: item.vendorPartNo || item.purRequestNo || "",
       materialNo: "",
       materialStatus: "Factory Material Tracking",
@@ -4020,6 +4036,7 @@ function yearProjectForRow(row = {}) {
 function projectCodeForRow(row = {}) {
   if (row.projectCode) return row.projectCode;
   if (row.targetProjectCode) return row.targetProjectCode;
+  if (row.projectType === "Non-G" || row.sourceSheet === "NON G MVA EQ request") return row.project || row.sourceProject || "";
   if (row.sourceSheet === "G Project MVA EQ Request" && row.sourceProject) return row.sourceProject;
   if (row.actualProject) return row.actualProject;
   return "";
@@ -4048,6 +4065,7 @@ function projectCodesForYearProject(yearProject = currentProject) {
     const code = projectCodeForRow(row);
     if (code) values.add(code);
   });
+  if (currentProjectType === "Non-G" && yearProject && !values.size) values.add(yearProject);
   return [...values].sort((left, right) => String(left).localeCompare(String(right)));
 }
 
@@ -4055,6 +4073,7 @@ function syncProjectCodeInput() {
   const input = document.getElementById("projectCodeInput");
   const datalist = document.getElementById("projectCodeOptions");
   const codes = projectCodesForYearProject(currentProject);
+  if (currentProjectType === "Non-G" && codes.length === 1) currentProjectCode = codes[0];
   if (input && input.value !== currentProjectCode) input.value = currentProjectCode;
   if (datalist) {
     datalist.innerHTML = codes.map((code) => `<option value="${htmlAttr(code)}"></option>`).join("");
