@@ -29,6 +29,19 @@ function normalizeSeedProjectCode(value) {
   return String(value || "").trim();
 }
 
+function isNonGExcelSeedRow(row = {}) {
+  return row?.sourceSheet === "NON G MVA EQ request" || row?.projectType === "Non-G";
+}
+
+function seedProjectCodeFromRow(row = {}) {
+  return normalizeSeedProjectCode(row.projectCode || row.sourceProject || row.project || "");
+}
+
+function seedYearProjectFromRow(row = {}) {
+  if (isNonGExcelSeedRow(row)) return seedProjectCodeFromRow(row);
+  return normalizeSeedProjectCode(row.yearProject || row.project || seedProjectCodeFromRow(row));
+}
+
 function seedStageKey(value) {
   const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
   const aliases = {
@@ -55,7 +68,7 @@ function deriveProjectConfigsFromRealRecords() {
   if (!records.length) return [];
   const configMap = new Map();
   records.forEach((row) => {
-    const code = normalizeSeedProjectCode(row?.project);
+    const code = seedYearProjectFromRow(row);
     if (!code) return;
     const stageKey = derivedSeedStageKey(row);
     const config = configMap.get(code) || {
@@ -1201,6 +1214,9 @@ function stableHash(value) {
 function realMvaPurchaseRecords() {
   const rows = Array.isArray(globalThis.REAL_MVA_PURCHASE_RECORDS) ? globalThis.REAL_MVA_PURCHASE_RECORDS : [];
   return rows.map((item, index) => {
+    const sourceSheet = item.sourceSheet || "Excel Source";
+    const projectCode = seedProjectCodeFromRow(item);
+    const yearProject = seedYearProjectFromRow(item) || projectCode || "P26";
     const stageQtys = STAGES.reduce((values, stage) => {
       values[stage] = clampQty(item[stage]);
       return values;
@@ -1208,12 +1224,12 @@ function realMvaPurchaseRecords() {
     const record = {
       id: item.id || `REAL-MVA-${String(index + 1).padStart(4, "0")}`,
       poNo: item.poNo || item.purRequestNo || `REAL-MVA-${String(index + 1).padStart(4, "0")}`,
-      project: item.project || "P26",
-      yearProject: item.yearProject || item.project || "P26",
-      projectCode: item.projectCode || item.sourceProject || "",
-      projectType: item.projectType || projectTypeFor(item.project || "P26"),
+      project: yearProject,
+      yearProject,
+      projectCode,
+      projectType: item.projectType || projectTypeFor(yearProject),
       sourceProject: item.sourceProject || item.yearProject || item.project || "",
-      sourceSheet: item.sourceSheet || "Excel Source",
+      sourceSheet,
       partNo: item.vendorPartNo || item.purRequestNo || "",
       materialNo: "",
       materialStatus: "Factory Material Tracking",
@@ -2056,6 +2072,93 @@ async function hydrateOmAssignmentState(role = currentRole) {
   }
 }
 
+function reviewWorkflowApiRoles() {
+  return ["dri", "manager", "projectDri", "admin"];
+}
+
+function normalizeWorkflowReviewBreakdown(row = {}) {
+  const demandType = demandTypeFor(row);
+  return createStationBreakdownEntry(row, {
+    id: row.id || `DB-SBD-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    demandType,
+    phase: phaseKeyFromInput(row.phase),
+    station: demandType === DEMAND_TYPE_MFG ? row.station : "",
+    demandUnit: demandType === DEMAND_TYPE_NON_MFG ? row.demandUnit : "",
+    qty: clampQty(row.qty),
+    requestLine: row.requestLine || "",
+    requesterDept: row.requesterDept || row.demandDepartment || "",
+    demandDepartment: row.demandDepartment || row.requesterDept || "",
+    remark: row.remark || "",
+  });
+}
+
+function ensureProjectConfigForWorkflowRow(row = {}) {
+  const code = row.project || row.projectCode || "";
+  if (!code || PROJECTS.includes(code)) return;
+  projectConfigs = [
+    ...projectConfigs,
+    {
+      code,
+      projectType: row.projectType || projectTypeFor(code),
+      currentPhase: STAGE_LABELS[currentStageForProject(code)] || "P1.0",
+      openToUser: true,
+      stageDates: {},
+    },
+  ];
+  PROJECTS = projectConfigs.map((project) => project.code);
+}
+
+function normalizeWorkflowReviewRow(row = {}) {
+  const stationBreakdown = Array.isArray(row.stationBreakdown)
+    ? row.stationBreakdown.map(normalizeWorkflowReviewBreakdown).filter((item) => stationBreakdownRowTotal(item) > 0)
+    : [];
+  const normalized = syncRowPhaseQtyFromStationBreakdown({
+    ...row,
+    id: row.id || row.packageCode || row.requestItemId,
+    project: row.project || row.projectCode || "-",
+    projectCode: row.projectCode || "",
+    yearProject: row.yearProject || row.project || row.projectCode || "",
+    projectType: row.projectType || projectTypeFor(row.project || row.projectCode),
+    name: row.name || row.itemName || "DB workflow row",
+    spec: row.spec || row.itemSpec || "",
+    status: row.status || "Submitted",
+    source: row.source || "UAT MySQL",
+    dbBacked: true,
+    requiredDeliveryDate: row.requiredDeliveryDate || row.needDate || "",
+    needDate: row.needDate || row.requiredDeliveryDate || "",
+    deptDriReviewStatus: row.deptDriReviewStatus || DEPT_DRI_SUBMISSION_PENDING,
+    deptDriReviewSubmittedAt: row.deptDriReviewSubmittedAt || row.submittedAt || "",
+    nextStep: row.nextStep || "Dept DRI submission review",
+    stationBreakdown,
+  });
+  ensureProjectConfigForWorkflowRow(normalized);
+  return normalized;
+}
+
+function mergeWorkflowReviewRows(rows = []) {
+  const normalizedRows = rows.map(normalizeWorkflowReviewRow).filter((row) => row.id);
+  if (!normalizedRows.length) return 0;
+  const ids = new Set(normalizedRows.map((row) => row.id));
+  requests = [
+    ...normalizedRows,
+    ...requests.filter((row) => !ids.has(row.id)),
+  ];
+  return normalizedRows.length;
+}
+
+async function hydrateWorkflowReviewRows(role = currentRole, { silent = true } = {}) {
+  if (!apiModeEnabled() || !reviewWorkflowApiRoles().includes(role)) return 0;
+  try {
+    const payload = await apiRequest("/api/workflow/review-rows");
+    const count = mergeWorkflowReviewRows(payload.rows || []);
+    if (!silent && count) showToast(`Loaded ${count} workflow review row${count === 1 ? "" : "s"} from UAT DB.`, "success");
+    return count;
+  } catch (error) {
+    if (!silent) showToast(`Workflow review API unavailable: ${error.message}`, "error");
+    return 0;
+  }
+}
+
 function normalizeUatFeedbackRow(row = {}) {
   return {
     id: row.id || `local-feedback-${Date.now()}`,
@@ -2531,6 +2634,7 @@ async function loginWithApi(identifier, password, role = "") {
   setSessionUser(payload.user);
   apiSessionReady = true;
   await hydrateOmAssignmentState(payload.user?.role || role);
+  await hydrateWorkflowReviewRows(payload.user?.role || role);
   await refreshUatFeedback({ review: ["omLeader", "admin"].includes(payload.user?.role), silent: true });
   return payload.user;
 }
@@ -2558,6 +2662,7 @@ async function restoreApiSession() {
     setSessionUser(payload.user);
     apiSessionReady = true;
     await hydrateOmAssignmentState(payload.user?.role);
+    await hydrateWorkflowReviewRows(payload.user?.role);
     await refreshUatFeedback({ review: ["omLeader", "admin"].includes(payload.user?.role), silent: true });
     setScreen("workspace");
     if (roleSelect && payload.user?.role) roleSelect.value = payload.user.role;
@@ -4020,6 +4125,7 @@ function yearProjectForRow(row = {}) {
 function projectCodeForRow(row = {}) {
   if (row.projectCode) return row.projectCode;
   if (row.targetProjectCode) return row.targetProjectCode;
+  if (row.projectType === "Non-G" || row.sourceSheet === "NON G MVA EQ request") return row.project || row.sourceProject || "";
   if (row.sourceSheet === "G Project MVA EQ Request" && row.sourceProject) return row.sourceProject;
   if (row.actualProject) return row.actualProject;
   return "";
@@ -4048,6 +4154,7 @@ function projectCodesForYearProject(yearProject = currentProject) {
     const code = projectCodeForRow(row);
     if (code) values.add(code);
   });
+  if (currentProjectType === "Non-G" && yearProject && !values.size) values.add(yearProject);
   return [...values].sort((left, right) => String(left).localeCompare(String(right)));
 }
 
@@ -4055,6 +4162,7 @@ function syncProjectCodeInput() {
   const input = document.getElementById("projectCodeInput");
   const datalist = document.getElementById("projectCodeOptions");
   const codes = projectCodesForYearProject(currentProject);
+  if (currentProjectType === "Non-G" && codes.length === 1) currentProjectCode = codes[0];
   if (input && input.value !== currentProjectCode) input.value = currentProjectCode;
   if (datalist) {
     datalist.innerHTML = codes.map((code) => `<option value="${htmlAttr(code)}"></option>`).join("");

@@ -158,6 +158,45 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   if (!projectCodeAudit.options.includes("4CS4") || !projectCodeAudit.options.includes("CGY4")) {
     throw new Error(`P26 Demo Line Project datalist should include 4CS4 / CGY4, got ${JSON.stringify(projectCodeAudit)}`);
   }
+  const nonGProjectAudit = await page.evaluate(async () => {
+    const projectTypeSelect = document.getElementById("projectTypeSelect");
+    const projectSelect = document.getElementById("projectSelect");
+    const projectCodeInput = document.getElementById("projectCodeInput");
+    const projectCodeOptions = document.getElementById("projectCodeOptions");
+    if (!projectTypeSelect || !projectSelect || !projectCodeInput || !projectCodeOptions) return { missing: true };
+    const originalType = projectTypeSelect.value;
+    const originalProject = projectSelect.value;
+    const originalProjectCode = projectCodeInput.value;
+    projectTypeSelect.value = "Non-G";
+    projectTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const nonGYearProjects = [...projectSelect.querySelectorAll("option")].map((option) => option.value);
+    projectSelect.value = "BM2";
+    projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const result = {
+      yearProjects: nonGYearProjects,
+      value: projectCodeInput.value,
+      options: [...projectCodeOptions.querySelectorAll("option")].map((option) => option.value),
+    };
+    projectTypeSelect.value = originalType;
+    projectTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    if ([...projectSelect.querySelectorAll("option")].some((option) => option.value === originalProject)) {
+      projectSelect.value = originalProject;
+      projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    projectCodeInput.value = originalProjectCode;
+    projectCodeInput.dispatchEvent(new Event("input", { bubbles: true }));
+    projectCodeInput.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return result;
+  });
+  if (nonGProjectAudit.missing) throw new Error("Requester toolbar should expose Non-G Year Project and Project controls.");
+  if (!nonGProjectAudit.yearProjects.includes("BM2") || nonGProjectAudit.value !== "BM2" || !nonGProjectAudit.options.includes("BM2")) {
+    throw new Error(`Non-G BM2 should use Project N-column as both scope and project code, got ${JSON.stringify(nonGProjectAudit)}`);
+  }
   const phaseHeaderAlign = await page.locator(".request-phase-group-head", { hasText: "EVT" }).first().evaluate((header) => getComputedStyle(header).textAlign);
   if (phaseHeaderAlign !== "center") throw new Error(`Requester phase group headers should be centered, got ${phaseHeaderAlign}`);
   await assertVisibleTableCellsDoNotOverlap(page, ".request-table", "User A worksheet initial table");

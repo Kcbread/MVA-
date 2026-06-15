@@ -380,6 +380,10 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.match(pickerModal, /<th class="picker-col-spec">Spec<\/th>/);
   assert.match(app, /function yearProjectForRow/);
   assert.match(app, /function projectCodeForRow/);
+  assert.match(app, /function seedYearProjectFromRow/);
+  assert.match(app, /function seedProjectCodeFromRow/);
+  assert.match(app, /sourceSheet === "NON G MVA EQ request" \|\| row\?\.projectType === "Non-G"/);
+  assert.match(app, /currentProjectType === "Non-G" && codes\.length === 1[\s\S]*currentProjectCode = codes\[0\]/);
   assert.match(app, /function rowMatchesCurrentRequesterProjectScope/);
   assert.match(app, /function requestWorksheetSourceHaystack\(row\)[\s\S]*normalize\(row\.name \|\| row\.item \|\| ""\)/);
   assert.match(app, /function managerProgressYearProject\(row\)[\s\S]*return yearProjectForRow\(row\)/);
