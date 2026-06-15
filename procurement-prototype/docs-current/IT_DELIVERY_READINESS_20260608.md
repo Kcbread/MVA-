@@ -1,5 +1,11 @@
 # IT Official Handoff Readiness - 2026-06-08
 
+## 2026-06-15 Latest Review
+
+Latest live-doc review: [`IT_DELIVERY_LATEST_REVIEW_20260615.md`](./IT_DELIVERY_LATEST_REVIEW_20260615.md).
+
+The live Markdown and SQL files under `docs-current/` and `db/` are the current reviewed handoff baseline. Existing zip files and `handoff-delivery/20260608/` are historical snapshots unless rebuilt after the 2026-06-15 review.
+
 ## Delivery Position
 
 This is a **no-source IT handoff**.

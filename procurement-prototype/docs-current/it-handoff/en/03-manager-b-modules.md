@@ -1,149 +1,43 @@
-# 03 Manager B Modules
+# 03 Cost Manager Modules
 
-## Current Manager B Tabs
+This file keeps the historical filename `03-manager-b-modules.md`, but the official role name is `Cost Manager`.
 
-- `Approval`
-  - `Pending Approval`
-  - `Approval History`
-- `Demand Analysis`
-  - `Cost Dashboard`
-  - `Station Matrix`
-- `Progress Tracking`
-- `Project Setup`
+## Current Cost Manager Tabs
 
-`Demand Analysis` is the default analysis workspace. Manager B should see the Excel-style `Item x Phase x Unit` cost dashboard first and open the station matrix only when quantity reasonableness needs drilldown.
+- `Cost Review`
+- `Review History`
 
-## `manager.approval`
+Cost Manager is the cost authorization owner after Dept DRI. It no longer has standalone top-level `Demand Analysis`, `Authorized Analysis`, `Progress Tracking`, or `Project Setup` tabs. Analysis evidence must be embedded inside `Cost Review`.
+
+## `costManager.costReview`
 
 | Field | Definition |
 | --- | --- |
-| Business Owner | Manager B |
-| Purpose | One approval workspace containing pending approval and approval history. |
-| Input Data | Pending rows where `status = Submitted`; history rows with manager decisions. |
-| Output / Mutation | `Approved` / `Rejected`, decision timestamp, manager reason, timeline. |
-| Downstream Consumers | Progress Tracking, Demand Analysis, OM queue, Approval History. |
+| Business Owner | Cost Manager |
+| Purpose | Final authorization or rejection for requester submissions already approved by Dept DRI. |
+| Input Data | Dept DRI approved request packages, request items, long-form station/demand-unit quantities, pricing/carryover/warehouse evidence. |
+| Output / Mutation | Cost Manager authorize / reject decision, reason, audit event, next workflow owner. |
+| Next Consumers | OM Leader intake / assignment, Requester Action Required, Review History, Workflow Status. |
 
-### Inner Sections
+### Layout Contract
 
-| Section | Meaning |
-| --- | --- |
-| `Pending Approval` | Row-level direct approval. |
-| `Approval History` | Read-only manager decisions; no requester add/submit behavior. |
+- Top area: Cost Review queue, selected-row detail, Authorize / Reject actions.
+- Bottom area: Demand Analysis evidence with `Demand Cost Dashboard` and `Station Matrix`.
+- `Demand Cost Dashboard` and `Station Matrix` must use `Review Status` as the first column.
+- `Review Status` represents approval-chain state only; it does not replace project status.
+- Authorized / rejected / in-pipeline rows remain visible in evidence and can be drilled into, but their actions are read-only.
 
-## `manager.approvalQueue`
-
-| Field | Definition |
-| --- | --- |
-| Business Owner | Manager B |
-| Purpose | Review and approve/reject OPM submitted demand. |
-| Input Data | Request rows where `status = Submitted`. |
-| Output / Mutation | `Approved` or `Rejected`, decision timestamp, manager reason, timeline. |
-| Downstream Consumers | Approval History, Progress Tracking, Demand Analysis, OM queue. |
-
-### Visible Columns
-
-| Column | Meaning |
-| --- | --- |
-| Request ID | Request row id. |
-| Project | Project/package. |
-| Requester | Submitter. |
-| Submitted At | Submission timestamp. |
-| Item | Item and spec. |
-| Affected Phases | Phases with quantity. |
-| Total Qty | Item total quantity. |
-| Status | Should be `Submitted`. |
-| Reject Reason | Reject reason input. |
-| Decision | `Approve` / `Reject to Requester / Dept DRI`. |
-| Contact | `Contact DRI`. |
-| Detail | Request detail. |
-
-### Actions
-
-| Action | Precondition | Success Result |
-| --- | --- | --- |
-| `Approve` | Row status = Submitted. | Row status = Approved; leaves Pending Approval; enters Approval History; remains in Progress Tracking and Demand Analysis. |
-| `Reject to Requester / Dept DRI` | Reason required. | Row status = Rejected; Requester can see reason; does not enter OM/Buyer. |
-| `Contact DRI` | Row has contact context. | Opens contact modal. |
-| `Detail` | Any row. | Opens detail modal with demand breakdown. |
-
-## `manager.progressTracking`
+## `costManager.demandCostDashboard`
 
 | Field | Definition |
 | --- | --- |
-| Purpose | Pivot-like procurement progress dashboard. |
-| Input Data | `G Project MVA EQ Request` raw rows + active system request rows. |
-| Output / Mutation | None, read-only. |
+| Purpose | Item x phase x unit quantity/amount evidence inside Cost Review. |
+| Input Data | Active submitted/approved/in-progress demand rows, USD canonical price, line count, locked/applied carryover/warehouse ledger. |
+| Output / Mutation | None; read-only evidence. |
 
-### KPI
+### Columns
 
-- Total Qty
-- Budget Done
-- PR Done
-- PO Done
-- Arrived
-- Late / At Risk
-
-### Visible Columns
-
-| Column | Meaning |
-| --- | --- |
-| Year Project | Excel year project. |
-| Project | Project code. |
-| Item | Item group. |
-| Department | Source department. |
-| Quantity | Demand quantity. |
-| Budget Progress | done/total + progress. |
-| PR Progress | done/total + progress. |
-| PO Progress | done/total + progress. |
-| Arrived Progress | received/total + progress. |
-| Delivery Status | Late / Pending / Not Arrived. |
-| Key Dates | Required / Deadline / ETA / DTA. |
-| Pending / Risk Reason | Manager-readable reason; do not show raw G/L directly. |
-| Detail | Raw row detail. |
-
-### Filters
-
-- Year Project
-- Project
-- Process
-- Stage
-- Department
-- Late only
-- Pending only
-
-## `manager.demandAnalysis`
-
-| Field | Definition |
-| --- | --- |
-| Purpose | Manager B demand analysis workspace that keeps managers out of the wide table until they drill down. |
-| Input Data | OPM submitted / approved / in-progress demand rows with long-form demand rows. |
-| Output / Mutation | None, read-only; inner tab changes only switch analysis view and filters. |
-
-### Inner Tabs
-
-| Inner Tab | Module ID | Meaning |
-| --- | --- | --- |
-| `Cost Dashboard` | `manager.costDashboard` | Default first layer following the Excel Dashboard sheet concept: item x phase x unit quantity/amount. |
-| `Station Matrix` | `manager.stationMatrix` | Second-layer Excel-like wide table for phase x station quantity reasonableness. |
-
-## `manager.costDashboard`
-
-| Field | Definition |
-| --- | --- |
-| Purpose | First layer inside `Demand Analysis`. Review each item by phase and MFG / Non-MFG unit columns first, then drill into Station Matrix. |
-| Input Data | OPM submitted / approved / in-progress demand rows with long-form demand rows. |
-| Output / Mutation | None, read-only; clicking a unit / row switches to `Station Matrix` and applies filters. |
-
-### Header Controls
-
-- Project
-- Phase
-- Line Count
-- View Mode: `Amount / Qty`
-- Currency Display
-
-### Dashboard Columns
-
+- `Review Status`
 - ENG Name
 - CN-ENG Name
 - VN Name
@@ -163,129 +57,58 @@
 - Total
 - Detail
 
-### Aggregation Rules
+### Rules
 
-- `Demand Type = MFG` quantity is fully aggregated into `MFG`; demand unit is ignored.
-- `Demand Type = Non-MFG` quantity is aggregated by `需求單位`.
-- Amount is calculated as `Qty x Unit Price USD x Line Count`. USD is the canonical cost value; VND display/export is converted through the monthly exchange rate.
-- Unit price source order: OM/PAS quote → history price → OPM estimate → price pending.
+- `Demand Type = MFG` quantity is aggregated into `MFG`.
+- `Demand Type = Non-MFG` quantity is aggregated by demand unit.
+- Amount = `Qty x Unit Price USD x Line Count`.
+- `Line` filter comes from `stationBreakdown[].requestLine` / `request_demand_lines.line_code`.
+- `Line Count` is a cost multiplier, not requester line scope.
+- Selected row only drives highlight / drill-in sync; it must not redefine dashboard columns or numeric semantics.
 
-### Cell Rules
-
-- In `Qty` mode, each unit cell shows total quantity for the selected phase.
-- In `Amount` mode, each unit cell shows `Qty x Unit Price x Line Count`.
-- Empty cells remain blank to preserve Excel-like density.
-- Clicking an item/unit cell switches to `Station Matrix` and applies `item + selected phase + unit` filters.
-
-## `manager.stationMatrix`
+## `costManager.stationMatrix`
 
 | Field | Definition |
 | --- | --- |
-| Purpose | Second layer inside `Demand Analysis`; check item phase/station quantity reasonableness. |
-| Input Data | OPM submitted demand rows with `stationBreakdown`. |
-| Output / Mutation | None, read-only. |
-
-### Data Inclusion
-
-Included:
-
-- `Submitted`
-- `Approved`
-- `In Progress`
-
-Excluded:
-
-- `Draft`
-- `Rejected`
-- `Cancelled`
-- Superseded rows
-
-### Main Table Columns
-
-- Project
-- Item
-- Spec
-- Unit Price
-- Est. Amount
-- P1.0 ~ MP expanded station matrix
-- Total Qty
-- Detail
-
-### Phase Matrix Columns
-
-Each phase expands into:
-
-| Group | Columns |
-| --- | --- |
-| Mainline | CG / BG / FATP / Test / Hybrid / Auto |
-| Packing | ENG Pack / Zombie / Laser_pico / Rework |
-| Support | Repair / WH |
-| Calc | Buffer / Total Demand / Stock / Actual Need |
+| Purpose | Phase x station / demand-unit detail for the selected item inside Cost Review. |
+| Input Data | Long-form quantity rows, selected row, or dashboard cell scope. |
+| Output / Mutation | None; read-only evidence. |
 
 ### Rules
 
-- `Buffer` / `Stock` remain blank when there is no official source.
-- `Total Demand` and `Actual Need` can initially equal the phase station total.
-- Phase filter shows only that phase's columns.
-- Station filter keeps rows with that station qty, but the matrix can still show full phase context.
-- Demand unit filter recalculates matrix values.
+- Preserve Excel-like density and horizontal scrolling.
+- MFG detail uses station columns.
+- Non-MFG detail uses department / demand-unit columns.
+- `Buffer` / `Stock` stay blank when there is no official source.
+- Pending warehouse / carryover is contextual evidence only; locked/applied ledger state is required before it affects effective cost.
 
-## `manager.unitDashboard`
-
-| Field | Definition |
-| --- | --- |
-| Purpose | Phase x demand unit summary for the selected item. |
-| Input Data | Same as `manager.quantityMatrix`. |
-| Output / Mutation | Clicking cells only updates filters; no data write. |
-
-### Columns
-
-`MFG / FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`
-
-### Cell
-
-- Qty
-- Line count
-
-## `manager.approvalHistory`
+## `costManager.itemQuantityReview`
 
 | Field | Definition |
 | --- | --- |
-| Purpose | View Manager decision records. |
-| Input Data | Rows with decision result. |
-| Output / Mutation | None, read-only. |
+| Purpose | Directly add / edit / delete formal stationBreakdown / phase qty / total qty in the review popup. |
+| Output / Mutation | Updates formal quantities and writes `itemQuantityReviewHistory` / audit metadata. |
 
-### Visible Information
+### Rules
 
-- Request ID
-- Project
-- Item
-- Phase Qty
-- Total Qty
-- Decision
-- Reason
-- Decision Time
-- Detail
+- Every direct edit must keep actor, time, before/after, and note.
+- Direct edit changes formal demand quantity, not a temporary UI override.
+- The popup can open from quantity, total, or item cells.
 
-## `manager.projectSetup`
+## Actions
 
-| Field | Definition |
-| --- | --- |
-| Purpose | Maintain project access and basic setup. |
-| Input Data | Project configs. |
-| Output / Mutation | Project open/close and phase setting. |
+| Action | Precondition | Success Result |
+| --- | --- | --- |
+| `Authorize` | Dept DRI approved row; Cost Manager scope is valid. | Moves to OM Leader intake / assignment. |
+| `Reject` | Reason required. | Returns to Requester Action Required with audit/timeline. |
+| `Detail` | Any row. | Opens selected-row detail; no workflow-state write. |
+| `Edit Quantity` | Formal quantity scope exists. | Updates long-form quantity and audit history. |
 
-## `shared.contactDri`
+## IT Acceptance Criteria
 
-| Field | Definition |
-| --- | --- |
-| Purpose | Lookup contact info without overloading main tables. |
-| Input Data | Requester row, DRI input rows, project/process contact rows. |
-| Output / Mutation | None. |
-
-### Contact Cards
-
-- Requester
-- Department DRI
-- Project / Process Contact
-- Request Context
+- Cost Manager top-level tabs are only `Cost Review / Review History`.
+- `Cost Review` contains queue/actions plus Demand Analysis evidence.
+- `Demand Cost Dashboard / Station Matrix` first column is `Review Status`.
+- No top-level `Demand Analysis`, `Authorized Analysis`, `Progress Tracking`, or `Project Setup`.
+- Rows appear in Cost Manager only after Dept DRI approve.
+- Cost Manager authorize routes to OM Leader intake; reject routes to Requester Action Required.

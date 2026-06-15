@@ -10,7 +10,7 @@ This is the locked 2026-06-08 version. Older references to `Source Panel`, `Add 
 | Purpose | Build a demand package inside the current Project / Line scope by choosing item/spec, entering all-phase station/unit quantities, saving draft, or submitting. |
 | Input Data | Project list, requester persona, OM catalog, purchase/history records, Lv123 taxonomy, warehouse/carryover evidence. |
 | Output / Mutation | Creates/updates `Draft` request rows; every non-zero qty cell writes one long-form `stationBreakdown` row. |
-| Downstream Consumers | Cost Manager Approval, Cost Manager Demand Analysis, OM Purchasing, Buyer Handoff. |
+| Next Consumers | Cost Manager Approval, Cost Manager Demand Analysis, OM Purchasing, Buyer Handoff. |
 
 ### Workspace Layout
 
@@ -158,7 +158,7 @@ Requester worksheet, Add Item popup, and Requester detail must not show:
 
 - Main worksheet only shows row hint badges.
 - Details and candidate creation live in row drawer/detail.
-- Warehouse/carryover evidence does not directly modify requester qty; formal impact is decided by downstream owner/review rules.
+- Warehouse/carryover evidence does not directly modify requester qty; formal impact is decided by Buyer Handoff owner/review rules.
 
 ## IT Acceptance Criteria
 

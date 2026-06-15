@@ -289,22 +289,22 @@ Export 時建立不可變快照，供 Accounting / Trading / customs audit。
 
 | 帳號 | role |
 | --- | --- |
-| user-a@uat.local | requester |
-| manager-b@uat.local | manager |
+| requester@uat.local | requester |
+| cost-manager@uat.local | costManager |
 | om-leader@uat.local | omLeader |
 | om-member@uat.local | omMember |
-| dri@uat.local | dri |
-| project-dri@uat.local | projectDri |
+| dept-dri@uat.local | deptDri |
+| budget-approver@uat.local | budgetApprover |
 | admin@uat.local | admin |
 
 Permission 原則：
 
 - Requester：建立需求、submit、看自己的 action required、confirm / cancel quote。
-- Manager：approve / reject submitted rows、看 demand analysis。
+- Cost Manager：authorize / reject submitted rows、看 demand analysis。
 - OM Leader：OM 全功能、可改 exchange rate。
 - OM Member：OM PAS / Quote / Export，但不可改 exchange rate。
-- DRI：處理 DRI price review。
-- Project DRI：處理 Project DRI price review。
+- Dept DRI：處理 first price exception review。
+- Budget Approver：處理 price / budget exception final approval。
 - Admin：UAT reset、帳號、設定。
 
 內測版本要停用一般使用者手動切換 role。role 應由登入帳號決定；若保留 Admin impersonation，必須寫入 audit event。
@@ -466,11 +466,11 @@ MVP 必記 event：
 ## OM Group 內測通過標準
 
 - 不同 browser profile 登入不同 role，可看到各自權限頁面。
-- User A 建立/送出後，Manager B 在另一台電腦可看到。
-- Manager approve 後，OM Member / Leader 在另一台電腦可看到 OM queue。
+- Requester 建立/送出後，Dept DRI / Cost Manager 在另一台電腦可看到。
+- Cost Manager authorize 後，OM Purchasing / OM Leader 在另一台電腦可看到 OM queue。
 - OM Member 儲存 PAS / quote 後，重新整理仍存在。
 - OM Leader 可更新匯率，OM Member 不可。
-- Price escalation 可由 DRI / Project DRI 依序處理。
+- Price escalation 可由 Dept DRI / Budget Approver 依序處理。
 - Detail / timeline 可看到誰在何時做了什麼。
 - Admin 可匯出 audit log。
 

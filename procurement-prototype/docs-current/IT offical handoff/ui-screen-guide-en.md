@@ -19,7 +19,7 @@ Tabs:
 | Request Workspace | Main demand input worksheet. |
 | Warehouse Inventory | Candidate / warehouse evidence view. |
 | Action Required | Quote confirmation and revised request tasks. |
-| Request Status | Draft/submitted/downstream status tracking. |
+| Request Status | Draft/submitted/Buyer Handoff status tracking. |
 
 ### Request Workspace
 

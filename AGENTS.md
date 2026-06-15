@@ -55,6 +55,16 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
 - If `deploy/mac-mini/deploy.sh` remains `AA` or any path is unmerged, resolve that index conflict before staging or committing unrelated changes.
 - Treat large archive, handoff package, review-output, screenshot, and generated-artifact deletions as high-risk until explicitly confirmed. Do not commit those deletions with feature work.
 
+## Source And Runtime Discipline
+
+- Treat Git working copies as the only editable source of truth. Do not make product, code, UI, test, API, DB schema, or deploy-script changes directly in a Mac mini runtime directory or running container.
+- On the Mac mini, use `/Users/kai-chenyang/Services/mva-procurement-latest` as the Git source working copy for source edits. Treat `/Users/kai-chenyang/Services/mva-procurement` as deploy/runtime state unless it is explicitly confirmed to be the active clean Git working copy.
+- Runtime-only paths such as `deploy/mac-mini/.env`, Docker volumes, uploads, logs, backups, and generated runtime folders are not source and must not be used to infer committed product behavior.
+- Before changing source on Mac mini, run `git status --short --branch`, `git fetch origin`, and `git pull --ff-only` for the target branch. If the tree is dirty, classify ownership before editing.
+- After Mac mini source edits, validate in the Git working copy, commit intentionally, push to GitHub, then deploy from that commit. Do not leave untracked runtime patches as the only copy of a fix.
+- When recovering a broken runtime, it is acceptable to replace runtime files from a verified Git clone, but the recovery must end with GitHub SHA, deployed SHA/source markers, health check, and worktree status evidence.
+- If a future task says "改程式碼", default to editing source in the current repo or the Mac mini Git clone, not the deployed runtime copy.
+
 ## MCP, Skills, And Agents
 
 - Use skills before improvising:

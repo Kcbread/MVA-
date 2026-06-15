@@ -58,7 +58,7 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 
 ### Tracking Rules
 
-- `Received Date` 顯示 row 在 Manager approve 後進入 OM workflow 的日期。
+- `Received Date` 顯示 row 在 Cost Manager authorize 後進入 OM workflow 的日期。
 - `Current Stage` 顯示目前 OM 作業節點：PAS Demand No、PAS Quote Result、Waiting Requester 或 Export Package。
 - `Days in Stage` 顯示 row 停留在目前 OM stage 的天數。
 - `Next Action` 顯示 OM operator 下一步應該做什麼。
@@ -70,9 +70,9 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 | 項目 | 定義 |
 | --- | --- |
 | Purpose | PAS/Bidding 回傳後，OM 輸入 PAS Demand No。 |
-| Input Data | Manager approved OM scope rows。 |
+| Input Data | Cost Manager authorized OM scope rows。 |
 | Output / Mutation | `pasDemandNo`、PAS result timestamp、OM history event。 |
-| Downstream Consumers | `om.pasQuoteResult`。 |
+| Next Consumers | `om.pasQuoteResult`。 |
 
 ### Visible Columns
 
@@ -102,7 +102,7 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 
 ### Rules
 
-- 此頁不 upload PDF/Excel。
+- 此頁不 upload screenshot/image and Excel。
 - 此頁不處理 quote price。
 - PAS Demand No 可一路帶到 PAS Quote Result / Export Package / Buyer / Detail。
 
@@ -110,12 +110,12 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 
 | 項目 | 定義 |
 | --- | --- |
-| Purpose | 在同一個 compact quote result card 內完成 PAS quote / bidding result、quote validity、attachments，然後送 Requester confirmation。 |
+| Purpose | 在同一個 compact quote result card 內完成 PAS quote / bidding result、quote validity、attachments，並觸發系統 price decision。 |
 | Input Data | rows with PAS Demand No or quote completion stage rows。 |
-| Output / Mutation | `pasMaterialNo`、vendor、vendor part no、unit price VND input 與 USD canonical value、quote date、`quoteReceivedAt`、`quoteValidUntil`、`quoteStatus`、PDF、Excel、price decision status、Requester / Dept DRI routing status。 |
-| Downstream Consumers | `requester.actionRequired`、`om.quoteExpiryMonitor`、`om.exportPackage`。 |
+| Output / Mutation | `pasMaterialNo`、vendor、vendor part no、unit price VND input 與 USD canonical value、quote date、`quoteReceivedAt`、`quoteValidUntil`、`quoteStatus`、screenshot/image、Excel、price decision status、Requester / Dept DRI routing status。 |
+| Next Consumers | `requester.actionRequired`、`om.quoteExpiryMonitor`、`om.exportPackage`。 |
 
-### Required Before Send to Requester
+### Required Before Save Quote Info
 
 - PAS Material No
 - Vendor
@@ -123,7 +123,7 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 - Unit Price
 - Quote Date
 - Quote Valid Until
-- Quote PDF
+- Quote screenshot/image
 - Quote Excel
 
 ### Visible Columns
@@ -148,16 +148,16 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 - Quote Date
 - Quote Received Date
 - Quote Valid Until
-- Quote PDF
+- Quote screenshot/image
 - Quote Excel
 - Expiry status
 
 ### Quote Validity Rules
 
 - `Quote Received Date` 空白時預設沿用 `Quote Date`。
-- `Quote Valid Until` 是 `Send to Requester` 前必填欄位。
-- `Valid`：距離到期超過 14 天。
-- `Expiring Soon`：距離到期 0-14 天。
+- `Quote Valid Until` 是 `Save Quote Info` / price decision 前必填欄位。
+- `Valid`：距離到期超過 10 天。
+- `Expiring Soon`：距離到期 0-10 天。
 - `Expired / Requote Required`：已超過有效日期。
 - Quote validity 只能在 `Quote Result` card 內正式 render，不可用 DOM observer 注入其他角色頁面。
 
@@ -165,8 +165,7 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 
 | Action | 前置條件 | 成功後 |
 | --- | --- | --- |
-| `Save Quote Info` | row editable。 | 儲存 quote fields / attachment flags。 |
-| `Send to Requester` | required fields complete。 | row 變 `Waiting Requester Confirmation`，Requester `Action Required` 可見。 |
+| `Save Quote Info` | required fields complete。 | 儲存 quote fields / attachment flags，並產生 Auto Cleared 或 Price Escalation Required。 |
 | `Reject to Requester / Dept DRI` | 必填 reason。 | row rejected。 |
 | `Detail` | 任意 row。 | 開 detail。 |
 
@@ -174,8 +173,8 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 
 `Save Quote Info` 後系統會用 quote price 與 history price 比對：
 
-- Computer 類：未超過 history price + 20% = `Auto Cleared`。
-- MFG 類：未超過 history price + 10% = `Auto Cleared`。
+- USD 絕對價差 `quoteUnitPriceUsd - historyUnitPriceUsd <= 0.40` = `Auto Cleared`。
+- USD 絕對價差 `quoteUnitPriceUsd - historyUnitPriceUsd > 0.40`、無 history price、新品項或 Temporary Budget = price exception。
 - 無 history price、Temporary Budget Request、或超過門檻 = `Price Escalation Required`。
 - `Auto Cleared` 不送 Requester confirmation，可直接進 `Export Package`。
 - `Price Escalation Required` 進 `Dept DRI -> Budget Approver`；Budget Approver 通過後才可進 `Export Package`。
@@ -197,14 +196,14 @@ Requester 不看 vendor / vendor part no / supplier。Requester 只看：
 | 項目 | 定義 |
 | --- | --- |
 | Purpose | `Submission Dashboard` 內的報價時效、到期與重新詢價提醒監控；不是流程 tab。 |
-| Input Data | 有 quote/bidding path 的 rows：PAS Demand No、PAS Material No、quote date、quote valid until、PDF/Excel、vendor。 |
+| Input Data | 有 quote/bidding path 的 rows：PAS Demand No、PAS Material No、quote date、quote valid until、screenshot/image and Excel、vendor。 |
 | Output / Mutation | v1 不直接寫入；validity 從 `PAS Quote Result` 編輯。 |
-| Downstream Consumers | OM follow-up、MFG quote expiry reminder、Manager detail。 |
+| Next Consumers | OM follow-up、MFG quote expiry reminder、Manager detail。 |
 
 ### Status Rules
 
-- `Valid`：距離到期超過 14 天。
-- `Expiring Soon`：距離到期 0-14 天。
+- `Valid`：距離到期超過 10 天。
+- `Expiring Soon`：距離到期 0-10 天。
 - `Expired / Requote Required`：已過有效日期。
 - `Missing Valid Until`：已有 quote 但尚無法追蹤時效。
 
@@ -225,10 +224,10 @@ Requester 不看 vendor / vendor part no / supplier。Requester 只看：
 
 | 項目 | 定義 |
 | --- | --- |
-| Purpose | Requester confirmed、price auto-clear 或 Budget Approver approval 後，選擇費用類型並用單一 `Export Package` 動作輸出 final export Excel + quote PDF package。 |
-| Input Data | rows where `Requester Confirmed`、`Auto Cleared` 或 `Budget Approver Approved`。 |
+| Purpose | price auto-clear 或 Budget Approver approval 後，選擇費用類型並用單一 `Export Package` 動作輸出 final export Excel + quote screenshot/image package。 |
+| Input Data | rows where `Auto Cleared` 或 `Budget Approver Approved`。 |
 | Output / Mutation | `finalExportCostType`、final export target/status/package code/export timestamp。 |
-| Downstream Consumers | Buyer PR/PO。 |
+| Next Consumers | Buyer PR/PO。 |
 
 ### Visible Columns
 
@@ -251,18 +250,18 @@ Requester 不看 vendor / vendor part no / supplier。Requester 只看：
 
 | Action | 前置條件 | 成功後 |
 | --- | --- | --- |
-| `Expense` | Requester confirmed、price-cleared 或 Budget Approver approved，未 exported。 | cost type = Expense；target = ECS；產生 package code。 |
-| `Capex` | Requester confirmed、price-cleared 或 Budget Approver approved，未 exported。 | cost type = Capex；target = CFA；產生 package code。 |
-| `Export Package` | 已選 Expense/Capex，且 quote PDF + quote Excel 皆存在。 | 同時準備 final export Excel package 與 quote PDF package reference。 |
+| `Expense` | price-cleared 或 Budget Approver approved，未 exported。 | cost type = Expense；target = ECS；產生 package code。 |
+| `Capex` | price-cleared 或 Budget Approver approved，未 exported。 | cost type = Capex；target = CFA；產生 package code。 |
+| `Export Package` | 已選 Expense/Capex，且 quote screenshot/image + quote Excel 皆存在。 | 同時準備 final export Excel package 與 quote screenshot/image package reference。 |
 | `Mark Exported` | 已選 Expense/Capex 且 package ready。 | status = Exported to CFA/ECS；Buyer 可見。 |
 | `Reject to Requester / Dept DRI` | 未 exported 且必填 reason。 | row rejected。 |
 
 ### Cost Type / Target Rules
 
-- `Expense` 是 OM 使用者選擇的費用類型；downstream target 顯示為 `ECS`。
-- `Capex` 是 OM 使用者選擇的費用類型；downstream target 顯示為 `CFA`。
-- `CFA / ECS` 是 package / downstream 對應資訊，不是使用者唯一決策語意。
-- PAS Demand No、PAS Material No、quote PDF、quote Excel、quote validity 在 `Export Package` 只讀，正式輸入點仍是 `PAS Quote Result`。
+- `Expense` 是 OM 使用者選擇的費用類型；Buyer Handoff target 顯示為 `ECS`。
+- `Capex` 是 OM 使用者選擇的費用類型；Buyer Handoff target 顯示為 `CFA`。
+- `CFA / ECS` 是 package / Buyer Handoff 對應資訊，不是使用者唯一決策語意。
+- PAS Demand No、PAS Material No、quote screenshot/image、quote Excel、quote validity 在 `Export Package` 只讀，正式輸入點仍是 `PAS Quote Result`。
 
 ### Package Code
 

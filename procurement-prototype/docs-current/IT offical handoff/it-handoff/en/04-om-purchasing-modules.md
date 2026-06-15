@@ -58,7 +58,7 @@ The OM workspace is intentionally task-based. PAS Demand No records the PAS numb
 
 ### Tracking Rules
 
-- `Received Date` is when the row entered the OM workflow after Manager approval.
+- `Received Date` is when the row entered the OM workflow after Cost Manager authorization.
 - `Current Stage` is the active OM work step: PAS Demand No, PAS Quote Result, Waiting Requester, or Export Package.
 - `Days in Stage` counts how long the row has stayed in the current OM stage.
 - `Next Action` tells the operator what should happen next.
@@ -70,9 +70,9 @@ The OM workspace is intentionally task-based. PAS Demand No records the PAS numb
 | Field | Definition |
 | --- | --- |
 | Purpose | OM enters PAS Demand No after PAS/Bidding returns it. |
-| Input Data | Manager approved OM scope rows. |
+| Input Data | Cost Manager authorized OM scope rows. |
 | Output / Mutation | `pasDemandNo`, PAS result timestamp, OM history event. |
-| Downstream Consumers | `om.pasQuoteResult`. |
+| Next Consumers | `om.pasQuoteResult`. |
 
 ### Visible Columns
 
@@ -102,7 +102,7 @@ The OM workspace is intentionally task-based. PAS Demand No records the PAS numb
 
 ### Rules
 
-- This page does not upload PDF/Excel.
+- This page does not upload screenshot/image and Excel.
 - This page does not handle quote price.
 - PAS Demand No carries into PAS Quote Result / Export Package / Buyer / Detail.
 
@@ -110,12 +110,12 @@ The OM workspace is intentionally task-based. PAS Demand No records the PAS numb
 
 | Field | Definition |
 | --- | --- |
-| Purpose | Enter PAS quote / bidding result in one compact quote result card, including quote validity and attachments, then send to Requester confirmation. |
+| Purpose | Enter PAS quote / bidding result in one compact quote result card, including quote validity and attachments, and trigger the system price decision. |
 | Input Data | Rows with PAS Demand No or quote completion stage rows. |
-| Output / Mutation | `pasMaterialNo`, vendor, vendor part no, unit price VND input plus USD canonical value, quote date, `quoteReceivedAt`, `quoteValidUntil`, `quoteStatus`, PDF, Excel, price decision status, Requester / Dept DRI routing status. |
-| Downstream Consumers | `requester.actionRequired`, `om.quoteExpiryMonitor`, `om.exportPackage`. |
+| Output / Mutation | `pasMaterialNo`, vendor, vendor part no, unit price VND input plus USD canonical value, quote date, `quoteReceivedAt`, `quoteValidUntil`, `quoteStatus`, screenshot/image, Excel, price decision status, Requester / Dept DRI routing status. |
+| Next Consumers | `requester.actionRequired`, `om.quoteExpiryMonitor`, `om.exportPackage`. |
 
-### Required Before Send to Requester
+### Required Before Save Quote Info
 
 - PAS Material No
 - Vendor
@@ -123,7 +123,7 @@ The OM workspace is intentionally task-based. PAS Demand No records the PAS numb
 - Unit Price
 - Quote Date
 - Quote Valid Until
-- Quote PDF
+- Quote screenshot/image
 - Quote Excel
 
 ### Visible Columns
@@ -148,16 +148,16 @@ The `Quote Result` card contains:
 - Quote Date
 - Quote Received Date
 - Quote Valid Until
-- Quote PDF
+- Quote screenshot/image
 - Quote Excel
 - Expiry status
 
 ### Quote Validity Rules
 
 - `Quote Received Date` defaults to `Quote Date` when blank.
-- `Quote Valid Until` is required before `Send to Requester`.
-- `Valid`: more than 14 days remain.
-- `Expiring Soon`: 0-14 days remain.
+- `Quote Valid Until` is required before `Save Quote Info` / price decision.
+- `Valid`: more than 10 days remain.
+- `Expiring Soon`: 0-10 days remain.
 - `Expired / Requote Required`: already past validity date.
 - Quote validity is rendered inside the `Quote Result` card only; it must not be injected into unrelated role pages by DOM observers.
 
@@ -165,8 +165,7 @@ The `Quote Result` card contains:
 
 | Action | Precondition | Success Result |
 | --- | --- | --- |
-| `Save Quote Info` | Row editable. | Saves quote fields / attachment flags. |
-| `Send to Requester` | Required fields complete. | Row becomes `Waiting Requester Confirmation`; Requester `Action Required` can see it. |
+| `Save Quote Info` | Required fields complete. | Saves quote fields / attachment flags and creates Auto Cleared or Price Escalation Required state. |
 | `Reject to Requester / Dept DRI` | Reason required. | Row rejected. |
 | `Detail` | Any row. | Opens detail. |
 
@@ -174,8 +173,8 @@ The `Quote Result` card contains:
 
 After `Save Quote Info`, the system compares quote price against history price:
 
-- Computer category: within history price + 20% = `Auto Cleared`.
-- MFG category: within history price + 10% = `Auto Cleared`.
+- Absolute USD delta `quoteUnitPriceUsd - historyUnitPriceUsd <= 0.40` = `Auto Cleared`.
+- Absolute USD delta `quoteUnitPriceUsd - historyUnitPriceUsd > 0.40`, no history price, new item, or Temporary Budget = price exception.
 - Missing history price, temporary budget request, or over-threshold quote = `Price Escalation Required`.
 - `Auto Cleared` rows skip Requester confirmation and can enter `Export Package`.
 - `Price Escalation Required` rows go to `Dept DRI -> Budget Approver`; only Budget Approver approval can release them to `Export Package`.
@@ -197,14 +196,14 @@ Requester must not see vendor / vendor part no / supplier. Requester only sees:
 | Field | Definition |
 | --- | --- |
 | Purpose | Quote validity monitor inside `Submission Dashboard`; it is not a workflow step. |
-| Input Data | Rows with quote/bidding path fields: PAS Demand No, PAS Material No, quote date, quote valid until, PDF/Excel, or vendor. |
+| Input Data | Rows with quote/bidding path fields: PAS Demand No, PAS Material No, quote date, quote valid until, screenshot/image and Excel, or vendor. |
 | Output / Mutation | None in v1; users edit validity from `PAS Quote Result`. |
-| Downstream Consumers | OM follow-up, MFG quote expiry reminders, Manager detail. |
+| Next Consumers | OM follow-up, MFG quote expiry reminders, Manager detail. |
 
 ### Status Rules
 
-- `Valid`: more than 14 days remain.
-- `Expiring Soon`: 0-14 days remain.
+- `Valid`: more than 10 days remain.
+- `Expiring Soon`: 0-10 days remain.
 - `Expired / Requote Required`: validity date has passed.
 - `Missing Valid Until`: quote exists but cannot be tracked yet.
 
@@ -225,10 +224,10 @@ Requester must not see vendor / vendor part no / supplier. Requester only sees:
 
 | Field | Definition |
 | --- | --- |
-| Purpose | After Requester confirmation, price auto-clear, or Budget Approver approval, choose cost type and use one `Export Package` action to prepare the final export Excel package plus quote PDF package. |
-| Input Data | Rows where `Requester Confirmed`, `Auto Cleared`, or `Budget Approver Approved`. |
+| Purpose | After price auto-clear or Budget Approver approval, choose cost type and use one `Export Package` action to prepare the final export Excel package plus quote screenshot/image package. |
+| Input Data | Rows where `Auto Cleared` or `Budget Approver Approved`. |
 | Output / Mutation | `finalExportCostType`, final export target/status/package code/export timestamp. |
-| Downstream Consumers | Buyer PR/PO. |
+| Next Consumers | Buyer PR/PO. |
 
 ### Visible Columns
 
@@ -251,18 +250,18 @@ Requester must not see vendor / vendor part no / supplier. Requester only sees:
 
 | Action | Precondition | Success Result |
 | --- | --- | --- |
-| `Expense` | Requester confirmed, price-cleared, or Budget Approver approved; not exported. | cost type = Expense; target = ECS; package code generated. |
-| `Capex` | Requester confirmed, price-cleared, or Budget Approver approved; not exported. | cost type = Capex; target = CFA; package code generated. |
-| `Export Package` | Expense/Capex selected, quote PDF and quote Excel both available. | Prepares both final export Excel package and quote PDF package reference. |
+| `Expense` | price-cleared or Budget Approver approved; not exported. | cost type = Expense; target = ECS; package code generated. |
+| `Capex` | price-cleared or Budget Approver approved; not exported. | cost type = Capex; target = CFA; package code generated. |
+| `Export Package` | Expense/Capex selected, quote screenshot/image and quote Excel both available. | Prepares both final export Excel package and quote screenshot/image package reference. |
 | `Mark Exported` | Expense/Capex selected and package ready. | status = Exported to CFA/ECS; Buyer can see it. |
 | `Reject to Requester / Dept DRI` | Not exported and reason required. | Row rejected. |
 
 ### Cost Type / Target Rules
 
-- `Expense` is the OM user decision; downstream target displays as `ECS`.
-- `Capex` is the OM user decision; downstream target displays as `CFA`.
-- `CFA / ECS` is package/downstream mapping, not the only business decision label.
-- PAS Demand No, PAS Material No, quote PDF, quote Excel, and quote validity are readonly in `Export Package`; their official input point remains `PAS Quote Result`.
+- `Expense` is the OM user decision; Buyer Handoff target displays as `ECS`.
+- `Capex` is the OM user decision; Buyer Handoff target displays as `CFA`.
+- `CFA / ECS` is package/Buyer Handoff mapping, not the only business decision label.
+- PAS Demand No, PAS Material No, quote screenshot/image, quote Excel, and quote validity are readonly in `Export Package`; their official input point remains `PAS Quote Result`.
 
 ### Package Code
 

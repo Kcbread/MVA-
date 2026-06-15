@@ -2,19 +2,20 @@
 
 ## Purpose
 
-This document defines the official naming for the near-term IT implementation. If older docs or prototype labels conflict with this file, this file wins.
+This document defines official naming for near-term IT implementation. If older docs, prototype labels, or zip snapshots conflict with this file, this file and `IT_DELIVERY_LATEST_REVIEW_20260615.md` win.
 
 ## Role Names
 
 | Official Name | Meaning |
 | --- | --- |
-| `Requester` | Demand requester. Requester and IE are treated as the same role in this prototype. |
-| `Manager B` | Approver. Owns approval, demand progress review, and quantity reasonableness checks. |
-| `OM Leader` | OM buy owner. Can maintain monthly USD-to-VND exchange rate and perform OM document operations. |
-| `OM Member` | OM buy operator. Can use exchange rates and process PAS / Quote / Export work, but cannot edit rates. |
-| `OM Purchasing` | Umbrella process name covering OM Leader and OM Member. |
-| `Dept DRI` | Department reviewer; owns first price exception review and formal carryover review. |
-| `Budget Approver` | Final project-level price escalation approver. |
+| `Requester` | Creates worksheet demand, submits, and tracks status. |
+| `Dept DRI` | First scoped business reviewer for requester submission, unit-owned warehouse/carryover, and first price exception review. |
+| `Cost Manager` | Cost authorization owner after Dept DRI; uses Cost Review for final authorization. |
+| `OM Leader` | OM lead for assignment, exchange rate, feedback triage, and OM tracking. |
+| `OM Purchasing` | OM operator for assigned PAS Demand No, PAS Quote Result, and Export Package work. |
+| `Budget Approver` | Final approver for quote-stage price/budget exceptions. |
+| `Admin` | System setup and governance; no business approval. |
+| `Buyer Handoff` | Post-OM-export PR / PO ownership stage; do not use legacy post-export wording as primary user-facing copy. |
 
 ## Tab Names
 
@@ -22,183 +23,122 @@ This document defines the official naming for the near-term IT implementation. I
 
 | Tab | Purpose |
 | --- | --- |
-| `Request Workspace` | Create items, open Add / Reuse Item popup, enter Need Date and demand rows, and submit to Manager B. |
-| `Action Required` | Requester tasks such as quote confirmation and revised request confirmation. |
-| `Request Status` | Dense tracking for own draft/submitted demand and downstream timeline. It replaces the old split between My Demand Overview and Request Status. |
+| `Request Workspace` | Create item/spec rows, enter all-phase worksheet quantities, Save Draft, Submit. |
+| `Action Required` | Requester tasks for reject / revise / confirmation. |
+| `Request Status` | Track own draft/submitted demand, pending owner, and timeline. |
 
-### Manager B
-
-| Tab | Purpose |
-| --- | --- |
-| `Approval` | Approval workspace containing Pending Approval and Approval History. |
-| `Demand Analysis` | Demand analysis workspace; shows Cost Dashboard first, then drills into Station Matrix. |
-| `Progress Tracking` | Pivot-like Budget / PR / PO / Arrived / late / pending dashboard. |
-| `Project Setup` | Project access and basic setup. |
-
-#### Demand Analysis Inner Tabs
-
-| Inner Tab | Purpose |
-| --- | --- |
-| `Cost Dashboard` | First-level manager view for unit split item count, quantity, and amount across MFG / Non-MFG units. |
-| `Station Matrix` | Second-level Excel-like wide table for phase x station quantity reasonableness. |
-
-### OM Purchasing
+### Dept DRI
 
 | Tab | Purpose |
 | --- | --- |
-| `Submission Dashboard` | OM stage and pending overview. |
-| `PAS Demand No` | Enter PAS Demand No after PAS/Bidding returns it. |
-| `PAS Quote Result` | Enter PAS Material No, quote result, quote validity, attachments, and send to Requester. |
-| `Quote Expiry Monitor` | Quote validity monitor inside `Submission Dashboard`; not a workflow tab. |
-| `Export Package` | Export CFA/ECS package after Requester confirmation. |
+| `Dept Review` | Submission / stock / carryover / price exception review with dashboard-first quantity evidence. |
+| `Review History` | Dept DRI handled events and audit history. |
 
-#### Reuse Item Inner Tabs
+### Cost Manager
 
-| Inner Tab | Purpose |
+| Tab | Purpose |
 | --- | --- |
-| `Reuse by Item` | Add one historical item into the current Requester target project. |
-| `Reuse by Project Package` | Preview and import a source project/phase/package set into the current Requester target project. |
+| `Cost Review` | Final authorization queue with embedded Demand Cost Dashboard and Station Matrix evidence. |
+| `Review History` | Cost Manager decision history. |
 
-## Requester Mapping Rule
+### OM
 
-Requester is not derived from station. It is resolved by this key:
+| Tab | Purpose |
+| --- | --- |
+| `OM Submission Dashboard` | OM stage, pending owner, assignment, and quote expiry overview. |
+| `PAS Demand No` | Enter PAS Demand No. |
+| `PAS Quote Result` | Enter PAS Material No, vendor, quote price, quote screenshot/image, quote Excel, valid until. |
+| `Export Package` | Export after Auto Cleared or Budget Approver approved state. |
 
-```text
-Project Family + Project Code + Demand Department -> Requester
-```
+### Budget Approver
 
-Examples:
-
-| Project Family | Project Code | Demand Department | Requester |
-| --- | --- | --- | --- |
-| `G` | `P26` / `P26 Demo Line` | `MFG` | `To Thi Phuong Anh` |
-| `Non-G` | `LD8` / `MH2` / `BM2` | `MFG` | `Đặng Thị Ban` |
-
-For MFG, the `Mainline / Packing / Supporting` station columns, including `CG / BG / FATP / Test / Hybrid / Auto / ENG Pack / Zombie / Laser_pico / Rework / Repair / WH`, represent station demand and quantity analysis only. They must not be used to infer requester.
-
-If mapping is missing, Admin setup must show `Unmapped Project / Need setup`; the system must not guess.
+| Tab | Purpose |
+| --- | --- |
+| `Budget Review` | Final approval for price / budget exceptions with embedded quantity evidence. |
+| `Review History` | Budget approval history. |
 
 ## Module ID Naming
 
-Format:
-
-```text
-{role}.{moduleName}
-```
-
-Examples:
-
 | Module ID | Meaning |
 | --- | --- |
-| `requester.requestWorkspace` | Requester demand creation, add/reuse, Need Date, and submit workspace. |
-| `requester.demandEditor` | Item-level demand row editor. |
-| `requester.addReuseItem.byItem` | Reuse a single historical completed item. |
-| `requester.addReuseItem.byProjectPackage` | Reuse a package/group of historical items. |
-| `manager.approvalQueue` | Manager approval queue. |
-| `manager.quantityMatrix` | Manager phase x station quantity matrix. |
-| `om.pasResultQueue` | OM PAS Demand No queue. |
-| `om.quoteCompletion` | OM quote completion workbench. |
-| `om.exportPackage` | OM CFA/ECS export workbench. |
-
-## Table ID Naming
-
-Format:
-
-```text
-{moduleId}.table.{tableName}
-```
-
-Examples:
-
-| Table ID | Meaning |
-| --- | --- |
-| `requester.requestWorkspace.table.draftItems` | Requester draft items table. |
-| `manager.approvalQueue.table.submittedRows` | Manager submitted approval rows. |
-| `manager.quantityMatrix.table.stationMatrix` | Manager wide station matrix. |
-| `om.quoteCompletion.table.quoteRows` | OM quote completion rows. |
-| `shared.contactPopup.panel.contacts` | Cross-role topbar contact popup. |
+| `requester.requestWorkspace` | Requester worksheet demand creation. |
+| `requester.addItemPopup` | Catalog / Reuse / Copy Demand / New Item Request add entrypoint. |
+| `shared.workflowStatus` | Shared pending owner / current stage / days pending model. |
+| `shared.approvalQuantityReview` | Shared quantity evidence for Dept DRI / Cost Manager / Budget Approver. |
+| `deptDri.deptReview` | Dept DRI review shell. |
+| `costManager.costReview` | Cost Manager final authorization shell. |
+| `budgetApprover.budgetReview` | Budget exception final review shell. |
+| `om.submissionDashboard` | OM work tracking. |
+| `om.pasDemandNo` | PAS Demand No input. |
+| `om.pasQuoteResult` | Quote result and price decision input. |
+| `om.exportPackage` | Export package workflow. |
+| `buyerHandoff.status` | Post-export Buyer Handoff status. |
 
 ## Action Names
 
 | Action | Used By | Meaning |
 | --- | --- | --- |
-| `Approve` | Manager B | Approve a submitted row. |
-| `Reject to Requester / Dept DRI` | Manager B / OM | Return to requester; reason required. |
-| `Edit Demand` | Requester | Open item demand editor. |
-| `Submit Package to Manager B` | Requester | Submit selected draft items as one package. |
-| `Add` | Requester Add / Reuse Item | Copy one catalog or historical item into the current target project draft; full meaning goes in title/detail, not button text. |
-| `Preview Package` | Requester Reuse by Project Package | Preview source project/phase/package rows before import. |
-| `Import Package to Request` | Requester Reuse by Project Package | Copy previewed package rows into the current target project draft. |
-| `Move to PAS Quote Result` | OM PAS Demand No | Move row after PAS Demand No is entered. |
-| `Save Quote Info` | OM PAS Quote Result | Save quote fields and attachment status. |
-| `Send to Requester` | OM PAS Quote Result | Send completed quote to Requester confirmation. |
-| `Confirm Need` | Requester Action Required | Requester confirms the item is still needed. |
-| `Cancel Request` | Requester Action Required | Requester cancels the request; reason required. |
-| `Expense` | OM Export Package | Select expense purchasing; downstream target displays as ECS and package code is generated. |
-| `Capex` | OM Export Package | Select capital purchasing; downstream target displays as CFA and package code is generated. |
-| `Export Package` | OM Export Package | Use one action to prepare final export Excel package plus quote PDF package reference. |
-| `Mark Exported` | OM Export Package | Mark CFA/ECS export complete; Buyer can continue. |
+| `Save Draft` | Requester | Save the current worksheet; Need Date not required. |
+| `Submit` | Requester | Submit the current line + MFG/Non-MFG worksheet; requires Need Date and at least one qty > 0. |
+| `Approve` | Dept DRI / Budget Approver | Approve the current review stage. |
+| `Authorize` | Cost Manager | Final cost authorization. |
+| `Reject` | Review roles / OM | Reason required; route to the configured next owner. |
+| `Save PAS Demand No` | OM Purchasing | Save PAS Demand No. |
+| `Save Quote Info` | OM Purchasing | Save quote result, attachments, validity, and trigger price decision. |
+| `Export Package` | OM Purchasing | Create the export package. |
+| `Mark Exported` | OM Purchasing | Move to Buyer Handoff. |
+| `Repair FTV Mapping` | OM / Admin | Repair missing active FTV mapping before external import export. |
+| `Review Material Coding` | OM / Admin | Repair PK / Factory Material No prefix/category mapping; never guess codes automatically. |
 
 ## Status Names
 
 | Status | Meaning |
 | --- | --- |
-| `Draft` | Requester draft, editable. |
-| `Submitted` | Sent to Manager B, waiting approval. |
-| `Approved` | Approved by Manager B. |
-| `Rejected` | Returned to DRI by Manager B or OM. |
-| `In Progress` | In downstream flow such as OM/PAS/Buyer. |
-| `Waiting PAS Demand No` | OM is waiting for or entering PAS Demand No. |
-| `PAS Quote Result Needed` | OM must complete PAS Material No, quote validity, quote, and attachments. |
-| `Ready to Send Requester Confirmation` | Quote fields are complete and ready to send. |
-| `Waiting Requester Confirmation` | Sent to Requester, waiting Confirm Need / Cancel Request. |
-| `Requester Confirmed` | Requester confirmed the item is still needed. |
-| `Ready for CFA` | OM prepared CFA package. |
-| `Ready for ECS` | OM prepared ECS package. |
-| `Exported to CFA` | Exported to CFA. |
-| `Exported to ECS` | Exported to ECS. |
-| `Buyer Received` | Buyer received downstream row. |
+| `Draft` | Requester draft, not submitted. |
+| `Dept DRI Review` | Waiting for Dept DRI submission review. |
+| `Cost Manager Review` | Waiting for Cost Manager final authorization. |
+| `OM Intake / Assignment` | Waiting for OM Leader assign / auto-assign. |
+| `PAS Demand No` | Waiting for OM Purchasing to enter PAS Demand No. |
+| `PAS Quote Result` | Waiting for OM Purchasing to enter quote result. |
+| `Auto Cleared` | USD delta is within 0.40, can move to export. |
+| `Price Exception Review` | Waiting for Dept DRI -> Budget Approver. |
+| `OM Export Package` | Waiting for OM export. |
+| `Buyer Handoff` | Buyer owns PR / PO after OM export. |
+| `Requester Action Required` | Reject or revision routed back to Requester. |
+| `FTV Not Required` | `purchase_route = local_buy`; FTV is not required for export. |
+| `Need material coding review` | Factory Material No / PK prefix mapping cannot be determined and needs OM/Admin review. |
 
 ## Field Names
 
 | Field | Definition |
 | --- | --- |
-| `PAS Demand No` | Entered by OM in `PAS Demand No` after PAS/Bidding returns it. |
-| `PAS Material No` | Entered by OM in `PAS Quote Result` after bidding result; carried downstream. |
-| `Quote Valid Until` | Entered by OM in `PAS Quote Result`; required before sending quote result to Requester. |
-| `Expiry Status` | Derived from Quote Valid Until: Valid, Expiring Soon within 14 days, or Expired / Requote Required. |
-| `Factory Material No` | Filled by Buyer/PUR after PO; only then enters Reuse Item history. |
-| `需求單位` | Demand-origin unit, such as ENG1, MFG, or TE. |
-| `Station` | Physical station, such as CG, BG, FATP, or Test. |
-| `Demand Type` | `MFG` or `Non-MFG`. `MFG` requires Station and does not require 需求單位; `Non-MFG` requires 需求單位 and does not use Station. |
-| `Phase` | P1.0, P1.1, EVT, DVT, PVT, MP. |
-| `Demand Row` | One `Demand Type + Phase + Station or 需求單位 + Qty + Remark` row. MFG uses Station; Non-MFG uses 需求單位. |
-| `Request Package` | Multi-item package submitted by OPM at once. |
-| `Source Project` | History/package source filter only; never the target project for a new request. |
-| `Source Phase` | Historical phase copied or previewed from reuse source rows. |
-| `Source Package` | Historical package/group selected for package-based reuse. |
-| `Add to` | Current Requester target project and default phase for reused rows. |
-| `Final Export Package Code` | OM code in `{Process}-{Stage}-{ProjectCode}-MVA{YYMM}-{Seq}OM` format. |
-| `Need Date` | Required date entered by Requester before submit; carried into Manager, OM, Export, timeline, and detail views. |
-| `Currency Display` | Global display switch supporting `VND / USD`; cost/price calculations use USD canonical fields, while VND is display/export/input conversion through the monthly exchange rate. |
-| `USD to VND Exchange Rate` | Monthly exchange rate maintained by OM Leader; OM Member can only consume it. |
-| `Unit Price USD` | Canonical unit price for cost calculation. Legacy VND fields are converted into USD for calculation. |
-| `Carryover From / Carryover Qty / Carryover Reason` | Line-level demand adjustment fields. Requester can declare carryover in Demand Editor; DRI owns formal review; Manager/OM only consume the impact. |
-| `Price Decision Status` | Result after OM saves quote: Auto Cleared, Price Escalation Required, Dept DRI Approved, Budget Approver Approved, or Rejected. |
+| `Need Date` | Required before Requester submit; not required for Save Draft. |
+| `Request Action` | Requester intent metadata: New Buy / Other. |
+| `Station Breakdown` | Long-form qty rows; MFG uses station, Non-MFG uses demand unit. |
+| `Review Status` | Approval-chain status column; first column in review evidence tables. |
+| `PAS Demand No` | Entered by OM in PAS Demand No stage. |
+| `PAS Material No` | Entered by OM in PAS Quote Result stage. |
+| `Quote Valid Until` | Quote expiry source; expiring soon within 10 days. |
+| `Quote screenshot/image` | Quote evidence; v1 uses screenshot/image plus Excel as the primary evidence model. |
+| `Quote Excel` | Quote evidence required alongside screenshot/image. |
+| `Price Decision Status` | Auto Cleared / Price Exception Required / Dept DRI Approved / Budget Approver Approved / Rejected. |
+| `Factory Material No` | SAP PO Raw Data column A; separate from SAP Material No. |
+| `SAP Material No` | SAP PO Raw Data column H; must not be merged with Factory Material No. |
+| `PAS Material No` | OM/PAS quote/order context; must not be mixed with Factory Material No or SAP Material No. |
+| `PK Material No` | Factory Material No prefix/category coding rule; not Packaging item classification. |
+| `FTV Code` | SAP PO Raw Data column K; customs / Trading / Accounting audit dimension, not a cost or Station Matrix group key. |
+| `purchase_route` | `local_buy` / `external_import`; determines whether FTV mapping is required before export. |
+| `materialCodingReviewStatus` | `Valid` / `Need material coding review` / `Rejected mapping` / `Approved mapping`. |
+| `visibilityScope` | Attachment visibility: Requester-safe / OM-internal / Admin. |
+| `stageStartAt` | Current-stage start timestamp; written by the server. |
+| `daysPending` | Server-derived with the configured timezone; frontend must not calculate workflow state independently. |
 
-## Deprecated Names
+## Material Identity / FTV / PK Naming Rules
 
-Do not use these names for the near-term IT implementation:
-
-- `Demand Tracking`
-- `PAS Review`
-- `Quotation`
-- `Package Submission`
-- `Review Queue`
-- `Project Cost View`
-- `Requester Request`
-
-## Implementation Guards
-
-- `Temporary Budget Request` input panel may render only inside Requester `Request Workspace`; it must never be injected into Manager B, OM Purchasing, the Contact popup, or Admin-only views.
-- `Contact` is a topbar popup utility, not a top-level tab or late DOM patch.
+- `item_master` is requester-safe item/spec identity, not PAS, Factory, SAP, or FTV identity.
+- `Factory Material No` is sourced from Raw Data column A `料號` and may carry PK prefix/category coding.
+- `SAP Material No` is sourced from Raw Data column H `料號` and must not be used as a Factory Material No fallback.
+- `FTV Code` is sourced from Raw Data column K and is used only for customs / Trading / Accounting audit and export gate.
+- Raw Data BL/BM/BN are Lv1/Lv2/Lv3 category coding sources and may drive PK prefix rules.
+- Existing `資訊類` yellow OM rows with `IT...` prefix mapping remain a supplemental rule; new PK prefix rules must be documented the same way.
+- When `purchase_route = external_import` and no active FTV mapping exists, `Export Package` must be blocked and routed to OM/Admin mapping repair.

@@ -14,7 +14,7 @@ Each module must be independently integrable, so every module uses the same defi
 | Visible Columns | Main table columns. |
 | Filters | Operable filters. |
 | Actions | Buttons and success results. |
-| Downstream Consumers | Modules consuming the output. |
+| Next Consumers | Modules consuming the output. |
 | Empty / Error State | Empty or blocked states. |
 | DFD Notes | Visualization recommendation. |
 
@@ -29,16 +29,14 @@ Each module must be independently integrable, so every module uses the same defi
 | `requester.actionRequired` | Action Required | Handle quote confirmation and revised request confirmation. |
 | `requester.requestStatus` | Request Status | Track submitted status, timeline, and reasons. |
 
-## Manager B Modules
+## Cost Manager Modules
 
 | Module ID | Module Name | Purpose |
 | --- | --- | --- |
-| `manager.approval` | Approval | Pending Approval + Approval History in one workbench. |
-| `manager.demandAnalysis` | Demand Analysis | Manager demand analysis workspace containing Cost Dashboard and Station Matrix. |
-| `manager.costDashboard` | Cost Dashboard | First-layer item x phase x unit quantity/amount dashboard following the Excel Dashboard sheet. |
-| `manager.stationMatrix` | Station Matrix | Second-layer Excel-like phase x station quantity reasonableness wide table. |
-| `manager.progressTracking` | Progress Tracking | Pivot-like procurement progress and risk dashboard. |
-| `manager.projectSetup` | Project Setup | Project access and setup. |
+| `costManager.costReview` | Cost Review | Final authorization queue after Dept DRI approve, with embedded Demand Cost Dashboard and Station Matrix. |
+| `costManager.demandCostDashboard` | Demand Cost Dashboard | Item x phase x unit quantity/amount evidence inside Cost Review. |
+| `costManager.stationMatrix` | Station Matrix | Selected item phase x station / demand-unit detail inside Cost Review. |
+| `costManager.itemQuantityReview` | Item Quantity Review | Audited direct edit of formal stationBreakdown / phase qty / total qty. |
 | `shared.contactDri` | Contact DRI | Requester / department DRI / project contact lookup. |
 
 ## OM Purchasing Modules
