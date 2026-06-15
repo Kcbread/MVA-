@@ -62,6 +62,7 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
 - Runtime-only paths such as `deploy/mac-mini/.env`, Docker volumes, uploads, logs, backups, and generated runtime folders are not source and must not be used to infer committed product behavior.
 - Before changing source on Mac mini, run `git status --short --branch`, `git fetch origin`, and `git pull --ff-only` for the target branch. If the tree is dirty, classify ownership before editing.
 - After Mac mini source edits, validate in the Git working copy, commit intentionally, push to GitHub, then deploy from that commit. Do not leave untracked runtime patches as the only copy of a fix.
+- For manual Mac mini source-to-runtime deployment, use `deploy/mac-mini/sync-runtime-from-source.sh` from the Git source checkout. Do not manually `rsync` source into runtime except during explicit recovery or when the script itself is broken.
 - When recovering a broken runtime, it is acceptable to replace runtime files from a verified Git clone, but the recovery must end with GitHub SHA, deployed SHA/source markers, health check, and worktree status evidence.
 - If a future task says "改程式碼", default to editing source in the current repo or the Mac mini Git clone, not the deployed runtime copy.
 

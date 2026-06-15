@@ -19,6 +19,84 @@ deploy/mac-mini/deploy.sh
 
 The script refuses to deploy the wrong branch or commit when `EXPECTED_BRANCH` and `EXPECTED_SHA` are provided by GitHub Actions. It then rebuilds the app container and verifies `http://127.0.0.1:8080/api/health`.
 
+## Manual source-to-runtime sync on Mac mini
+
+Use this flow when operating the Mac mini manually and the Git source checkout is
+separate from the runtime directory.
+
+Canonical source checkout:
+
+```text
+/Users/kai-chenyang/Services/mva-procurement-latest
+```
+
+Canonical runtime directory:
+
+```text
+/Users/kai-chenyang/Services/mva-procurement
+```
+
+The source checkout is the only place to edit code. The runtime directory is
+deployment state. Do not manually patch files under the runtime directory or in
+running containers.
+
+From the source checkout:
+
+```bash
+cd /Users/kai-chenyang/Services/mva-procurement-latest
+
+git status --short --branch
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+
+deploy/mac-mini/sync-runtime-from-source.sh
+```
+
+The sync script:
+
+- refuses to run from a dirty source worktree;
+- verifies the source branch is `main` by default;
+- verifies local source matches `origin/main`;
+- preserves runtime-only `.env`, imports, uploads, logs, backups, and Docker
+  named volumes;
+- syncs source-controlled `procurement-prototype` and `deploy/mac-mini` files
+  into the runtime directory;
+- writes `.last-source-sha` and `.last-source-branch` receipts under
+  `deploy/mac-mini/`;
+- rebuilds Docker Compose and verifies `/api/health`.
+
+Useful overrides:
+
+```bash
+# Sync a feature branch for temporary UAT verification.
+EXPECTED_BRANCH=codex/example deploy/mac-mini/sync-runtime-from-source.sh
+
+# Require an exact source commit.
+EXPECTED_SHA=abc123... deploy/mac-mini/sync-runtime-from-source.sh
+
+# Sync files only, without rebuilding Docker.
+SKIP_DEPLOY=1 deploy/mac-mini/sync-runtime-from-source.sh
+
+# Use a non-default runtime root.
+RUNTIME_ROOT=/Users/kai-chenyang/Services/mva-procurement deploy/mac-mini/sync-runtime-from-source.sh
+```
+
+Acceptance:
+
+```bash
+curl --noproxy "*" -sS http://127.0.0.1:8080/api/health
+docker compose --env-file /Users/kai-chenyang/Services/mva-procurement/deploy/mac-mini/.env \
+  -f /Users/kai-chenyang/Services/mva-procurement/deploy/mac-mini/docker-compose.yml ps
+cat /Users/kai-chenyang/Services/mva-procurement/deploy/mac-mini/.last-source-sha
+```
+
+Expected health:
+
+```json
+{"ok":true,"db":"mysql"}
+```
+
 ## SAP PO Raw Import
 
 Use this flow for the first yellow-row OM scope import and future controlled SAP PO Raw imports.
