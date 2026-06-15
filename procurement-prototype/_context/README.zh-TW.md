@@ -34,11 +34,15 @@
 Startup Context Receipt
 Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
 Roles: Requester; Dept DRI; Cost Manager; ...
+Flows/Modules: flow/module docs read, or none
+Worktree: git status summary, or not inspected yet with reason
 Decisions: locked decisions used, or none
 Gaps: unresolved ambiguity, or none
+Next: immediate action
 ```
 
 - 極小型、非產品、非角色判斷任務可保持 receipt internal；只要碰到角色、權限、UI、流程、API、DB、測試、部署或 PM memory，就不能使用此例外。
+- 第一個 material 回覆必須能通過 `project-progress/NEW_THREAD_STARTUP_VALIDATOR.md` 的 checklist；若沒有執行某個檢查，需明確標示原因，而不是省略。
 - 長任務交接使用 compact handoff：
   - `Findings`
   - `Decision`

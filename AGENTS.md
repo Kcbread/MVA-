@@ -34,10 +34,41 @@ Before implementation or any key product judgment, include a short receipt:
 ```text
 Startup Context Receipt
 Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
-Roles: Requester; Manager B; Cost Owner; ...
+Roles: Requester; Dept DRI; Cost Manager; ...
 Decisions: locked decisions used, or none
 Gaps: unresolved ambiguity, or none
 ```
+
+## New Thread First Response Format
+
+For this workspace, the first substantive assistant response in a new thread
+must use this fixed startup format before giving a plan, review, implementation,
+commit, deployment, or product judgment:
+
+```text
+Startup Context Receipt
+Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
+Roles: affected roles read, or none
+Flows/Modules: flow/module docs read, or none
+Worktree: git status summary, or not inspected yet with reason
+Decisions: locked decisions used, or none
+Gaps: unresolved ambiguity, or none
+Next: immediate action
+```
+
+Validation checklist for the first response:
+
+- It names the actual files read, not just broad document categories.
+- It identifies role ownership from role files before changing role, permission,
+  screen, workflow, UI, API, DB, test, deployment, or handoff behavior.
+- It states whether `git status --short --branch` was inspected before material
+  edits, commits, or deployment work.
+- It marks unsupported factual claims as `evidence_missing` instead of turning
+  thread memory into evidence.
+- It keeps tiny non-product tasks compact, but still records why the full
+  material-task gate was not needed.
+- It does not claim Notion, GitHub, Google Drive, deployment, or other remote
+  writes happened unless they were real execution with explicit authorization.
 
 The only exception is a tiny task with no product, role, flow, UI, API, DB, test, deployment, or PM-memory judgment, such as reading one explicitly named file or running a simple shell query. Do not use screen names, thread memory, or assumptions as a substitute for role files.
 
