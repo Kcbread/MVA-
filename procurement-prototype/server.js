@@ -936,6 +936,10 @@ function canTriageUatFeedback(user) {
   return ["omLeader", "admin"].includes(user?.role);
 }
 
+function canViewWorkflowReviewRows(user) {
+  return ["dri", "manager", "projectDri", "admin"].includes(user?.role);
+}
+
 function textValue(value, maxLength = 500) {
   return String(value || "").trim().slice(0, maxLength);
 }
@@ -948,6 +952,184 @@ function jsonValue(value, fallback = {}) {
   } catch {
     return fallback;
   }
+}
+
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function isoDateValue(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "");
+  return date.toISOString();
+}
+
+function dateOnlyValue(value) {
+  const iso = isoDateValue(value);
+  return iso ? iso.slice(0, 10) : "";
+}
+
+function demandTypeLabel(value) {
+  return String(value || "").toLowerCase().replace(/[_\s-]+/g, "") === "nonmfg" ? "Non-MFG" : "MFG";
+}
+
+function workflowReviewRowFromGroup(group) {
+  const first = group.rows[0] || {};
+  const currentStage = textValue(first.current_stage, 80);
+  const pendingOwnerRole = textValue(first.pending_owner_role, 40);
+  const pendingApproval = group.rows.find((row) => row.approval_decision === "pending") || {};
+  const seenDemandLines = new Set();
+  const stationBreakdown = group.rows
+    .filter((row) => row.demand_line_id)
+    .filter((row) => {
+      const id = textValue(row.demand_line_id, 96);
+      if (!id || seenDemandLines.has(id)) return false;
+      seenDemandLines.add(id);
+      return true;
+    })
+    .map((row) => {
+      const demandType = demandTypeLabel(row.demand_type);
+      return {
+        id: textValue(row.demand_line_id, 96),
+        demandType,
+        phase: textValue(row.phase_code, 40),
+        station: demandType === "MFG" ? textValue(row.station_or_unit, 120) : "",
+        demandUnit: demandType === "Non-MFG" ? textValue(row.station_or_unit, 120) : "",
+        qty: numberValue(row.quantity),
+        requestLine: textValue(row.line_code, 80),
+        needDate: dateOnlyValue(row.demand_need_date || first.need_date),
+        requesterDept: textValue(first.demand_department, 120),
+        demandDepartment: textValue(first.demand_department, 120),
+        projectCode: textValue(row.demand_project_code || first.project_code, 80),
+        remark: textValue(row.remark, 500),
+      };
+    });
+  const totalQty = stationBreakdown.reduce((sum, row) => sum + numberValue(row.qty), 0);
+  const submittedAt = isoDateValue(first.submitted_at);
+  const isDeptDriPending = currentStage === "dept_dri_review" && pendingOwnerRole === "deptDri";
+  const isCostManagerPending = currentStage === "cost_manager_authorization" && pendingOwnerRole === "costOwner";
+  return {
+    id: textValue(first.package_id, 96),
+    requestItemId: textValue(first.request_item_id, 96),
+    packageCode: textValue(first.package_code, 120),
+    source: "UAT MySQL",
+    dbBacked: true,
+    project: textValue(first.project_name || first.project_code, 160),
+    projectCode: textValue(first.project_code, 80),
+    yearProject: textValue(first.project_name || first.project_code, 160),
+    projectType: textValue(first.project_family, 40) || "Mixed",
+    name: textValue(first.item_name, 240),
+    spec: textValue(first.item_spec, 1000),
+    level1: textValue(first.item_category, 120),
+    department: textValue(first.demand_department, 120),
+    requesterDept: textValue(first.requester_department || first.demand_department, 120),
+    demandDepartment: textValue(first.demand_department, 120),
+    submittedBy: textValue(first.created_by_name || first.created_by_user_id, 160),
+    submittedAt,
+    receivedAt: isoDateValue(first.received_at),
+    stageStartAt: isoDateValue(first.stage_start_at),
+    requiredDeliveryDate: dateOnlyValue(first.need_date),
+    needDate: dateOnlyValue(first.need_date),
+    status: currentStage === "requester_draft" ? "Draft" : "Submitted",
+    currentStage,
+    pendingOwnerRole,
+    pendingOwnerUserId: textValue(first.pending_owner_user_id, 64),
+    nextStep: isDeptDriPending
+      ? "Dept DRI submission review"
+      : isCostManagerPending
+        ? "Cost Manager final authorization"
+        : currentStage.replace(/_/g, " "),
+    deptDriReviewStatus: isDeptDriPending ? "Pending Dept DRI Submission Review" : "",
+    deptDriReviewSubmittedAt: submittedAt,
+    costManagerAuthorizationStatus: isCostManagerPending ? "Pending Cost Manager Authorization" : "",
+    stationBreakdown,
+    totalRequestedQty: numberValue(first.total_requested_qty) || totalQty,
+    estimateCurrency: textValue(first.estimate_currency, 3),
+    estimatedUnitPrice: numberValue(first.estimate_unit_price_usd || first.estimate_unit_price),
+    estimatedUnitPriceUsd: numberValue(first.estimate_unit_price_usd || first.estimate_unit_price),
+    estimateReason: textValue(first.estimate_reason, 500),
+    approvalId: textValue(pendingApproval.approval_id, 96),
+    approvalStage: textValue(pendingApproval.approval_stage, 80),
+    approvalRole: textValue(pendingApproval.approval_role, 40),
+  };
+}
+
+async function workflowReviewRowsForUser(user) {
+  if (!pool) return [];
+  const params = [];
+  const where = ["rp.status <> 'draft'"];
+  if (user.role === "dri") {
+    where.push("(rp.pending_owner_role = 'deptDri' OR a.approval_role = 'deptDri')");
+  } else if (user.role === "manager") {
+    where.push("(rp.pending_owner_role = 'costOwner' OR a.approval_role = 'costOwner')");
+  } else if (user.role === "projectDri") {
+    where.push("(rp.pending_owner_role = 'budgetApprover' OR a.approval_role = 'budgetApprover')");
+  }
+  if (user.role !== "admin" && user.id) {
+    where.push("(rp.pending_owner_user_id IS NULL OR rp.pending_owner_user_id = ? OR a.decision = 'pending')");
+    params.push(user.id);
+  }
+  const [rows] = await pool.execute(
+    `SELECT
+       rp.id AS package_id,
+       rp.package_code,
+       rp.created_by_user_id,
+       creator.name AS created_by_name,
+       creator.department AS requester_department,
+       rp.demand_department,
+       rp.project_family,
+       rp.project_code,
+       rp.project_name,
+       rp.need_date,
+       rp.status AS package_status,
+       rp.current_stage,
+       rp.pending_owner_role,
+       rp.pending_owner_user_id,
+       rp.submitted_at,
+       rp.received_at,
+       rp.stage_start_at,
+       ri.id AS request_item_id,
+       ri.line_no AS item_line_no,
+       ri.item_name,
+       ri.item_spec,
+       ri.item_category,
+       ri.total_requested_qty,
+       ri.estimate_currency,
+       ri.estimate_unit_price,
+       ri.estimate_unit_price_usd,
+       ri.estimate_reason,
+       dl.id AS demand_line_id,
+       dl.line_no AS demand_line_no,
+       dl.demand_type,
+       dl.project_code AS demand_project_code,
+       dl.line_code,
+       dl.phase_code,
+       dl.station_or_unit,
+       dl.quantity,
+       dl.need_date AS demand_need_date,
+       dl.remark,
+       a.id AS approval_id,
+       a.approval_stage,
+       a.approval_role,
+       a.decision AS approval_decision
+     FROM request_packages rp
+     JOIN request_items ri ON ri.request_package_id = rp.id
+     LEFT JOIN request_demand_lines dl ON dl.request_item_id = ri.id
+     LEFT JOIN approvals a ON a.request_package_id = rp.id AND (a.request_item_id = ri.id OR a.request_item_id IS NULL)
+     LEFT JOIN users creator ON creator.id = rp.created_by_user_id
+     WHERE ${where.join(" AND ")}
+     ORDER BY rp.submitted_at DESC, rp.id, ri.line_no, dl.line_no`,
+    params,
+  );
+  const groups = new Map();
+  rows.forEach((row) => {
+    const key = `${row.package_id}::${row.request_item_id}`;
+    if (!groups.has(key)) groups.set(key, { rows: [] });
+    groups.get(key).rows.push(row);
+  });
+  return Array.from(groups.values()).map(workflowReviewRowFromGroup);
 }
 
 function sanitizeOriginalFileName(fileName) {
@@ -1598,6 +1780,16 @@ async function handleApi(req, res, url) {
       const user = await requireAuth(req, res);
       if (!user) return;
       sendJson(res, 200, { user: publicUser(user) });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/workflow/review-rows") {
+      const user = await requireAuth(req, res);
+      if (!user) return;
+      if (!canViewWorkflowReviewRows(user)) {
+        sendJson(res, 403, { error: "Workflow review role required" });
+        return;
+      }
+      sendJson(res, 200, { rows: await workflowReviewRowsForUser(user) });
       return;
     }
     if (req.method === "GET" && url.pathname === "/api/admin/sap-po-raw-import/status") {

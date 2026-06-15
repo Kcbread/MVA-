@@ -120,6 +120,27 @@ test("invalid login fails and does not create a session", async () => {
   }
 });
 
+test("workflow review rows require review role and return a stable rows payload", async () => {
+  const server = createServer();
+  const baseUrl = await listen(server);
+  try {
+    const anonymous = await request(baseUrl, "/api/workflow/review-rows");
+    assert.equal(anonymous.response.status, 401);
+
+    const requester = await login(baseUrl, "V1524505");
+    const blocked = await request(baseUrl, "/api/workflow/review-rows", { cookie: requester.cookie });
+    assert.equal(blocked.response.status, 403);
+    assert.equal(blocked.json.error, "Workflow review role required");
+
+    const deptDri = await login(baseUrl, "dept-dri");
+    const reviewRows = await request(baseUrl, "/api/workflow/review-rows", { cookie: deptDri.cookie });
+    assert.equal(reviewRows.response.status, 200);
+    assert.equal(Array.isArray(reviewRows.json.rows), true);
+  } finally {
+    server.close();
+  }
+});
+
 test("static server only exposes browser runtime assets", async () => {
   const server = createServer();
   const baseUrl = await listen(server);
