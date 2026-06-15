@@ -10,7 +10,7 @@ This is the locked 2026-06-08 version. Older references to `Source Panel`, `Add 
 | Purpose | Build a demand package inside the current Project / Line scope by choosing item/spec, entering all-phase station/unit quantities, saving draft, or submitting. |
 | Input Data | Project list, requester persona, OM catalog, purchase/history records, Lv123 taxonomy, warehouse/carryover evidence. |
 | Output / Mutation | Creates/updates `Draft` request rows; every non-zero qty cell writes one long-form `stationBreakdown` row. |
-| Downstream Consumers | Cost Manager Approval, Cost Manager Demand Analysis, OM Purchasing, Buyer Handoff. |
+| Next Consumers | Cost Manager Approval, Cost Manager Demand Analysis, OM Purchasing, Buyer Handoff. |
 
 ### Workspace Layout
 
@@ -127,6 +127,14 @@ Deprecated popup columns:
 - New Item Request is not blocked by Lv filters; search text starts the material master request and similar rows are shown for duplicate review.
 - Row matching reads `row.level1/level2/level3` and also supports OM matched fields `omCategoryLevel1/2/3`.
 
+### New Material Request Required Fields
+
+- English, Chinese, and Vietnamese material names.
+- Suggested Lv1 / Lv2 / Lv3; reviewer can correct.
+- Spec summary, structured spec attributes, UOM, use case, estimate unit price, estimate amount, and estimate reason.
+- If similar materials exist, requester must provide the difference reason and evidence/reference before adding the pending row.
+- Pending rows can receive worksheet qty but remain `Pending Material Review`; they do not become active `item_master` catalog data until approved or merged.
+
 ### Privacy Guard
 
 Requester worksheet, Add Item popup, and Requester detail must not show:
@@ -150,7 +158,7 @@ Requester worksheet, Add Item popup, and Requester detail must not show:
 
 - Main worksheet only shows row hint badges.
 - Details and candidate creation live in row drawer/detail.
-- Warehouse/carryover evidence does not directly modify requester qty; formal impact is decided by downstream owner/review rules.
+- Warehouse/carryover evidence does not directly modify requester qty; formal impact is decided by Buyer Handoff owner/review rules.
 
 ## IT Acceptance Criteria
 

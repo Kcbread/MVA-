@@ -140,6 +140,9 @@ Estimate variance is globally visible and compares Requester estimate against th
 | estimateVarianceAlert | True when both percentage and USD thresholds are exceeded | System |
 
 Display rule: all roles can see estimate, PAS quote, and variance status; requester-facing surfaces still must not expose vendor, PAS material no, factory material no, OM assignee, or FTV.
+
+| Field | Meaning | Owner |
+| --- | --- | --- |
 | quoteValidUntil | Quote validity date | OM Purchasing |
 | unitPriceUsd | Canonical price for cost calculation | System/OM |
 | unitPriceVnd | Display/input price when using VND | OM/System |
@@ -156,6 +159,7 @@ These are not requester-visible.
 | pasMaterialNo | PAS Material No | OM / Buyer |
 | factoryMaterialNo | Factory material number after PO; SAP PO Raw Data column A `料號` | Buyer / OM / Admin |
 | sapMaterialNo | SAP material number from SAP PO Raw Data column H `料號`; separate from Factory Material No | OM / Buyer / Admin |
+| pkMaterialNo | PK material number rule carried by Factory Material No prefix/category coding; not Packaging item classification | OM / Buyer / Admin |
 | omAssignee | OM assigned owner | OM Leader / Admin |
 | ftvCode | Customs/audit FTV code | OM / Buyer / Admin |
 
@@ -176,6 +180,50 @@ SAP PO raw import/export keeps the Excel `Raw Data` A-BN shape as a mirror layer
 
 `資訊類` currently has a supplemental Lv1-Lv3 rule set for the yellow OM rows: `電腦週邊`, `顯示器`, `電腦`, and `條碼設備` map to existing `IT...` Factory Material No prefixes at exact Lv3 path level. The importer validates those paths without rewriting column A.
 
+## 6B. Material Identity / FTV / PK Rules
+
+These rules are formal implementation requirements, not descriptive labels.
+
+| Concept | Definition | Implementation Rule |
+| --- | --- | --- |
+| `item_master` | Requester-safe product/spec identity and catalog master. | Does not store PAS Material No, Factory Material No, SAP Material No, or FTV as requester-visible identity. |
+| PAS Material No | OM/PAS quote/order context entered during PAS Quote Result. | OM/Buyer internal field; must not be shown to Requester. |
+| Factory Material No | Factory-side PO-stage material number; Raw Data A `料號`. | Canonical source for PK prefix/category coding; must not be merged with SAP Material No or PAS Material No. |
+| SAP Material No | SAP-side material number; Raw Data H `料號`. | Separate SAP identity and audit evidence; do not use as Factory Material No fallback. |
+| PK Material No | Factory Material No prefix/category coding rule. | PK means Factory Material No prefix/category coding, not Packaging item classification. |
+| FTV Code | Customs / Trading / Accounting audit code; Raw Data K `FTV Code`. | Export/audit dimension only; not a Cost Dashboard or Station Matrix group key. |
+
+PK prefix rules:
+
+- PK prefix is determined by Lv1/Lv2/Lv3 category coding or by an active factory prefix mapping.
+- Existing Raw Data and PO-row Factory Material No values are audit evidence. Importers may validate, map, and audit them, but must not silently rewrite Raw Data column A.
+- Existing `資訊類` yellow OM rows with `IT...` Factory Material No prefixes remain a supplemental rule. Any new PK prefix rule must be documented at the same Lv1/Lv2/Lv3 or factory prefix mapping level before production import/export uses it.
+- If prefix mapping cannot be determined, set `materialCodingReviewStatus = Need material coding review`; do not guess a PK code.
+
+FTV export gate:
+
+- `purchase_route = local_buy`: FTV Not Required.
+- `purchase_route = external_import`: Export Package requires an active FTV mapping before export.
+- Missing FTV mapping blocks OM Export Package and routes the row to OM/Admin mapping repair.
+- FTV is hidden from Requester and does not change cost ownership, quantity grouping, Cost Dashboard grouping, or Station Matrix grouping.
+
+Raw Data field truth:
+
+| Raw Data Field | Meaning |
+| --- | --- |
+| A `料號` | Factory Material No and possible PK prefix/category coding source. |
+| H `料號` | SAP Material No only. |
+| K `FTV Code` | FTV Code audit/mapping source. |
+| BL / BM / BN | Lv1 / Lv2 / Lv3 category coding source. |
+
+Material coding review field:
+
+| Field | Meaning | Owner |
+| --- | --- | --- |
+| materialCodingReviewStatus | Valid / Need material coding review / Rejected mapping / Approved mapping | OM/Admin material mapping owner |
+| materialCodingReviewReason | Required reason when status is not Valid | OM/Admin material mapping owner |
+| purchaseRoute | local_buy / external_import | OM/Admin or route decision service |
+
 ## 7. Attachments
 
 | Field | Meaning | Owner |
@@ -184,8 +232,38 @@ SAP PO raw import/export keeps the Excel `Raw Data` A-BN shape as a mirror layer
 | fileName | Original file name | Uploader/System |
 | mimeType | File MIME type | System |
 | byteSize | File size | System |
+| storageRef | Production object/file storage reference; never expose a direct local path to end users | System |
 | visibilityScope | Requester-safe / OM-internal / Admin | System |
 | uploadedBy | Uploader | System |
 | uploadedAt | Upload timestamp | System |
 
 Mac mini UAT already has MySQL-backed attachment metadata and file retention. Production implementation should define final storage/security policy separately.
+
+Production attachment requirements:
+
+- Store attachment metadata in `attachments`; workflow tables should reference attachment IDs only.
+- Enforce `visibilityScope` and role download guards on the API, not only in the frontend.
+- Quote evidence requires screenshot/image plus quote Excel; PDF must not be the primary evidence model.
+- Production IT must define final storage backend, encryption/retention policy, malware scan policy, and signed-download behavior before go-live.
+
+## 8. Time / SLA Fields
+
+| Field | Meaning | Owner |
+| --- | --- | --- |
+| stageStartAt | Timestamp when the current workflow stage started | Server |
+| daysPending | Server-derived days since `stageStartAt` | Server |
+| quoteValidUntil | Quote expiry date from OM quote result | OM Purchasing/System |
+| timezone | Deployment timezone used for date boundaries and SLA calculations | Server/Admin config |
+
+Rules:
+
+- `stageStartAt`, `daysPending`, quote expiry warnings, and Buyer Handoff days are server-authoritative.
+- Use one configured deployment timezone for workflow dates; Vietnam UAT defaults to `Asia/Ho_Chi_Minh` unless IT configures a different production timezone.
+- `daysPending` and quote expiry warning use calendar-day boundaries by default. If production changes to business-day SLA, IT must document the holiday calendar and apply it consistently across all stages.
+- Client-side displayed dates must not recalculate workflow state independently.
+
+## 9. Admin / Impersonation / Buyer Handoff Boundaries
+
+- Admin setup and impersonation are governance tools only. If impersonation remains available, every start/end and mutation must write audit events.
+- Admin impersonation must not be used as a business approval override for Dept DRI, Cost Manager, Budget Approver, or OM Purchasing actions.
+- Buyer Handoff PR / PO / arrival events are post-export future events. They may be stored in `buyer_handoff_events`, but they must not rewrite the main OM Export Package status after export.

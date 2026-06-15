@@ -6,157 +6,68 @@
 
 | Field | Definition |
 | --- | --- |
-| Reads | OM catalog, purchase/history records, Copy Demand history, Lv123 taxonomy, New Item query. |
-| Writes | None; clicking `Add` creates the worksheet draft row. |
+| Reads | Catalog, purchase records/history, Copy Demand history, Lv123 taxonomy, New Item Request draft. |
+| Writes | Creates worksheet draft row after `Add`; New Item Request first creates a pending material master request. |
 | Key Columns | Add, Item, Detail, Spec, Action. |
-| Filters | Search, Lv1, Lv2, Lv3, Catalog / Reuse / Copy Demand / New Item Request source tabs. |
-| Actions | Add, Detail. |
-| Downstream | `requester.requestWorkspace.table.worksheetRows`. |
+| Next Consumer | `requester.requestWorkspace.table.worksheetRows`. |
 
 Rules:
 
-- Source badge is inside the Item cell second line, not a standalone column.
-- No `Source` header, `Phase Trace` header, or Catalog identity wording.
-- `Detail` cell shows Lv123 path and source reference.
-- `Spec` cell shows requester-safe product spec only.
+- Catalog / Reuse / Copy Demand target quantities all start from 0.
+- Requester must not see vendor, supplier, PAS material no, factory material no, OM assignee, or FTV.
 
 ### `requester.requestWorkspace.table.worksheetRows`
 
 | Field | Definition |
 | --- | --- |
-| Reads | Draft request rows, stationBreakdown rows, current Project / Line / MFG-Non-MFG scope. |
-| Writes | Qty cells -> `stationBreakdown` long-form rows; Need Date; remove draft item row; Save Draft; Submit. |
-| Key Columns | Item / Spec, P1.0 group, P1.1 group, EVT group, DVT group, PVT group, MP group, Row Total, Hint, Action. |
-| Actions | Add Item, Save Draft, Submit, Remove, Detail. |
-| Downstream | Cost Manager Approval, Demand Analysis, OM Purchasing, Buyer Handoff. |
-
-MFG phase group columns:
-
-```text
-CG / BG / FATP / Test / Hybrid / Auto / ENG Pack / Zombie / Laser_pico / Rework / Repair / WH / Phase Total
-```
-
-Non-MFG phase group columns:
-
-```text
-FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC / Phase Total
-```
-
-Cell mapping:
-
-```text
-requestId + project + requestLine + demandType + phase + station/demandUnit + qty
-```
+| Reads | Draft request rows, stationBreakdown rows, current project / line / MFG-Non-MFG scope. |
+| Writes | qty cells -> long-form `stationBreakdown` / `request_demand_lines`; Need Date; Save Draft; Submit. |
+| Key Columns | Item / Spec, P1.0, P1.1, EVT, DVT, PVT, MP, Row Total, Hint, Action. |
+| Next Consumer | Dept DRI Review, Cost Manager Review, OM Purchasing, Buyer Handoff. |
 
 Rules:
 
-- One row = `Item / Spec`.
-- `P1.0 / P1.1 / EVT / DVT / PVT / MP` are two-row grouped headers.
-- Qty accepts non-negative integers only; blank means 0.
-- `Total / Phase Total / Row Total` are calculated only, not stored separately.
-- Copy Demand carries source trace only; all target qty starts at 0.
-- Remove immediately removes a Requester worksheet row without a second confirmation.
+- Save Draft does not require Need Date.
+- Submit requires active worksheet Need Date and at least one qty > 0.
+- Totals are derived values, not canonical storage.
 
-### `requester.requestWorkspace.table.rowHints`
+## Review Tables
 
-| Field | Definition |
-| --- | --- |
-| Reads | Worksheet draft rows, carryover suggestion, warehouse evidence, New Item Request status. |
-| Writes | Candidate creation happens only in row detail/drawer; main hint does not write workflow status directly. |
-| Key Columns | Hint badge, Detail. |
-| Downstream | Carryover review, warehouse owner queue. |
-
-### `requester.addReuseItem.table.byItemHistory`
+### `deptDri.deptReview.table.queue`
 
 | Field | Definition |
 | --- | --- |
-| Reads | Completed/PO-issued history rows with item/spec/source phase/source qty/demand breakdown. |
-| Writes | Current target project draft row, copied demand rows retargeted to current target/default phase, source reference fields. |
-| Key Columns | Add, Source Project, Factory Material No., Item, Spec, Qty / Phase, Detail. |
-| Actions | Add. |
-| Downstream | OPM Request Workspace Draft Items. |
+| Reads | Submitted request packages, request items, long-form quantity rows, warehouse/carryover candidates, price exceptions. |
+| Writes | Dept DRI approve/reject, reason, audit event, quantity direct edit. |
+| Key Columns | Review Status, Project, Requester, Item / Spec, Qty, Need Date, Exception / Evidence, Action, Detail. |
+| Next Consumer | Cost Manager Review, Budget Approver Review, Requester Action Required, warehouse/carryover ledgers. |
 
-### `requester.addReuseItem.table.projectPackagePreview`
-
-| Field | Definition |
-| --- | --- |
-| Reads | History rows grouped by Source Project + Source Phase + Source Package. |
-| Writes | Multiple current target project draft rows after import; source qty is preserved but demand rows/raw phase totals retarget to current target/default phase. |
-| Key Columns | Item, Spec, Source Package, Qty, Phase Summary, Detail. |
-| Actions | Preview Package, Import Package to Request. |
-| Downstream | OPM Request Workspace Draft Items; then Manager Approval after submit. |
-
-### `requester.actionRequired.table.tasks`
+### `costManager.costReview.table.queue`
 
 | Field | Definition |
 | --- | --- |
-| Reads | Waiting Requester Confirmation, amendment confirmation rows. |
-| Writes | Confirm Need, Cancel Request, Confirm Revised Request, Reject Amendment. |
-| Key Columns | Project, Item, Spec, Total Qty, Quoted Amount, Quote Date, Attachment Status, Current Stage, Actions. |
-| Downstream | OM Export Package or Cancelled. |
+| Reads | Dept DRI approved submissions, quantity evidence, pricing/cost evidence, locked/applied warehouse/carryover ledger. |
+| Writes | Cost Manager authorize/reject, reason, audit event, quantity direct edit. |
+| Key Columns | Review Status, Project, Requester, Item / Spec, Total Qty, Cost Evidence, Action, Detail. |
+| Next Consumer | OM Leader intake / assignment, Requester Action Required, Review History. |
 
-## Manager B Tables
-
-### `manager.approval.table.pendingApproval`
+### `budgetApprover.budgetReview.table.queue`
 
 | Field | Definition |
 | --- | --- |
-| Reads | Request rows where `status = Submitted`. |
-| Writes | Decision, decision time, manager reason, routing patch. |
-| Key Columns | Request ID, Project, Requester, Submitted At, Item, Affected Phases, Total Qty, Status, Reject Reason, Decision, Contact, Detail. |
-| Actions | Approve, Reject to Requester / Dept DRI, Contact DRI, Detail. |
-| Downstream | Approval History, Progress Tracking, Demand Analysis, OM queue. |
+| Reads | Dept DRI approved price exceptions, quote/history delta, Temporary Budget evidence, quantity evidence. |
+| Writes | Budget Approver final approve/reject, reason, audit event, quantity direct edit. |
+| Key Columns | Review Status, Project, Item / Spec, Quote USD, History USD, Delta USD, Reason, Action, Detail. |
+| Next Consumer | OM Export Package, Requester Action Required. |
 
-### `manager.progressTracking.table.progressRows`
+### Shared evidence tables
 
-| Field | Definition |
-| --- | --- |
-| Reads | Excel raw progress rows + active request rows. |
-| Writes | None. |
-| Key Columns | Year Project, Project, Item, Department, Quantity, Budget/PR/PO/Arrived Progress, Key Dates, Risk Reason, Detail. |
-| Actions | Detail. |
-| Downstream | Manager decision context. |
-
-### `manager.demandAnalysis.table.costDashboard`
-
-| Field | Definition |
-| --- | --- |
-| Reads | Submitted/approved/in-progress demand rows, USD canonical price helpers, carryover ledger/effective qty. |
-| Writes | None. |
-| Key Columns | Item, Spec, Price, MFG, FATP TE, FATP IQC, FATP PQE, WH, Q-LAB, REL, ENG1, ENG2, ENG3, IT, FAC, Total, Detail. |
-| Actions | Cell/detail drilldown to Station Matrix. |
-| Downstream | Manager demand analysis drilldown. |
-
-### `manager.demandAnalysis.table.stationMatrix`
-
-| Field | Definition |
-| --- | --- |
-| Reads | Submitted/approved/in-progress request stationBreakdown rows, carryover ledger/effective qty. |
-| Writes | None. |
-| Key Columns | Project, Item, Spec, Unit Price, Est. Amount, P1.0~MP station columns, Total Qty, Detail. |
-| Filters | Project, Item, Phase, Station, 需求單位, Sort. |
-| Actions | Detail, dashboard cell drill filter. |
-| Downstream | Manager quantity reasonableness review. |
-
-### `manager.approvalHistory.table.decisions`
-
-| Field | Definition |
-| --- | --- |
-| Reads | Reviewed rows. |
-| Writes | None. |
-| Key Columns | Request ID, Project, Item, Phase Qty, Total Qty, Decision, Reason, Decision Time, Detail. |
-
-## Shared Tables
-
-### `shared.contactPopup.panel.contacts`
-
-| Field | Definition |
-| --- | --- |
-| Reads | DRI / Leaders workbook rows, requester personas, project/process contact mappings. |
-| Writes | None in v1; read-only popup. |
-| Key Fields | Name, Email, Department, Role / Contact Type, Phone, Employee ID, Source. |
-| Actions | Open Contact, Copy Contact Text. |
-| Downstream | Manager Contact DRI, OM Contact DRI, manual follow-up. |
+| Table | Reads | Writes | Rule |
+| --- | --- | --- | --- |
+| `shared.approvalQuantityReview.table.dashboard` | active demand rows, price helpers, locked/applied ledger | none | First column is fixed to `Review Status`. |
+| `shared.approvalQuantityReview.table.mfgStationDetail` | selected item / dashboard cell scope | optional audited direct edit through popup | Preserves station detail. |
+| `shared.approvalQuantityReview.table.nonMfgDepartmentDetail` | selected item / dashboard cell scope | optional audited direct edit through popup | Preserves department detail. |
+| `shared.itemQuantityReview.popup` | formal long-form qty rows | add/edit/delete qty + audit | Direct edit is not a temporary override. |
 
 ## OM Tables
 
@@ -164,66 +75,98 @@ Rules:
 
 | Field | Definition |
 | --- | --- |
-| Reads | G Project MVA EQ Request raw rows. |
-| Writes | None. |
-| Key Columns | Project, Item, Qty, Received Date, Current Stage, Days in Stage, Next Action, Quote Expiry, Pending Reason, Detail. |
+| Reads | Cost Manager authorized rows, OM assignments, quote status, export status. |
+| Writes | Assignment only when actor is OM Leader / Admin; otherwise read-only. |
+| Key Columns | Project, Item, Qty, Received Date, Current Stage, Days in Stage, Pending Owner, Quote Expiry, Next Action, Detail. |
+| Next Consumer | PAS Demand No, PAS Quote Result, Export Package. |
 
 ### `om.pasDemandNo.table.pasRows`
 
 | Field | Definition |
 | --- | --- |
-| Reads | Manager approved OM scope rows. |
-| Writes | PAS Demand No, PAS result status, history. |
-| Key Columns | Project, Phase, Item, Qty, PAS Demand, Item Context, Level 2/3, Owner, PAS Result Status, Next Step, Contact, Detail. |
-| Actions | Move to PAS Quote Result, Reject to Requester / Dept DRI, Contact DRI, Detail. |
-| Downstream | PAS Quote Result. |
+| Reads | Assigned OM rows waiting PAS Demand No. |
+| Writes | PAS Demand No, audit event. |
+| Key Columns | Project, Item / Spec, Qty, PAS Demand No, PAS Result Status, Next Step, Detail. |
+| Next Consumer | PAS Quote Result. |
 
 ### `om.pasQuoteResult.table.quoteRows`
 
 | Field | Definition |
 | --- | --- |
-| Reads | PAS Demand No completed rows, waiting user confirmation rows, amendment rows. |
-| Writes | PAS Material No, vendor, vendor part no, unit price VND input plus USD canonical price, quote date, quote received date, quote valid until, PDF, Excel, price decision status, estimate-vs-quote variance snapshot, Requester / Dept DRI routing status. |
-| Key Columns | Project, Phase, Item / Qty, PAS Tracking, Quote Result, Completion Status, Actions, Detail. |
-| Actions | Save Quote Info, Send to Requester, Reject to Requester / Dept DRI, Contact DRI, Detail. |
-| Downstream | Requester Action Required, OM Export Package. |
-
-### `om.submissionDashboard.table.quoteExpiryMonitor`
-
-| Field | Definition |
-| --- | --- |
-| Reads | Quote result rows with quote path data. |
-| Writes | None in v1; edit validity in PAS Quote Result. |
-| Key Columns | Project, Item, PAS Demand No, PAS Material No, Valid Until, Expiry Status, Action Needed, Detail. |
-| Actions | Detail. |
-| Downstream | OM follow-up, MFG expiry reminder, Manager detail. |
+| Reads | Rows with PAS Demand No, assigned OM scope, history price, exchange rate. |
+| Writes | PAS Material No, vendor, vendor number, quote price, quote date, quote valid until, screenshot/image attachment, Excel attachment, price decision. |
+| Key Columns | Project, Item / Qty, PAS Tracking, Quote Result, Completion Status, Actions, Detail. |
+| Next Consumer | Auto Cleared -> OM Export Package; Price Exception -> Dept DRI -> Budget Approver. |
 
 ### `om.exportPackage.table.exportRows`
 
 | Field | Definition |
 | --- | --- |
-| Reads | Requester confirmed rows, price auto-cleared rows, and Budget Approver approved rows. |
-| Writes | finalExportCostType, finalExportTarget, finalExportPackageCode, finalExportStatus, finalExportedAt. |
-| Key Columns | Project, Phase, Item, Qty, Package Code, PAS Context, Quote Attachments, Requester Decision, Cost Type / Target, Export Status, Exported At, Actions, Contact, Detail. |
-| Actions | Expense, Capex, Export Package, Mark Exported, Reject to Requester / Dept DRI. |
-| Downstream | Buyer PR/PO. |
+| Reads | Auto Cleared rows, Budget Approver approved rows, quote evidence, effective qty, purchase_route, active FTV mapping, materialCodingReviewStatus. |
+| Writes | cost type, target CFA/ECS, package code, export status, export timestamp, FTV export snapshot, audit event. |
+| Key Columns | Project, Item, Qty, Package Code, PAS Context, Quote Attachments, Cost Type / Target, Export Status, Actions, Detail. |
+| Next Consumer | Buyer Handoff. |
+
+Rules:
+
+- When `purchase_route = local_buy`, show `FTV Not Required`; do not require FTV for export.
+- When `purchase_route = external_import`, an active FTV mapping is required before export.
+- Missing FTV mapping must block `Export Package` and route to OM/Admin mapping repair.
+- When `materialCodingReviewStatus = Need material coding review`, export is blocked until PK / Factory Material No prefix review is complete.
+
+## Material Identity / FTV / PK Tables
+
+### `materialIdentity.table.identityMap`
+
+| Field | Definition |
+| --- | --- |
+| Reads | `item_master`, `material_identity`, SAP PO Raw Data A/H/K/BL/BM/BN, Lv123 taxonomy, factory prefix mapping. |
+| Writes | Factory Material No mapping, SAP Material No reference, PK prefix/category mapping, `materialCodingReviewStatus`, audit event. |
+| Key Columns | Item / Spec, Factory Material No, SAP Material No, PK Prefix, Lv1 / Lv2 / Lv3, Review Status, Actions. |
+| Next Consumer | OM Export Package, customs audit, Buyer Handoff evidence. |
+
+Rules:
+
+- Raw Data column A `料號` is Factory Material No; column H `料號` is SAP Material No; column K is FTV Code; BL/BM/BN are Lv1/Lv2/Lv3.
+- PK material number means Factory Material No prefix/category coding, not Packaging item classification.
+- Importers may only validate, map, and audit existing Raw Data / PO-row Factory Material No values; they must not silently rewrite them.
+- If prefix mapping cannot be determined, write `Need material coding review`; do not guess codes automatically.
+- Existing `資訊類` yellow OM rows with `IT...` prefix mapping remain a supplemental rule; new PK prefix rules must be documented at the same level.
+
+### `ftvCode.table.mapping`
+
+| Field | Definition |
+| --- | --- |
+| Reads | item/spec, demand department, purchase_route, Factory Material No, active/inactive FTV mapping. |
+| Writes | active FTV mapping, mapping repair reason, FTV audit snapshot, audit event. |
+| Key Columns | Item / Spec, Demand Department, Purchase Route, FTV Code, Status, Effective From, Actions. |
+| Next Consumer | OM Export Package, customs / Trading / Accounting audit. |
+
+Rules:
+
+- FTV is a customs / Trading / Accounting audit dimension, not a Cost Dashboard or Station Matrix group key.
+- Requester must not see FTV.
+- Same item/spec + same demand department + `external_import` should reuse the active FTV mapping; different demand departments may have different FTV mappings for audit support.
+
+## Buyer Handoff Tables
+
+| Table | Reads | Writes | Rule |
+| --- | --- | --- | --- |
+| `buyerHandoff.status.table.packages` | exported packages, quote/export metadata, buyer events | future PR/PO/arrival events | Starts only after OM mark exported. |
 
 ## Cross-Table Rules
 
-- `Detail` does not write main process status.
-- `Contact DRI` does not write main process status.
-- `Demand Analysis` does not wait for approval completion; submitted demand is visible after submit.
-- `Progress Tracking` is for process/progress; `Demand Analysis` is for cost/quantity reasonableness; do not merge them into one table.
-- OM `PAS Demand No` only handles PAS Demand No; quote attachments belong only to `PAS Quote Result`.
-- OM `PAS Quote Result` is the only place to enter PAS Material No, quote result, PDF/Excel, and quote validity.
-- `Quote Valid Until` is required before `Send to Requester`; expiry reminder uses a 14-day threshold.
-- Add Item popup sources `Catalog / Reuse / Copy Demand` create target worksheet rows with qty 0. `New Item Request` first creates a pending material master request; only completed pending rows enter the worksheet.
-- Reuse / Copy Demand `Source Project / Source Line / Source Qty` are references only; source qty must not be copied into target qty.
-- Requester Need Date is required before submit and must flow into Manager, OM, Export, timeline, and detail.
-- Requester may declare line carryover; Dept DRI owns formal carryover review; Manager/OM consume effective qty/cost only.
-- Cost calculations use USD canonical values. VND is display/export/input conversion through the monthly exchange rate.
-- Saving / effective cost in Manager Demand Analysis comes from applied carryover ledger events only; pending/rejected carryover is visible but does not reduce cost.
-- Saving quote info creates a globally visible estimate variance snapshot: requester estimate, PAS quote, delta USD/%, total delta, and variance status. It must not expose vendor/PAS/factory/FTV fields to requester views.
-- After OM saves quote info, price decision can Auto Clear or route to Dept DRI -> Budget Approver. Auto Cleared and Budget Approver Approved rows can enter Export Package without Requester confirmation.
-- `Temporary Budget Request` input UI is scoped only to Requester `Request Workspace`; it must not be injected into Manager B, OM Purchasing, Contact popup, or Admin-only tables.
-- `Contact` is a topbar popup utility, not a top-level tab.
+- `Detail` does not write workflow status.
+- `Contact DRI` does not write workflow status.
+- Requester visibility must be filtered at API/query layer, not frontend hidden-only.
+- Every workflow mutation must write an audit event.
+- Reject must preserve reason, actor, timestamp, previous stage, and next owner.
+- Quote expiry warning threshold = 10 days.
+- Price exception threshold = `quoteUnitPriceUsd - historyUnitPriceUsd > 0.40`.
+- No history price, new item, and Temporary Budget always route Dept DRI -> Budget Approver.
+- Warehouse pending candidate does not reduce cost; locked use affects effective cost.
+- Buyer Handoff is the formal post-export label; user-facing UI must not use legacy post-export wording as the primary label.
+- Production attachment storage/security is implemented by IT; this handoff locks metadata, `visibilityScope`, and role download guard.
+- `stageStartAt`, `daysPending`, quote expiry, and Buyer Handoff days are calculated by the server with one timezone; default is calendar-day semantics, and any business-day SLA must document the holiday calendar.
+- Admin impersonation must be audited if retained and must not be used as a business approval override.
+- Buyer Handoff PR/PO/arrival are post-export future events and must not rewrite the main OM Export Package status.

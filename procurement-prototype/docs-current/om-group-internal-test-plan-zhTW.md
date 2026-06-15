@@ -38,23 +38,23 @@
 
 | 角色 | 測試者 | 用途 |
 | --- | --- | --- |
-| User A / OPM DRI | 1 人 | 建立需求、送審、確認 OM quote、cancel / amendment。 |
-| Manager B | 1 人 | 審核需求、退回 DRI、確認 approved row 進 OM queue。 |
+| Requester | 1 人 | 建立需求、送審、確認 OM quote、cancel / amendment。 |
+| Cost Manager | 1 人 | 成本授權、退回 requester、確認 authorized row 進 OM queue。 |
 | OM Leader | 1 人 | 維護匯率、操作 PAS / Quote / Export，驗證 Leader 權限。 |
-| OM Member | 1-2 人 | 操作 PAS / Quote / Export，驗證不能修改匯率。 |
-| DRI | 1 人 | 驗證 price escalation review。 |
-| Project DRI | 1 人 | 驗證超價或無 history price 的二階審核。 |
+| OM Purchasing | 1-2 人 | 操作 PAS / Quote / Export，驗證不能修改匯率。 |
+| Dept DRI | 1 人 | 驗證 price escalation first review。 |
+| Budget Approver | 1 人 | 驗證超價或無 history price 的 final approval。 |
 
 ### Browser Profile 建議
 
 同一台電腦要測多角色時，請建立不同 Chrome profile：
 
-- `UAT - User A`
-- `UAT - Manager B`
+- `UAT - Requester`
+- `UAT - Cost Manager`
 - `UAT - OM Leader`
-- `UAT - OM Member`
-- `UAT - DRI`
-- `UAT - Project DRI`
+- `UAT - OM Purchasing`
+- `UAT - Dept DRI`
+- `UAT - Budget Approver`
 
 不要用同一個 tab 反覆切換角色來代表多人同時操作。這樣可以跑完整流程，但不能證明不同使用者 session 隔離。
 
@@ -91,8 +91,8 @@
 
 這個方案才能可靠驗證：
 
-- User A 建立的資料，Manager B 與 OM 在不同電腦可同步看到。
-- OM Member 儲存 quote 後，OM Leader、User A、DRI 可看到同一筆更新。
+- Requester 建立的資料，Dept DRI / Cost Manager 與 OM 在不同電腦可同步看到。
+- OM Purchasing 儲存 quote 後，OM Leader、Requester、Dept DRI 可看到同一筆更新。
 - refresh、重新登入、隔天再進來，資料仍存在。
 - 每個狀態由誰、何時、做了什麼改動都有紀錄。
 
@@ -102,11 +102,11 @@
 
 | 流程 | 角色順序 | 驗證重點 |
 | --- | --- | --- |
-| 基本送審到 OM | User A -> Manager B -> OM | Manager approve 後 OM scope row 進 `PAS Demand No`。 |
-| PAS Demand No | OM Member / OM Leader | 未填 PAS Demand No 不可移到 quote；填寫後可進 `PAS Quote Result`。 |
-| Quote Result 完整性 | OM Member | PAS Material No、Vendor、Vendor Part No、Unit Price、Quote Date、Valid Until、PDF、Excel 必填。 |
-| 匯率權限 | OM Leader vs OM Member | Leader 可改 USD to VND rate；Member 只能查看與使用。 |
-| 價格審核 | OM -> DRI -> Project DRI | 超過 history threshold 或無 history price 時進 price escalation。 |
+| 基本送審到 OM | Requester -> Dept DRI -> Cost Manager -> OM | Cost Manager authorize 後 OM scope row 進 `PAS Demand No`。 |
+| PAS Demand No | OM Purchasing / OM Leader | 未填 PAS Demand No 不可移到 quote；填寫後可進 `PAS Quote Result`。 |
+| Quote Result 完整性 | OM Purchasing | PAS Material No、Vendor、Vendor Part No、Unit Price、Quote Date、Valid Until、screenshot/image、Excel 必填。 |
+| 匯率權限 | OM Leader vs OM Purchasing | Leader 可改 USD to VND rate；OM Purchasing 只能查看與使用。 |
+| 價格審核 | OM -> Dept DRI -> Budget Approver | 超過 history threshold 或無 history price 時進 price escalation。 |
 | Export Package | OM | Auto Cleared 或核准後才可進 Export；Expense / Capex 分流到 ECS / CFA。 |
 
 ## 必測案例

@@ -17,7 +17,7 @@ Primary roles:
 - `Admin`
 - `Buyer Handoff`
 
-Legacy labels such as `User A`, `OPM`, `Manager B`, or `Downstream` should not be used as new implementation labels unless migration text is required.
+Legacy role and post-export labels identified in the latest review should not be used as new implementation labels unless migration text is required.
 
 ## 2. Requester Workspace
 
@@ -139,7 +139,7 @@ OM Purchasing tabs:
 Rules:
 
 - PAS Demand No is recorded before moving to PAS Quote Result.
-- PAS Quote Result owns PAS Material No, quote result, quote validity, PDF/Excel attachment state, and price decision.
+- PAS Quote Result owns PAS Material No, quote result, quote validity, screenshot/image plus Excel attachment state, and price decision.
 - Quote Valid Until is required before sending quote result to Requester unless the row is auto-cleared by price rule.
 - Export Package receives Requester confirmed, Auto Cleared, or Budget Approver Approved rows.
 

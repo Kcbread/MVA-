@@ -14,7 +14,7 @@
 | Visible Columns | 主表欄位。 |
 | Filters | 可操作篩選。 |
 | Actions | 可操作按鈕與成功結果。 |
-| Downstream Consumers | 下游消費模組。 |
+| Next Consumers | 下游消費模組。 |
 | Empty / Error State | 無資料或錯誤狀態。 |
 | DFD Notes | 視覺化建議。 |
 
@@ -29,16 +29,14 @@
 | `requester.actionRequired` | Action Required | 處理 quote confirmation 與 revised request confirmation。 |
 | `requester.requestStatus` | Request Status | 追蹤提交後狀態、timeline、reason。 |
 
-## Manager B Modules
+## Cost Manager Modules
 
 | Module ID | Module Name | Purpose |
 | --- | --- | --- |
-| `manager.approval` | Approval | Pending Approval + Approval History 合併工作區。 |
-| `manager.demandAnalysis` | Demand Analysis | Manager 需求分析工作區，內含 Cost Dashboard 與 Station Matrix。 |
-| `manager.costDashboard` | Cost Dashboard | 第一層參考 Excel Dashboard 的 item x phase x unit 數量/金額 dashboard。 |
-| `manager.stationMatrix` | Station Matrix | 第二層 Excel-like phase x station 數量合理性寬表。 |
-| `manager.progressTracking` | Progress Tracking | 用 pivot-like 方式看採購進度與交期風險。 |
-| `manager.projectSetup` | Project Setup | 維護 project access 與基礎設定。 |
+| `costManager.costReview` | Cost Review | Dept DRI approve 後的 final authorization queue，內嵌 Demand Cost Dashboard 與 Station Matrix。 |
+| `costManager.demandCostDashboard` | Demand Cost Dashboard | Cost Review 內的 item x phase x unit 數量/金額 evidence。 |
+| `costManager.stationMatrix` | Station Matrix | Cost Review 內的 selected item phase x station / demand-unit 明細。 |
+| `costManager.itemQuantityReview` | Item Quantity Review | 可 audited direct edit formal stationBreakdown / phase qty / total qty。 |
 | `shared.contactDri` | Contact DRI | 查 requester / department DRI / project contact。 |
 
 ## OM Purchasing Modules

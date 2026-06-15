@@ -12,7 +12,7 @@ These UAT cases define behavior for IT implementation. They are no-source accept
 | UAT-REQ-004 | Lv123 filter | Open Add Item popup, choose Lv1/Lv2/Lv3 filters | Catalog/Reuse/Copy Demand rows filter by level path; New Item Request remains search-to-create. |
 | UAT-REQ-005 | Reuse item | Add an item from Reuse tab | Item/spec/source reference appears in worksheet; target qty starts at 0. |
 | UAT-REQ-006 | Copy Demand | Add an item from Copy Demand tab | Source trace is visible as reference; source qty is not copied into target qty. |
-| UAT-REQ-007 | New Item Request | Search a new item, open New Item Request tab, add it | New item row appears in worksheet and can receive qty; submit carries New Item Request status downstream. |
+| UAT-REQ-007 | New Item Request | Search a new item, open New Item Request tab, add it | New item row appears in worksheet and can receive qty; submit carries New Item Request status into the next review stage. |
 | UAT-REQ-008 | MFG all-phase columns | Open MFG worksheet | Each phase group shows CG / BG / FATP / Test / Hybrid / Auto / ENG Pack / Zombie / Laser_pico / Rework / Repair / WH plus phase total. |
 | UAT-REQ-009 | Non-MFG all-phase columns | Open Non-MFG worksheet | Each phase group shows FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC plus phase total. |
 | UAT-REQ-010 | Qty input validation | Enter negative, decimal, or scientific notation in qty cells | Invalid characters are blocked or sanitized; no negative/decimal/scientific value remains. |

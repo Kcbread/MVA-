@@ -10,7 +10,7 @@
 | Purpose | 在目前 Project / Line scope 內，用 Excel-like worksheet 建立 demand package、選 item/spec、輸入所有 phase station/unit qty、儲存草稿或送審。 |
 | Input Data | Project list、Requester persona、OM catalog、purchase records/history、Lv123 taxonomy、warehouse/carryover evidence。 |
 | Output / Mutation | 建立/更新 `Draft` request rows；每個非零 qty cell 寫入 `stationBreakdown` long-form row。 |
-| Downstream Consumers | Cost Manager Approval、Cost Manager Demand Analysis、OM Purchasing、Buyer Handoff。 |
+| Next Consumers | Cost Manager Approval、Cost Manager Demand Analysis、OM Purchasing、Buyer Handoff。 |
 
 ### Workspace Layout
 
@@ -126,6 +126,14 @@ Deprecated popup columns:
 - Catalog / Reuse / Copy Demand 都套用 Lv filters。
 - New Item Request tab 不被 Lv filters 擋住；search text 用來啟動物料主檔申請，並顯示相似項供查重。
 - Row matching 讀取 `row.level1/level2/level3`，並兼容 OM matched fields `omCategoryLevel1/2/3`。
+
+### 新增物料申請必填欄位
+
+- 英文、中文、越文物料名稱。
+- Requester 建議 Lv1 / Lv2 / Lv3；reviewer 可修正。
+- Spec summary、structured spec attributes、UOM、用途、預估單價、預估總額、估價原因。
+- 若系統找到相似物料，Requester 必須填差異原因與 evidence/reference 後才可加入 pending row。
+- Pending row 可填 worksheet qty，但狀態維持 `Pending Material Review`；只有 approve 或 merge 後才會成為 active `item_master` catalog data。
 
 ### Privacy Guard
 

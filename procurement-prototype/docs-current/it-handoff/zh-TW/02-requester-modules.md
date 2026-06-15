@@ -10,7 +10,7 @@
 | Purpose | 在目前 Project / Line scope 內，用 Excel-like worksheet 建立 demand package、選 item/spec、輸入所有 phase station/unit qty、儲存草稿或送審。 |
 | Input Data | Project list、Requester persona、OM catalog、purchase records/history、Lv123 taxonomy、warehouse/carryover evidence。 |
 | Output / Mutation | 建立/更新 `Draft` request rows；每個非零 qty cell 寫入 `stationBreakdown` long-form row。 |
-| Downstream Consumers | Cost Manager Approval、Cost Manager Demand Analysis、OM Purchasing、Buyer Handoff。 |
+| Next Consumers | Cost Manager Approval、Cost Manager Demand Analysis、OM Purchasing、Buyer Handoff。 |
 
 ### Workspace Layout
 
