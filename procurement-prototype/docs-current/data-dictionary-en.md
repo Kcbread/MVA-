@@ -7,11 +7,15 @@ This dictionary defines implementation fields for IT. It is a no-source handoff 
 | Field | Meaning | Type | Owner |
 | --- | --- | --- | --- |
 | requestPackageId | Package submitted by Requester | string | System |
-| projectCode | Target project | string | Requester |
+| yearProject | G parent program / year-project scope; for Non-G, use projectCode as scope and keep purpose separate | string | Requester/System |
+| projectCode | Child project code/model under yearProject; Non-G project code such as OR6 / OR5 / BM2 | string | Requester |
 | projectType | G / Non-G / service classification | string | System/Admin |
 | requestLine | Line 1 / Line 2 / Line 3 / Line 4 | string | Requester |
 | demandType | MFG or Non-MFG | enum | Requester |
 | needDate | Package-level need date | date | Requester |
+| requestAction | Requester intent metadata: New Buy / Other | enum | Requester |
+| requestActionOtherText | Required short explanation when requestAction = Other | text | Requester |
+| purpose | Non-G requester-entered purpose; G source purpose/reference text | text | Requester |
 | status | Draft / Submitted / Approved / Rejected / In Progress | enum | System/workflow owner |
 | submittedAt | Submit timestamp | datetime | System |
 | submittedBy | Requester identity | string | System |
@@ -72,7 +76,8 @@ Canonical quantity storage should be long-form.
 | --- | --- | --- | --- |
 | stationBreakdownId | Quantity row ID | string | System |
 | requestId | Parent item row ID | string | System |
-| projectCode | Target project | string | System |
+| yearProject | Parent scope inherited from request package | string | System |
+| projectCode | Target child project code/model | string | System |
 | requestLine | Target line | string | Requester |
 | demandType | MFG / Non-MFG | enum | Requester |
 | phase | P1.0 / P1.1 / EVT / DVT / PVT / MP | enum | Requester |
@@ -86,7 +91,7 @@ Canonical quantity storage should be long-form.
 Cell identity:
 
 ```text
-requestId + projectCode + requestLine + demandType + phase + station/demandUnit
+requestId + yearProject + projectCode + requestLine + demandType + phase + station/demandUnit
 ```
 
 MFG station values:

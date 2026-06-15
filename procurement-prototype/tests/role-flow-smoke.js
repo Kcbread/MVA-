@@ -38,13 +38,16 @@ async function expectNoPageErrors(pageErrors, label) {
 async function clickPriceReviewSelection(page, requestId) {
   await page.evaluate((id) => {
     const selectors = [
+      `[data-manager-select="${CSS.escape(id)}"]`,
+      `[data-manager-select-row="${CSS.escape(id)}"]`,
+      `[data-manager-authorized-select-row="${CSS.escape(id)}"]`,
       `[data-price-review-select="${CSS.escape(id)}"]`,
       `[data-price-review-select-row="${CSS.escape(id)}"]`,
       `[data-price-review-select-cell="${CSS.escape(id)}"]`,
     ];
     const node = selectors.flatMap((selector) => [...document.querySelectorAll(selector)])
       .find((item) => item.offsetParent !== null);
-    if (!node) throw new Error(`No visible price review selection for ${id}`);
+    if (!node) throw new Error(`No visible manager review selection for ${id}`);
     node.click();
   }, requestId);
 }
@@ -373,13 +376,14 @@ async function clickPriceReviewSelection(page, requestId) {
   const submittedMfgRequest = quantitySmoke.submittedMfgRequest;
   const submittedNonMfgRequest = quantitySmoke.submittedNonMfgRequest;
   const secondaryRequest = quantitySmoke.secondaryRequest;
+  const tertiaryRequest = quantitySmoke.rows[2];
   const p25Request = quantitySmoke.p25Request;
   const or5Request = quantitySmoke.or5Request;
 
   await switchRole(page, "manager", "manager");
   await expectNoPageErrors(pageErrors, "Cost Manager shell");
-	await expectText(page, "Cost Manager shell", [
-	  /Cost Review/,
+  await expectText(page, "Cost Manager shell", [
+	  /Demand Review/,
 	  /Review History/,
 	  /Quantity Review/,
 	  /Request ID/,
@@ -441,50 +445,48 @@ async function clickPriceReviewSelection(page, requestId) {
     }
     if (lineCount) lineCount.value = "2";
     const options = [...(lineFilter?.options || [])].map((option) => option.value).filter(Boolean);
-    const collect = (line) => {
-      if (lineFilter) {
-        lineFilter.value = line;
-        lineFilter.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      return {
-        line,
-        lineCount: lineCount?.value || "",
-        matrixLine: matrixLineFilter?.value || "",
-        dashboardRows: window.managerDemandCostRows?.().map((row) => ({
-          id: row.requestId,
-          qty: row.qty,
-          units: row.unitTotals,
-        })) || [],
-        matrixGroups: window.managerQuantityGroups?.().map((row) => ({
-          id: row.requestId,
-          qty: row.totalQty,
-          phases: row.phaseTotals,
-        })) || [],
-      };
-    };
+    const focusedLine = options[0] || "";
+    if (lineFilter && focusedLine) {
+      lineFilter.value = focusedLine;
+      lineFilter.dispatchEvent(new Event("change", { bubbles: true }));
+    }
     return {
       options,
-      line1: collect("Line 1"),
-      line2: collect("Line 2"),
+      selectedManagerRequestId,
+      focusedLine,
+      lineCount: lineCount?.value || "",
+      matrixLine: matrixLineFilter?.value || "",
+      dashboardRows: window.managerDemandCostRows?.().map((row) => ({
+        id: row.requestId,
+        qty: row.qty,
+        units: row.unitTotals,
+      })) || [],
+      matrixGroups: window.managerQuantityGroups?.().map((row) => ({
+        id: row.requestId,
+        qty: row.totalQty,
+        phases: row.phaseTotals,
+      })) || [],
     };
   });
-  if (!managerLineFilterState.options.includes("Line 1") || !managerLineFilterState.options.includes("Line 2")) {
-    fail("Cost Manager Line filter did not expose P26 Line 1 / Line 2", managerLineFilterState);
+  if (!managerLineFilterState.options.length || managerLineFilterState.options.length > 1) {
+    fail("Demand Review focused matrix should expose only the selected item row request line", managerLineFilterState);
   }
-  if (managerLineFilterState.line1.lineCount !== "2" || managerLineFilterState.line2.lineCount !== "2") {
+  if (managerLineFilterState.lineCount !== "2") {
     fail("Cost Manager Line filter replaced or reset Line Count multiplier", managerLineFilterState);
   }
-  if (managerLineFilterState.line1.matrixLine !== "Line 1" || managerLineFilterState.line2.matrixLine !== "Line 2") {
+  if (managerLineFilterState.matrixLine !== managerLineFilterState.focusedLine) {
     fail("Cost Manager Demand Dashboard did not sync Line filter into Station Matrix", managerLineFilterState);
   }
-  if (JSON.stringify(managerLineFilterState.line1.dashboardRows) === JSON.stringify(managerLineFilterState.line2.dashboardRows)
-    || JSON.stringify(managerLineFilterState.line1.matrixGroups) === JSON.stringify(managerLineFilterState.line2.matrixGroups)) {
-    fail("Cost Manager P26 Line 1 and Line 2 did not produce different Demand Analysis scopes", managerLineFilterState);
+  if (!managerLineFilterState.dashboardRows.length
+    || !managerLineFilterState.matrixGroups.length
+    || managerLineFilterState.dashboardRows.some((row) => row.id !== managerLineFilterState.selectedManagerRequestId)
+    || managerLineFilterState.matrixGroups.some((row) => row.id !== managerLineFilterState.selectedManagerRequestId)) {
+    fail("Demand Review matrix did not stay focused on the selected item row", managerLineFilterState);
   }
   await page.evaluate(() => window.setManagerTab?.("history"));
   await expectText(page, "Cost Manager history", [
-    /Cost Review History/,
-    /Cost Manager Decision/,
+    /Demand Review History/,
+    /Demand Review Decision/,
   ], '[data-manager-panel="history"]');
   await page.evaluate(() => {
     const row = {
@@ -518,12 +520,12 @@ async function clickPriceReviewSelection(page, requestId) {
     /Factory Material No/,
   ], "#itemDetailModal");
 
-  await switchRole(page, "dri", "priceReview");
+  await switchRole(page, "dri", "manager");
+  await page.evaluate(() => window.setManagerTab?.("review"));
   await expectNoPageErrors(pageErrors, "Dept DRI review");
   await expectText(page, "Dept DRI review", [
-    /Price Review/,
     /Dept Review/,
-    /Item Switcher/,
+    /Dept Review Rows/,
     new RegExp(submittedMfgRequest.id),
     /Dept DRI Quantity Smoke Item 1/,
     /Dept DRI Quantity Smoke Item 2/,
@@ -531,36 +533,38 @@ async function clickPriceReviewSelection(page, requestId) {
     /Dept DRI Quantity Smoke P25 Item/,
     /Dept DRI Quantity Smoke OR5 Item/,
     /Dept DRI/,
-    /Budget Approver/,
-  ], 'section[data-view="priceReview"]');
+  ], 'section[data-view="manager"]');
 	  await rejectText(page, "Dept DRI review", [
 	    /Dept Review Workbench/,
 	    /Dept Review Triage/,
 	    /Project Review/,
 	    /Carryover Review\s+Dept DRI reviews requester stock\/carryover candidates/,
-	    /Cost Manager Dashboard/,
 	    /PAS Quote Result/,
       /Project Item Matrix Overview/,
-	  ], 'section[data-view="priceReview"]');
+	  ], 'section[data-view="manager"]');
   await clickPriceReviewSelection(page, secondaryRequest.id);
   await page.waitForTimeout(200);
+  await expectText(page, "Dept DRI selected row actions", [
+    /Approved/,
+    /Denied/,
+    /Revise/,
+  ], 'section[data-view="manager"]');
   const switchedItemState = await page.evaluate((requestId) => {
     const visible = (el) => !!el && el.offsetParent !== null;
     const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
     return {
-      activePriceReviewTab: [...document.querySelectorAll('[data-price-review-tab].active')]
-        .map((el) => el.dataset.priceReviewTab || ""),
-      nestedTrackingTabs: [...document.querySelectorAll('section[data-view="priceReview"] [data-approval-quantity-tab]')]
-        .filter(visible)
-        .map(text),
-      inlineAnalysisExists: Boolean(document.getElementById("priceReviewInlineAnalysis")),
-      projectReviewPanelExists: Boolean(document.querySelector('[data-price-review-panel="projectReview"]')),
+      activeManagerTab: [...document.querySelectorAll('[data-manager-tab].active')]
+        .map((el) => el.dataset.managerTab || ""),
+      matrixShellExists: Boolean(document.getElementById("managerDemandCostTable"))
+        && Boolean(document.getElementById("managerQuantityMatrixTable")),
+      inlineAnalysisExists: Boolean(document.getElementById("priceReviewInlineAnalysis") && !document.getElementById("priceReviewInlineAnalysis").hidden),
+      projectReviewPanelExists: Boolean(document.querySelector('section[data-view="manager"] [data-price-review-panel="projectReview"]')),
       selectedScope: { ...selectedProjectStatusScope },
       requestId,
     };
   }, secondaryRequest.id);
-  if (!switchedItemState.activePriceReviewTab.includes("pending") || switchedItemState.nestedTrackingTabs.length || switchedItemState.inlineAnalysisExists || switchedItemState.projectReviewPanelExists) {
-    fail("Dept DRI Price Review should stay approval-only without nested Project Context tabs", switchedItemState);
+  if (!switchedItemState.activeManagerTab.includes("review") || !switchedItemState.matrixShellExists || switchedItemState.inlineAnalysisExists || switchedItemState.projectReviewPanelExists) {
+    fail("Dept DRI manager review should stay in the unified Review shell without Project Context tabs", switchedItemState);
   }
   if (switchedItemState.selectedScope.requestId !== secondaryRequest.id) {
     fail("Dept DRI row selection should seed Project Status scope", switchedItemState);
@@ -625,38 +629,36 @@ async function clickPriceReviewSelection(page, requestId) {
     || !projectStatusCurrencyState.usd.nonMfg.includes("$")) {
     fail("Project Status VND/USD toggle should update dashboard and both detail matrices", projectStatusCurrencyState);
   }
-  await switchRole(page, "dri", "priceReview");
+  await switchRole(page, "dri", "manager");
   await clickPriceReviewSelection(page, submittedMfgRequest.id);
   await page.waitForTimeout(100);
-  await page.evaluate(() => window.setPriceReviewTab?.("pending"));
+  await page.evaluate(() => window.setManagerTab?.("review"));
   await page.waitForTimeout(100);
   await page.evaluate((requestId) => {
-    const buttons = [...document.querySelectorAll(`[data-price-review-decision="${CSS.escape(requestId)}"][data-price-review-action="approve"]`)];
+    const buttons = [...document.querySelectorAll(`[data-manager-review-decision="${CSS.escape(requestId)}"][data-manager-review-action="approve"]`)];
     const visibleButton = buttons.find((button) => button.offsetParent !== null);
     if (!visibleButton) throw new Error(`No visible Dept DRI approve button for ${requestId}`);
     visibleButton.click();
   }, submittedMfgRequest.id);
   await page.waitForTimeout(250);
-  await page.evaluate(() => window.setPriceReviewTab?.("pending"));
+  await page.evaluate(() => window.setManagerTab?.("review"));
   await expectText(page, "Dept DRI review after approve", [
     /Dept Review/,
     /Cost Manager/,
-  ], 'section[data-view="priceReview"]');
+  ], 'section[data-view="manager"]');
   await rejectText(page, "Dept DRI review after approve", [
     /Project Context/,
-    /MFG Station Detail/,
-    /Non-MFG Department Detail/,
-  ], 'section[data-view="priceReview"]');
+  ], 'section[data-view="manager"]');
   const approvedPipelineState = await page.evaluate((requestId) => {
     const row = requests.find((item) => item.id === requestId);
     const pipeline = approvalPipelineStatus(row, "dri");
     const visible = (el) => !!el && el.offsetParent !== null;
-    const visibleApproveButtons = [...document.querySelectorAll(`[data-price-review-decision="${CSS.escape(requestId)}"]`)].filter(visible);
+    const visibleApproveButtons = [...document.querySelectorAll(`[data-manager-review-decision="${CSS.escape(requestId)}"]`)].filter(visible);
     window.setView?.("projectStatus");
     renderProjectStatus();
     const projectStatusText = (document.querySelector('section[data-view="projectStatus"]')?.textContent || "").replace(/\s+/g, " ").trim();
-    window.setView?.("priceReview");
-    window.setPriceReviewTab?.("pending");
+    window.setView?.("manager");
+    window.setManagerTab?.("review");
     return {
       deptDriReviewStatus: row?.deptDriReviewStatus || "",
       procurementStatus: row?.procurementStatus || "",
@@ -664,7 +666,7 @@ async function clickPriceReviewSelection(page, requestId) {
       poStatus: pipeline.poStatus || "",
       selectedId: selectedPriceReviewRequestId || "",
       projectStatusHasRow: projectStatusText.includes(requestId),
-      projectStatusHasReviewStatus: projectStatusText.includes("Cost Manager"),
+      projectStatusHasReviewStatus: projectStatusText.includes("Demand Review"),
       visibleApproveButtonCount: visibleApproveButtons.length,
     };
   }, submittedMfgRequest.id);
@@ -681,7 +683,7 @@ async function clickPriceReviewSelection(page, requestId) {
     /Approval \/ Pipeline Detail/,
     /Current Owner:\s*Cost Manager/,
     /Dept DRI Decision/,
-    /Cost Manager Authorization/,
+    /Demand Review/,
     /PO Pending/,
   ], "#itemDetailModal");
   await page.evaluate(() => closeItemDetail());
@@ -693,13 +695,13 @@ async function clickPriceReviewSelection(page, requestId) {
     const dashboardText = (document.getElementById("managerDemandCostRows")?.textContent || "").replace(/\s+/g, " ").trim();
     const matrixText = (document.getElementById("managerQuantityRows")?.textContent || "").replace(/\s+/g, " ").trim();
     const visible = (el) => !!el && el.offsetParent !== null;
-    const visibleAuthorizeButtons = [...document.querySelectorAll(`[data-cost-manager-authorization="${CSS.escape(requestId)}"]`)].filter(visible);
+    const visibleAuthorizeButtons = [...document.querySelectorAll(`[data-manager-review-decision="${CSS.escape(requestId)}"], [data-cost-manager-authorization="${CSS.escape(requestId)}"]`)].filter(visible);
     window.applyRole?.("dri");
-    window.setView?.("priceReview");
-    window.setPriceReviewTab?.("pending");
+    window.setView?.("manager");
+    window.setManagerTab?.("review");
     return {
-      dashboardHasAuthorizedStatus: dashboardText.includes("You authorized") && dashboardText.includes(requestId),
-      matrixHasAuthorizedStatus: matrixText.includes("You authorized") && matrixText.includes(requestId),
+      dashboardHasAuthorizedStatus: dashboardText.includes("Approved") && dashboardText.includes(requestId),
+      matrixHasAuthorizedStatus: matrixText.includes("Approved") && matrixText.includes(requestId),
       visibleAuthorizeButtonCount: visibleAuthorizeButtons.length,
     };
   }, submittedMfgRequest.id);
@@ -718,6 +720,75 @@ async function clickPriceReviewSelection(page, requestId) {
   if (!/OM Purchasing|OM Leader/.test(`${afterCostManagerState.nextOwner} ${afterCostManagerState.blockedAtOwner}`) || afterCostManagerState.poStatus !== "PO Pending") {
     fail("Dept DRI pipeline after Cost Manager authorization did not move toward OM", afterCostManagerState);
   }
+  const demandReviewRowDecisionState = await page.evaluate(({ denyId, reviseId }) => {
+    const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
+    const approveViaDeptDri = (requestId) => {
+      window.applyRole?.("dri");
+      window.setView?.("manager");
+      window.setManagerTab?.("review");
+      applyPriceReviewDecision(requestId, "approve");
+    };
+    approveViaDeptDri(denyId);
+    approveViaDeptDri(reviseId);
+    window.applyRole?.("manager");
+    window.setView?.("manager");
+    const originalPrompt = window.prompt;
+    window.prompt = () => "row-level smoke reason";
+    applyCostManagerAuthorization(denyId, "deny");
+    applyCostManagerAuthorization(reviseId, "revise");
+    window.prompt = originalPrompt;
+    const denied = requests.find((item) => item.id === denyId);
+    const revise = requests.find((item) => item.id === reviseId);
+    window.setView?.("projectStatus");
+    selectedProjectStatusScope = {};
+    ["projectStatusProjectTypeFilter", "projectStatusProjectFilter", "projectStatusProjectCodeFilter", "projectStatusLineFilter", "projectStatusPhaseFilter"].forEach((id) => {
+      const control = document.getElementById(id);
+      if (control) control.value = "";
+    });
+    renderProjectStatus();
+    const projectStatusRoot = document.querySelector('section[data-view="projectStatus"]');
+    const projectStatusText = text(projectStatusRoot);
+    const actionButtonCount = projectStatusRoot?.querySelectorAll("[data-manager-review-decision], [data-manager-review-action], [data-cost-manager-authorization], [data-cost-manager-action]").length || 0;
+    const requesterActionIds = needConfirmationRows().map((row) => row.id);
+    return {
+      denied: {
+        status: denied?.status || "",
+        demandReviewStatus: denied?.demandReviewStatus || "",
+        costManagerAuthorizationStatus: denied?.costManagerAuthorizationStatus || "",
+        procurementStatus: denied?.procurementStatus || "",
+        omStage: denied?.omStage || "",
+        sentToOmAt: denied?.sentToOmAt || "",
+      },
+      revise: {
+        status: revise?.status || "",
+        demandReviewStatus: revise?.demandReviewStatus || "",
+        costManagerAuthorizationStatus: revise?.costManagerAuthorizationStatus || "",
+        rework: Boolean(revise?.costManagerAuthorizationReworkRequired),
+      },
+      projectStatusHasDenied: projectStatusText.includes(denyId) && projectStatusText.includes("Denied"),
+      projectStatusHasRevise: projectStatusText.includes(reviseId) && projectStatusText.includes("Revise Required"),
+      actionButtonCount,
+      requesterActionIds,
+    };
+  }, { denyId: secondaryRequest.id, reviseId: tertiaryRequest.id });
+  if (demandReviewRowDecisionState.denied.demandReviewStatus !== "Denied"
+    || demandReviewRowDecisionState.denied.costManagerAuthorizationStatus !== "Cost Manager Denied"
+    || demandReviewRowDecisionState.denied.procurementStatus !== "Demand denied"
+    || demandReviewRowDecisionState.denied.omStage
+    || demandReviewRowDecisionState.denied.sentToOmAt
+    || !demandReviewRowDecisionState.projectStatusHasDenied) {
+    fail("Demand Review Denied should close only that item row and keep it out of OM", demandReviewRowDecisionState);
+  }
+  if (demandReviewRowDecisionState.revise.demandReviewStatus !== "Revise Required"
+    || demandReviewRowDecisionState.revise.costManagerAuthorizationStatus !== "Cost Manager Rejected"
+    || !demandReviewRowDecisionState.revise.rework
+    || !demandReviewRowDecisionState.requesterActionIds.includes(tertiaryRequest.id)
+    || !demandReviewRowDecisionState.projectStatusHasRevise) {
+    fail("Demand Review Revise should route only that item row to Requester Action Required", demandReviewRowDecisionState);
+  }
+  if (demandReviewRowDecisionState.actionButtonCount) {
+    fail("Project Status should stay read-only without Demand Review action controls", demandReviewRowDecisionState);
+  }
   await page.evaluate((requestId) => {
     const row = requests.find((item) => item.id === requestId);
     const now = new Date().toISOString();
@@ -730,7 +801,7 @@ async function clickPriceReviewSelection(page, requestId) {
       buyerPoNo: "PO-PIPELINE-SMOKE",
       poStatus: "PO Issued",
     });
-    renderPriceReview();
+    renderManager();
   }, submittedMfgRequest.id);
   const afterBuyerState = await page.evaluate((requestId) => {
     const row = requests.find((item) => item.id === requestId);
@@ -747,33 +818,31 @@ async function clickPriceReviewSelection(page, requestId) {
     /Confirmed Carryover Saving/,
     /Line Carryover Impact/,
     /Carryover Ledger/,
-  ], 'section[data-view="priceReview"]');
+  ], 'section[data-view="manager"]');
 
-  await switchRole(page, "projectDri", "priceReview");
+  await switchRole(page, "projectDri", "manager");
+  await page.evaluate(() => window.setManagerTab?.("review"));
   await expectNoPageErrors(pageErrors, "Budget Approver review");
   await expectText(page, "Budget Approver review", [
-    /Price Review/,
     /Budget Review/,
     /Review History/,
 	    /Budget Exception Approval/,
 	    /Budget Approver/,
-	  ], 'section[data-view="priceReview"]');
+	  ], 'section[data-view="manager"]');
   await rejectText(page, "Budget Approver review", [
     /Project Review/,
-    /Cost Manager Dashboard/,
+    /Demand Review/,
     /PAS Quote Result/,
     /Price Review Analysis: Cost Dashboard/,
     /Price Review Analysis: Station Matrix/,
-  ], 'section[data-view="priceReview"]');
-	  await page.evaluate(() => window.setPriceReviewTab?.("pending"));
+  ], 'section[data-view="manager"]');
+	  await page.evaluate(() => window.setManagerTab?.("review"));
 	  await expectText(page, "Budget Approver shared shell", [
 	    /Budget Review/,
-	  ], 'section[data-view="priceReview"]');
+	  ], 'section[data-view="manager"]');
 	  await rejectText(page, "Budget Approver approval-only shell", [
 	    /Project Context/,
-	    /MFG Station Detail/,
-	    /Non-MFG Department Detail/,
-	  ], 'section[data-price-review-panel="pending"]');
+		  ], 'section[data-view="manager"]');
   const budgetFinalApprovedState = await page.evaluate(() => {
     const base = requests.find((item) => Array.isArray(item.stationBreakdown) && item.stationBreakdown.length) || requests[0];
     const row = syncRowPhaseQtyFromStationBreakdown({
@@ -793,22 +862,22 @@ async function clickPriceReviewSelection(page, requestId) {
     });
     requests.unshift(row);
     approvalQuantityReviewTab = "dashboard";
-    renderPriceReview();
+	    renderManager();
     applyPriceReviewDecision(row.id, "approve");
     approvalQuantityReviewTab = "dashboard";
-    renderPriceReview();
+	    renderManager();
     window.setView?.("projectStatus");
     selectedProjectStatusScope = projectStatusScopeFromRow(row);
     renderProjectStatus();
     const projectStatusText = (document.querySelector('section[data-view="projectStatus"]')?.textContent || "").replace(/\s+/g, " ").trim();
-    window.setView?.("priceReview");
+	    window.setView?.("manager");
     const roleRows = roleReviewRows("projectDri");
     const selectedRow = roleRows.find((item) => item.id === selectedPriceReviewRequestId) || roleRows.find((item) => item.id === row.id);
     const selectedScope = priceReviewSelectedRowScope(selectedRow);
     const activeProject = activeProjectContext({ mode: "inline", scope: selectedScope, rows: roleRows });
     const sourceRows = projectContextRowsForProject(roleRows, activeProject);
     const matrixRows = approvalQuantityMatrixRows(sourceRows);
-    const visibleDecisionButtons = [...document.querySelectorAll(`[data-price-review-decision="${CSS.escape(row.id)}"]`)]
+	    const visibleDecisionButtons = [...document.querySelectorAll(`[data-manager-review-decision="${CSS.escape(row.id)}"]`)]
       .filter((node) => node.offsetParent !== null);
     return {
       id: row.id,
@@ -834,7 +903,7 @@ async function clickPriceReviewSelection(page, requestId) {
     /Before applied carryover/,
     /After applied carryover/,
     /requester candidates stay visible/,
-  ], 'section[data-price-review-panel="pending"]');
+  ], 'section[data-view="manager"]');
 
   await switchRole(page, "omLeader", "om");
   await expectNoPageErrors(pageErrors, "OM Leader");

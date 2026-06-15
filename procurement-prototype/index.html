@@ -7,7 +7,7 @@
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./layout-contract.css?v=20260604-role-routing-v2" />
     <link rel="stylesheet" href="./carryover-extension.css?v=20260604-role-routing-v2" />
-    <link rel="stylesheet" href="./styles.css?v=20260608-requester-worksheet-v4" />
+    <link rel="stylesheet" href="./styles.css?v=20260615-unified-manager-v1" />
   </head>
   <body>
     <main id="app">
@@ -84,11 +84,11 @@
         <nav class="tabs" aria-label="Main navigation">
           <button class="tab active" data-view="department" data-roles="requester admin">Requester Workspace</button>
           <button class="tab" data-view="projectStatus" data-roles="requester manager procurement om omLeader omMember dri projectDri sourcing buyer admin">Project Status</button>
-          <button class="tab" data-view="manager" data-roles="manager admin">Cost Manager Dashboard</button>
+          <button class="tab" data-view="manager" data-roles="dri manager projectDri admin">Demand Review</button>
           <button class="tab" data-view="procurement" data-roles="procurement admin">MFG Coordination</button>
           <button class="tab" data-view="om" data-roles="om omLeader omMember admin">OM Purchasing</button>
           <button class="tab" data-view="uatFeedbackReview" data-roles="omLeader omMember admin">UAT Feedback</button>
-          <button class="tab" data-view="priceReview" data-roles="dri projectDri admin">Price Review</button>
+          <button class="tab" data-view="priceReview" data-roles="admin">Price Review</button>
           <button class="tab" data-view="sourcing" data-roles="sourcing admin">Sourcing RFQ</button>
           <button class="tab" data-view="buyer" data-roles="buyer admin">Buyer PR / PO</button>
           <button class="tab" data-view="adminSetup" data-roles="admin">Admin Setup</button>
@@ -101,6 +101,12 @@
           </div>
           <div class="page-toolbar compact-toolbar">
             <label>
+              Project Type
+              <select id="projectStatusProjectTypeFilter">
+                <option value="">All project types</option>
+              </select>
+            </label>
+            <label>
               Year Project
               <select id="projectStatusProjectFilter">
                 <option value="">All year projects</option>
@@ -109,7 +115,7 @@
             <label>
               Project
               <select id="projectStatusProjectCodeFilter">
-                <option value="">All projects</option>
+                <option value="">All project codes</option>
               </select>
             </label>
             <label>
@@ -212,8 +218,9 @@
             </label>
             <label class="project-picker">
               Project
-              <input id="projectCodeInput" list="projectCodeOptions" placeholder="4CS4, CGY4, PKK4..." />
-              <datalist id="projectCodeOptions"></datalist>
+              <select id="projectCodeInput">
+                <option value="">Select project</option>
+              </select>
             </label>
           </div>
 
@@ -523,7 +530,7 @@
 
         <section class="view" data-view="manager" data-approval-review-role="manager">
           <div class="inner-tabs manager-tabs" aria-label="Cost Manager review sections">
-            <button class="inner-tab active" data-manager-tab="review">Cost Review</button>
+            <button class="inner-tab active" data-manager-tab="review">Demand Review</button>
             <button class="inner-tab" data-manager-tab="history">Review History</button>
           </div>
 
@@ -625,7 +632,7 @@
             <section class="work-panel review-history-panel">
               <div class="panel-title">
                 <div>
-                  <h3>Cost Review History</h3>
+                  <h3 id="managerDashboardTitle">Demand Review History</h3>
                 </div>
               </div>
               <div class="summary-grid" id="managerDashboardSummary"></div>
@@ -643,8 +650,9 @@
                   Decision Status
                   <select id="managerDashboardStatusFilter">
                     <option value="">All decisions</option>
-                    <option value="Cost Manager Authorized">Authorized</option>
-                    <option value="Cost Manager Rejected">Rejected</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Denied">Denied</option>
+                    <option value="Revise Required">Revise Required</option>
                   </select>
                 </label>
               </div>
@@ -657,7 +665,7 @@
                       <th>Item</th>
                       <th>Affected Phases</th>
                       <th>Total Qty</th>
-                      <th>Cost Manager Decision</th>
+                      <th id="managerDashboardDecisionHead">Demand Review Decision</th>
                       <th>Reason</th>
                       <th>Decision Time</th>
                       <th>Detail</th>
@@ -1394,7 +1402,7 @@
         <section class="view" data-view="priceReview" data-approval-review-role="dri">
           <div class="section-head-tight">
             <h2 id="priceReviewTitle">Dept Review</h2>
-            <p class="muted">Shared Price Review surface for Dept DRI, Cost Manager, and Budget Approver decisions.</p>
+            <p class="muted">Shared review surface for Dept DRI and Budget Approver price / budget decisions.</p>
           </div>
           <div class="inner-tabs price-review-tabs" aria-label="Price review sections">
             <button class="inner-tab active" data-price-review-tab="pending">Review Queue</button>
@@ -2364,16 +2372,16 @@
     <script src="./app-modules/demand-cost-dashboard.js?v=20260604-role-routing-v2"></script>
     <script src="./app-modules/price-decision.js?v=20260605-usd-delta-v1"></script>
     <script src="./app-modules/lead-time.js?v=20260605-usd-delta-v1"></script>
-    <script src="./app-modules/workflow-status.js?v=20260606-workflow-status-v1"></script>
+    <script src="./app-modules/workflow-status.js?v=20260615-unified-manager-v1"></script>
     <script src="./app-modules/workflow-status-table.js?v=20260606-workflow-status-v1"></script>
     <script src="./app-modules/sap-po-raw-contract.js?v=20260613-sap-po-raw-v1"></script>
     <script src="./app-modules/horizontal-table-navigator.js?v=20260610-evidence-navigator-v2"></script>
     <script src="./app-modules/request-worksheet-matrix.js?v=20260609-approval-workbench-v1"></script>
     <script src="./app-modules/approval-workbench.js?v=20260609-approval-workbench-v1"></script>
     <script src="./app-modules/approval-quantity-review.js?v=20260610-direct-quantity-review-v1"></script>
-    <script src="./app-modules/approval-review-surface.js?v=20260613-shared-approval-surface-v1"></script>
-    <script src="./app-modules/role-queue-config.js?v=20260609-approval-workbench-v1"></script>
-    <script src="./app.js?v=20260608-requester-worksheet-v4"></script>
+    <script src="./app-modules/approval-review-surface.js?v=20260615-unified-manager-v1"></script>
+    <script src="./app-modules/role-queue-config.js?v=20260615-unified-manager-v1"></script>
+    <script src="./app.js?v=20260615-unified-manager-v1"></script>
     <script src="./user-a-flow.js?v=20260604-role-routing-v2"></script>
   <script src="carryover-extension.js?v=20260604-role-routing-v2"></script>
   <script src="layout-contract.js?v=20260604-role-routing-v2"></script>

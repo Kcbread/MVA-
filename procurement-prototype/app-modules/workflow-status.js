@@ -12,7 +12,7 @@
 
   const STAGE_PRIORITY = {
     "Dept DRI Review": 0,
-    "Cost Manager Authorization": 1,
+    "Demand Review": 1,
     "Budget Approval": 2,
     "PAS Demand No": 3,
     "PAS Quote Result": 4,
@@ -88,6 +88,8 @@
   }
 
   function pendingOwner(row = {}) {
+    if (row.demandReviewStatus === "Denied" || row.costManagerAuthorizationStatus === "Cost Manager Denied") return "OM Complete";
+    if (row.demandReviewStatus === "Revise Required" || row.costManagerAuthorizationReworkRequired) return "Requester";
     if (row.finalExportedAt || row.finalExportStatus || row.buyerStatus || row.buyerReceivedAt) return "Buyer Handoff";
     if (row.priceDecisionStatus === "Price Escalation Required" && !row.driApprovedAt) return "Dept DRI";
     if (row.priceDecisionStatus === "Price Escalation Required" && row.driApprovedAt && !row.projectDriApprovedAt) return "Budget Approver";
@@ -108,9 +110,10 @@
   }
 
   function currentStage(row = {}) {
+    if (row.demandReviewStatus === "Denied" || row.costManagerAuthorizationStatus === "Cost Manager Denied") return "Completed";
     const owner = pendingOwner(row);
     if (owner === "Dept DRI") return "Dept DRI Review";
-    if (owner === "Cost Manager") return "Cost Manager Authorization";
+    if (owner === "Cost Manager") return "Demand Review";
     if (owner === "Budget Approver") return "Budget Approval";
     if (owner === "Requester") return "Waiting Requester";
     if (owner === "PAS / Bidding") return "PAS Quote Result";
@@ -141,7 +144,7 @@
   function stageStartAt(row = {}) {
     const stage = currentStage(row);
     if (stage === "Dept DRI Review") return row.submittedAt || row.requestSubmittedAt || submittedAt(row);
-    if (stage === "Cost Manager Authorization") return row.costManagerAuthorizationSubmittedAt || row.deptDriSubmissionApprovedAt || submittedAt(row);
+    if (stage === "Demand Review") return row.costManagerAuthorizationSubmittedAt || row.deptDriSubmissionApprovedAt || submittedAt(row);
     if (stage === "Budget Approval") return row.driApprovedAt || row.approvedAt || submittedAt(row);
     if (stage === "PAS Quote Result") return row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt || receivedAt(row);
     if (stage === "Waiting Requester") return row.sentToUserAAt || row.quoteCompletionReadyAt || receivedAt(row);
@@ -153,7 +156,7 @@
   function nextAction(row = {}) {
     const owner = pendingOwner(row);
     if (owner === "Dept DRI") return "Dept DRI approve / reject";
-    if (owner === "Cost Manager") return "Cost Manager authorize / reject";
+    if (owner === "Cost Manager") return "Demand Review approve / deny / revise";
     if (owner === "Budget Approver") return "Budget approval decision";
     if (owner === "PAS / Bidding") return "Wait for PAS bidding result";
     if (owner === "Requester") return "Wait for Requester confirmation";

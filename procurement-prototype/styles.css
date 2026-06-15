@@ -1619,7 +1619,7 @@ a {
 }
 
 .request-col-hint {
-  width: 136px;
+  width: 156px;
 }
 
 .request-col-actions {
@@ -5333,6 +5333,24 @@ a {
   background: #fff1c7;
 }
 
+.status-pill.cost-manager-authorized,
+.status-pill.approved {
+  color: #126336;
+  background: #dff4e7;
+}
+
+.status-pill.cost-manager-denied,
+.status-pill.denied {
+  color: #27343d;
+  background: #dfe5ea;
+}
+
+.status-pill.cost-manager-rejected,
+.status-pill.revise-required {
+  color: #825200;
+  background: #ffe8bd;
+}
+
 .approval-pipeline-pending td,
 td.approval-pipeline-pending {
   background: #fff9df;
@@ -5351,6 +5369,16 @@ td.approval-pipeline-approved {
 .approval-pipeline-rejected td,
 td.approval-pipeline-rejected {
   background: #fff0f1;
+}
+
+.approval-pipeline-revise td,
+td.approval-pipeline-revise {
+  background: #fff6e8;
+}
+
+.approval-pipeline-denied td,
+td.approval-pipeline-denied {
+  background: #f2f4f6;
 }
 
 .approval-pipeline-po td,
@@ -5421,6 +5449,60 @@ tr.approval-pipeline-current td {
 .review-status-rejected .review-status-label {
   background: #ffe0e3;
   color: #9c2431;
+}
+
+.review-status-revise .review-status-label {
+  background: #ffe8bd;
+  color: #825200;
+}
+
+.review-status-denied .review-status-label {
+  background: #dfe5ea;
+  color: #27343d;
+}
+
+.demand-review-row-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.demand-review-row-decision {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid #d3dde4;
+  border-radius: 6px;
+  background: #f8fbfc;
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.demand-review-row-decision strong,
+.demand-review-row-decision span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demand-review-row-decision--approved {
+  border-color: #a8dcbc;
+  background: #edf9f1;
+  color: #126336;
+}
+
+.demand-review-row-decision--denied {
+  border-color: #c8d0d6;
+  background: #edf1f4;
+  color: #27343d;
+}
+
+.demand-review-row-decision--revise {
+  border-color: #f1ca83;
+  background: #fff6e8;
+  color: #825200;
 }
 
 .approval-pipeline-summary {
@@ -9209,6 +9291,53 @@ tr.approval-pipeline-current td {
   font-size: 10px;
 }
 
+.request-hint-stack,
+.request-action-control {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.request-action-label {
+  color: #52616a;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.request-action-select,
+.request-action-other-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #c9d6de;
+  border-radius: 6px;
+  background: #fff;
+  color: #152935;
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.request-action-select {
+  height: 18px;
+  padding: 1px 4px;
+}
+
+.request-action-other-input {
+  height: 18px;
+  padding: 1px 5px;
+}
+
+.request-action-other-preview {
+  max-width: 100%;
+  color: #52616a;
+  font-size: 10px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .search-table tbody tr {
   height: 44px !important;
   max-height: 44px;
@@ -10838,6 +10967,14 @@ tr.approval-pipeline-current td {
   background: #fff0f1;
 }
 
+.manager-quantity-wide-table tbody tr.approval-pipeline-revise td:nth-child(-n + 7) {
+  background: #fff6e8;
+}
+
+.manager-quantity-wide-table tbody tr.approval-pipeline-denied td:nth-child(-n + 7) {
+  background: #f2f4f6;
+}
+
 .manager-quantity-table th:nth-child(5),
 .manager-quantity-table td:nth-child(5) {
   width: 120px;
@@ -11812,6 +11949,40 @@ tr.approval-pipeline-current td {
   color: #61727a;
   font-size: 10px;
   font-weight: 700;
+}
+
+.project-status-stage-badge {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #fff1b8;
+  color: #6b5200;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.project-status-stage-badge--approved,
+.project-status-stage-badge--po {
+  background: #dff4e7;
+  color: #126336;
+}
+
+.project-status-stage-badge--sent {
+  background: #e3f0ff;
+  color: #174f83;
+}
+
+.project-status-stage-badge--revise {
+  background: #ffe8bd;
+  color: #825200;
+}
+
+.project-status-stage-badge--denied,
+.project-status-stage-badge--rejected {
+  background: #dfe5ea;
+  color: #27343d;
 }
 
 .project-status-total-cell {

@@ -6,9 +6,9 @@
     dri: {
       roleKey: "dri",
       entryLabel: "Dept Review",
-      viewKey: "priceReview",
-      stateKey: "priceReview",
-      shellMode: "inline",
+      viewKey: "manager",
+      stateKey: "manager",
+      shellMode: "managerAuthorized",
       defaultTab: "pending",
       defaultQueue: "submission",
       tabs: REVIEW_HISTORY_TABS,
@@ -17,20 +17,21 @@
         history: "Review History",
       },
       queueDefinitions: [
-        { id: "submission", label: "Submission Review", actionLabel: "Approve / Reject", nextStage: "Cost Manager final authorization" },
-        { id: "exception", label: "Price Exception Review", actionLabel: "Approve / Reject", nextStage: "Budget Approver" },
-        { id: "stock", label: "Stock / Carryover Review", actionLabel: "Approve / Reject", nextStage: "Locked / applied evidence" },
+        { id: "submission", label: "Submission Review", actionLabel: "Approved / Denied / Revise", nextStage: "Demand Review" },
+        { id: "exception", label: "Price Exception Review", actionLabel: "Approved / Denied / Revise", nextStage: "Budget Review" },
+        { id: "stock", label: "Stock / Carryover Review", actionLabel: "Approved / Denied / Revise", nextStage: "Locked / applied evidence" },
       ],
       decisionActions: {
-        approve: "Approve",
-        reject: "Reject",
+        approve: "Approved",
+        deny: "Denied",
+        revise: "Revise",
       },
       emptyStateCopy: "No Dept DRI rows are waiting in this queue.",
       historyScope: "Dept DRI submission and price decisions",
     },
     manager: {
       roleKey: "manager",
-      entryLabel: "Cost Review",
+      entryLabel: "Demand Review",
       viewKey: "manager",
       stateKey: "manager",
       shellMode: "managerAuthorized",
@@ -38,16 +39,17 @@
       defaultQueue: "authorization",
       tabs: ["pending", "history"],
       tabLabels: {
-        pending: "Cost Review",
+        pending: "Demand Review",
         projectReview: "Quantity Review",
         history: "Review History",
       },
       queueDefinitions: [
-        { id: "authorization", label: "Final Authorization", actionLabel: "Authorize / Reject", nextStage: "OM Leader intake / assignment" },
+        { id: "authorization", label: "Demand Approval", actionLabel: "Approved / Denied / Revise", nextStage: "OM Leader intake / assignment" },
       ],
       decisionActions: {
-        approve: "Authorize",
-        reject: "Reject",
+        approve: "Approved",
+        deny: "Denied",
+        revise: "Revise",
       },
       emptyStateCopy: "No Cost Manager rows match the selected filters.",
       historyScope: "Cost Manager authorization decisions",
@@ -55,9 +57,9 @@
     projectDri: {
       roleKey: "projectDri",
       entryLabel: "Budget Review",
-      viewKey: "priceReview",
-      stateKey: "priceReview",
-      shellMode: "inline",
+      viewKey: "manager",
+      stateKey: "manager",
+      shellMode: "managerAuthorized",
       defaultTab: "pending",
       defaultQueue: "budget",
       tabs: REVIEW_HISTORY_TABS,
@@ -66,11 +68,12 @@
         history: "Review History",
       },
       queueDefinitions: [
-        { id: "budget", label: "Budget Exception Approval", actionLabel: "Final Approve / Reject", nextStage: "OM Export Package" },
+        { id: "budget", label: "Budget Exception Approval", actionLabel: "Approved / Denied / Revise", nextStage: "OM Export Package" },
       ],
       decisionActions: {
-        approve: "Final Approve",
-        reject: "Reject",
+        approve: "Approved",
+        deny: "Denied",
+        revise: "Revise",
       },
       emptyStateCopy: "No budget exceptions are waiting for final approval.",
       historyScope: "Budget Approver final exception decisions",
@@ -151,7 +154,7 @@
   function workspaceConfig(role = "") {
     const config = configForRole(role);
     if (!config) return {};
-    if (role === "manager") {
+    if (["dri", "manager", "projectDri"].includes(role)) {
       return {
         mainViews: ["manager"],
         defaultManagerTab: "review",
