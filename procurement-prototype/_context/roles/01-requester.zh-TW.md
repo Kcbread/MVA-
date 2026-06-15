@@ -18,6 +18,7 @@ Requester 是需求建立者。其責任是把實際需求用正確 scope 建立
 - 建立需求、儲存草稿、依目前 line + MFG/Non-MFG worksheet 送出需求日期。
 - Request Workspace 是整頁 All-Phase Excel worksheet input，不使用 Add Demand modal 或左側 Source Panel 作為主要入口。
 - 上方 scope 選 project / line；Need Date 跟著目前 MFG 或 Non-MFG worksheet 分開管理，一次編輯一條 line。
+- Scope 欄位不可合併：G Project 使用 `Year Project` 作父層 program/year-project scope，`Project` 作子層 project code/model；Non-G 保留 requester free-text `Purpose`，`Project` 仍是 project code。
 - `MFG / Non-MFG` 分成兩個 worksheet tab；一列 = `Item / Spec`。
 - Worksheet 表頭為 two-row phase group：`P1.0 / P1.1 / EVT / DVT / PVT / MP`，每個 phase 下展開 station/department qty。
 - MFG phase group 欄位：`CG / BG / FATP / Test / Hybrid / Auto / ENG Pack / Zombie / Laser_pico / Rework / Repair / WH`。
@@ -27,6 +28,7 @@ Requester 是需求建立者。其責任是把實際需求用正確 scope 建立
 - `Copy Demand`：複製 item/spec/source trace，所有 target phase qty 全部從 0 開始；source qty 只能作為 reference。
 - `New Item Request`：不是直接新增 active 物料主檔。Requester 先完成物料主檔新增申請草稿（英中越名稱、Lv123、spec summary、structured spec、UOM、用途、預估價格/原因；若有相似物料需填差異與 evidence/reference），完成後才能以 `Pending Material Review` row 進 worksheet 填 qty；Dept DRI 先審需求合理性，OM/master reviewer approve / merge / reject 後才進 active item master。
 - Carryover / Warehouse suggestion：主表只顯示 row hint badge，細節與 candidate 建立放在 row detail/drawer。
+- Requester row 必須有 `Action` intent metadata，預設 `New Buy`；選 `Other` 時必填短文字，完整文字放 Detail / review context，不放主表寬段落。此欄位不等於 workflow approve/reject action。
 - `Save Draft`：只暫存目前主表 qty，不要求 Need Date，不送 Dept DRI。
 - `Submit`：送出目前 line + 目前 MFG/Non-MFG worksheet 下所有有 qty 的 draft rows，不使用 row checkbox；送出前必須填該 worksheet scope 的 Need Date，其他 line 或另一個 worksheet mode 會保留 draft 並顯示排除原因。
 - Temporary Budget：填預估金額與原因。
@@ -54,7 +56,7 @@ Requester 是需求建立者。其責任是把實際需求用正確 scope 建立
 
 ## 資料輸入 / 輸出
 
-- 輸入：item/spec、line、station/department、phase qty、mode-scoped needDate、temporary budget estimate、warehouse candidate。
+- 輸入：yearProject、projectCode、Non-G purpose、requestAction、item/spec、line、station/department、phase qty、mode-scoped needDate、temporary budget estimate、warehouse candidate。
 - 輸出：submitted demand lines、warehouse inventory evidence、candidate ledger、revision events、status timeline。
 
 ## 常見風險

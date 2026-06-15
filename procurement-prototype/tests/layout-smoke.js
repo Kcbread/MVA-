@@ -134,16 +134,15 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   const projectCodeAudit = await page.evaluate(async () => {
     const projectSelect = document.getElementById("projectSelect");
     const projectCodeInput = document.getElementById("projectCodeInput");
-    const projectCodeOptions = document.getElementById("projectCodeOptions");
-    if (!projectSelect || !projectCodeInput || !projectCodeOptions) return { missing: true };
+    if (!projectSelect || !projectCodeInput || projectCodeInput.tagName !== "SELECT") return { missing: true };
     const originalProject = projectSelect.value;
     const originalProjectCode = projectCodeInput.value;
-    projectSelect.value = "P26 Demo Line";
+    projectSelect.value = "P26 Demo line";
     projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
     await new Promise((resolve) => requestAnimationFrame(resolve));
     const result = {
       value: projectCodeInput.value,
-      options: [...projectCodeOptions.querySelectorAll("option")].map((option) => option.value),
+      options: [...projectCodeInput.querySelectorAll("option")].map((option) => option.value),
     };
     projectSelect.value = originalProject;
     projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -154,16 +153,17 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
     await new Promise((resolve) => requestAnimationFrame(resolve));
     return result;
   });
-  if (projectCodeAudit.missing) throw new Error("Requester toolbar should expose Year Project select and Project datalist.");
-  if (!projectCodeAudit.options.includes("4CS4") || !projectCodeAudit.options.includes("CGY4")) {
-    throw new Error(`P26 Demo Line Project datalist should include 4CS4 / CGY4, got ${JSON.stringify(projectCodeAudit)}`);
+  if (projectCodeAudit.missing) throw new Error("Requester toolbar should expose Year Project and Project selects.");
+  const expectedGProjectCodes = ["4CS4", "CGY4", "PKK4", "WGO5", "ASK5", "KSH5", "MCN5", "MT5", "BZ5", "FL5"];
+  const missingGProjectCodes = expectedGProjectCodes.filter((code) => !projectCodeAudit.options.includes(code));
+  if (missingGProjectCodes.length || projectCodeAudit.options.includes("Bidding list 26")) {
+    throw new Error(`P26 Demo line Project select should include canonical G project codes only, got ${JSON.stringify(projectCodeAudit)}`);
   }
   const nonGProjectAudit = await page.evaluate(async () => {
     const projectTypeSelect = document.getElementById("projectTypeSelect");
     const projectSelect = document.getElementById("projectSelect");
     const projectCodeInput = document.getElementById("projectCodeInput");
-    const projectCodeOptions = document.getElementById("projectCodeOptions");
-    if (!projectTypeSelect || !projectSelect || !projectCodeInput || !projectCodeOptions) return { missing: true };
+    if (!projectTypeSelect || !projectSelect || !projectCodeInput || projectCodeInput.tagName !== "SELECT") return { missing: true };
     const originalType = projectTypeSelect.value;
     const originalProject = projectSelect.value;
     const originalProjectCode = projectCodeInput.value;
@@ -177,7 +177,7 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
     const result = {
       yearProjects: nonGYearProjects,
       value: projectCodeInput.value,
-      options: [...projectCodeOptions.querySelectorAll("option")].map((option) => option.value),
+      options: [...projectCodeInput.querySelectorAll("option")].map((option) => option.value),
     };
     projectTypeSelect.value = originalType;
     projectTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -193,9 +193,43 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
     await new Promise((resolve) => requestAnimationFrame(resolve));
     return result;
   });
-  if (nonGProjectAudit.missing) throw new Error("Requester toolbar should expose Non-G Year Project and Project controls.");
+  if (nonGProjectAudit.missing) throw new Error("Requester toolbar should expose Non-G Year Project and Project selects.");
   if (!nonGProjectAudit.yearProjects.includes("BM2") || nonGProjectAudit.value !== "BM2" || !nonGProjectAudit.options.includes("BM2")) {
     throw new Error(`Non-G BM2 should use Project N-column as both scope and project code, got ${JSON.stringify(nonGProjectAudit)}`);
+  }
+  const projectStatusScopeAudit = await page.evaluate(async () => {
+    window.setView?.("projectStatus");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const typeSelect = document.getElementById("projectStatusProjectTypeFilter");
+    const yearSelect = document.getElementById("projectStatusProjectFilter");
+    const codeSelect = document.getElementById("projectStatusProjectCodeFilter");
+    if (!typeSelect || !yearSelect || !codeSelect) return { missing: true };
+    typeSelect.value = "G";
+    typeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const gYears = [...yearSelect.querySelectorAll("option")].map((option) => option.value);
+    yearSelect.value = "P26 Zombie line";
+    yearSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const gCodes = [...codeSelect.querySelectorAll("option")].map((option) => option.value);
+    typeSelect.value = "Non-G";
+    typeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const nonGState = {
+      yearDisabled: yearSelect.disabled,
+      yearOptions: [...yearSelect.querySelectorAll("option")].map((option) => option.textContent.trim()),
+      codeOptions: [...codeSelect.querySelectorAll("option")].map((option) => option.value),
+    };
+    window.setView?.("department");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return { gYears, gCodes, nonGState };
+  });
+  if (projectStatusScopeAudit.missing) throw new Error("Project Status should expose Project Type / Year Project / Project filters.");
+  if (!projectStatusScopeAudit.gYears.includes("P26 Zombie line") || !projectStatusScopeAudit.gCodes.includes("BZ5") || !projectStatusScopeAudit.gCodes.includes("FL5") || projectStatusScopeAudit.gCodes.includes("Bidding list 26")) {
+    throw new Error(`Project Status should expose canonical G scope master, got ${JSON.stringify(projectStatusScopeAudit)}`);
+  }
+  if (!projectStatusScopeAudit.nonGState.yearDisabled || !projectStatusScopeAudit.nonGState.codeOptions.includes("OR6")) {
+    throw new Error(`Project Status Non-G should disable Year Project and expose Non-G project codes, got ${JSON.stringify(projectStatusScopeAudit)}`);
   }
   const phaseHeaderAlign = await page.locator(".request-phase-group-head", { hasText: "EVT" }).first().evaluate((header) => getComputedStyle(header).textAlign);
   if (phaseHeaderAlign !== "center") throw new Error(`Requester phase group headers should be centered, got ${phaseHeaderAlign}`);

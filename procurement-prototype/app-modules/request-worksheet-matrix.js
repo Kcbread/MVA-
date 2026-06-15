@@ -6,7 +6,7 @@
         <th class="request-col-item request-sticky-col" rowspan="2">Item / Spec</th>
         ${stages.map((stage) => `<th class="request-phase-group-head" colspan="${phaseColspan}" data-request-phase-group="${stage}">${stageLabels[stage] || stage}</th>`).join("")}
         <th class="request-col-row-total request-sticky-right request-sticky-right-total" rowspan="2">Row Total</th>
-        <th class="request-col-hint request-sticky-right request-sticky-right-hint" rowspan="2">Hint</th>
+        <th class="request-col-hint request-sticky-right request-sticky-right-hint" rowspan="2">Hint / Action</th>
         <th class="request-col-actions request-sticky-right request-sticky-right-action" rowspan="2">Action</th>
       </tr>
       <tr>
