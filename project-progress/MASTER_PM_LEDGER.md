@@ -1,6 +1,6 @@
 # Master PM Ledger
 
-Updated: 2026-06-13
+Updated: 2026-06-15
 
 ## Purpose
 
@@ -44,9 +44,18 @@ Before implementation or any key product judgment, material threads must provide
 Startup Context Receipt
 Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
 Roles: Requester; Dept DRI; Cost Manager; ...
+Flows/Modules: flow/module docs read, or none
+Worktree: git status summary, or not inspected yet with reason
 Decisions: locked decisions used, or none
 Gaps: unresolved ambiguity, or none
+Next: immediate action
 ```
+
+Validate the first material response against
+`project-progress/NEW_THREAD_STARTUP_VALIDATOR.md`. A response is incomplete if
+it omits evidence paths for files read, role ownership for role-affecting work,
+worktree state for material edits, or an explicit `evidence_missing` marker for
+unsupported factual claims.
 
 ## Required Thread Handoff
 

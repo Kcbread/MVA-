@@ -40,6 +40,11 @@ For material work, include a short `Startup Context Receipt` before
 implementation or key product judgment: files read, roles read, locked
 decisions used, and unresolved gaps.
 
+New material threads should use the fixed first-response format from
+`AGENTS.md`: `Read`, `Roles`, `Flows/Modules`, `Worktree`, `Decisions`,
+`Gaps`, and `Next`. Use
+`project-progress/NEW_THREAD_STARTUP_VALIDATOR.md` as the local checklist.
+
 Before material edits, run or inspect `git status --short`. If the worktree is
 dirty, unmerged, or already contains staged work, identify ownership before
 editing. Do not mix feature work, deployment work, PM memory updates, and
