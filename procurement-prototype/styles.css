@@ -11005,6 +11005,133 @@ tr.approval-pipeline-current td {
   white-space: normal;
 }
 
+/* Shared quantity matrix contract: freeze identity through Est. Amount; CG is the first scrollable evidence column. */
+.manager-quantity-wrap {
+  width: 100%;
+  max-width: calc(100vw - 72px);
+  min-width: 0;
+  overflow: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.quantity-matrix-wrap,
+.project-status-matrix-wrap {
+  width: 100%;
+  max-width: calc(100vw - 72px);
+  min-width: 0;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(1) th {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(2) th {
+  position: sticky;
+  top: 24px;
+  z-index: 9;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(3) th {
+  position: sticky;
+  top: 48px;
+  z-index: 9;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(1) th {
+  height: 24px;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(2) th,
+.manager-quantity-wide-table thead tr:nth-child(3) th {
+  height: 24px;
+}
+
+.manager-quantity-table th:nth-child(1),
+.manager-quantity-table td:nth-child(1) { width: 108px; }
+
+.manager-quantity-table th:nth-child(2),
+.manager-quantity-table td:nth-child(2) { width: 110px; }
+
+.manager-quantity-table th:nth-child(3),
+.manager-quantity-table td:nth-child(3) { width: 46px; }
+
+.manager-quantity-table th:nth-child(4),
+.manager-quantity-table td:nth-child(4) { width: 120px; }
+
+.manager-quantity-table th:nth-child(5),
+.manager-quantity-table td:nth-child(5) { width: 210px; }
+
+.manager-quantity-table th:nth-child(6),
+.manager-quantity-table td:nth-child(6) { width: 86px; }
+
+.manager-quantity-table th:nth-child(7),
+.manager-quantity-table td:nth-child(7) { width: 92px; }
+
+.manager-quantity-table th:nth-child(8),
+.manager-quantity-table td:nth-child(8) { width: 100px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(1),
+.manager-quantity-wide-table tbody td:nth-child(1),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(2),
+.manager-quantity-wide-table tbody td:nth-child(2),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(3),
+.manager-quantity-wide-table tbody td:nth-child(3),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(4),
+.manager-quantity-wide-table tbody td:nth-child(4),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(5),
+.manager-quantity-wide-table tbody td:nth-child(5),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(6),
+.manager-quantity-wide-table tbody td:nth-child(6),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(7),
+.manager-quantity-wide-table tbody td:nth-child(7),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(8),
+.manager-quantity-wide-table tbody td:nth-child(8) {
+  position: sticky;
+  z-index: 5;
+  background: #fff;
+}
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(1),
+.manager-quantity-wide-table tbody td:nth-child(1) { left: 0; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(2),
+.manager-quantity-wide-table tbody td:nth-child(2) { left: 108px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(3),
+.manager-quantity-wide-table tbody td:nth-child(3) { left: 218px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(4),
+.manager-quantity-wide-table tbody td:nth-child(4) { left: 264px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(5),
+.manager-quantity-wide-table tbody td:nth-child(5) { left: 384px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(6),
+.manager-quantity-wide-table tbody td:nth-child(6) { left: 594px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(7),
+.manager-quantity-wide-table tbody td:nth-child(7) { left: 680px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(8),
+.manager-quantity-wide-table tbody td:nth-child(8) {
+  left: 772px;
+  box-shadow: 2px 0 0 #9aa9b2;
+}
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(-n + 8) {
+  z-index: 16;
+  background: #eaf1f5;
+}
+
+.manager-quantity-wide-table tbody tr.approval-pipeline-pending td:nth-child(-n + 8) { background: #fff9df; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-sent td:nth-child(-n + 8) { background: #edf5ff; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-approved td:nth-child(-n + 8),
+.manager-quantity-wide-table tbody tr.approval-pipeline-po td:nth-child(-n + 8) { background: #eef8f2; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-rejected td:nth-child(-n + 8) { background: #fff0f1; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-revise td:nth-child(-n + 8) { background: #fff6e8; }
+
 .item-proposal-card {
   border-left: 4px solid #d39400;
 }
@@ -11521,6 +11648,15 @@ tr.approval-pipeline-current td {
 .table-shell:has(.dense-dashboard-table),
 .table-shell:has(.matrix-table) {
   max-width: 100%;
+  overflow-x: auto;
+}
+
+.table-wrap.table-shell.manager-quantity-wrap,
+.table-wrap.table-shell.quantity-matrix-wrap,
+.table-wrap.table-shell.project-status-matrix-wrap {
+  width: 100%;
+  max-width: calc(100vw - 72px);
+  min-width: 0;
   overflow-x: auto;
 }
 

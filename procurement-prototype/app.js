@@ -10723,9 +10723,17 @@ function refreshGlobalHorizontalNavigators() {
     label: "Unit Cost Columns",
     groups: demandCostNavigatorGroups(),
   }));
-  ["managerQuantity", "priceReviewQuantity", "priceReviewInlineQuantity", "managerAuthorizedQuantity"].forEach((id) => refreshHorizontalTableNavigator(id, {
+  [
+    ["managerQuantity", "#managerQuantityMatrixShell"],
+    ["managerAuthorizedQuantity", "#managerAuthorizedQuantityMatrixShell"],
+    ["projectStatusMfgQuantity", "#projectStatusMfgMatrixShell"],
+    ["projectStatusNonMfgQuantity", "#projectStatusNonMfgMatrixShell"],
+    ["priceReviewQuantity", ""],
+    ["priceReviewInlineQuantity", ""],
+  ].forEach(([id, shellSelector]) => refreshHorizontalTableNavigator(id, {
     label: "Phase / Station Columns",
     groups: quantityNavigatorGroups(),
+    shellSelector,
   }));
   refreshHorizontalTableNavigator("omQuoteResult", { label: "Quote Result Columns" });
 }

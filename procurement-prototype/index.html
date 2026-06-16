@@ -172,7 +172,7 @@
                 </div>
                 <span class="status-pill info" id="projectStatusMfgScope">All MFG rows</span>
               </div>
-              <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
+              <div id="projectStatusMfgMatrixShell" data-horizontal-nav="projectStatusMfgQuantity" class="table-wrap table-shell manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
                 <table class="data-table manager-quantity-table manager-quantity-wide-table project-status-detail-table" id="projectStatusMfgMatrixTable">
                   <thead id="projectStatusMfgHead"></thead>
                   <tbody id="projectStatusMfgRows"></tbody>
@@ -189,7 +189,7 @@
                 </div>
                 <span class="status-pill info" id="projectStatusNonMfgScope">All Non-MFG rows</span>
               </div>
-              <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
+              <div id="projectStatusNonMfgMatrixShell" data-horizontal-nav="projectStatusNonMfgQuantity" class="table-wrap table-shell manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
                 <table class="data-table manager-quantity-table manager-quantity-wide-table project-status-detail-table" id="projectStatusNonMfgMatrixTable">
                   <thead id="projectStatusNonMfgHead"></thead>
                   <tbody id="projectStatusNonMfgRows"></tbody>
@@ -615,8 +615,7 @@
                       <select id="managerAuthorizedQuantityUnitFilter"><option value="">All demand units</option></select>
                       <select id="managerAuthorizedQuantitySortFilter"><option value="">Default</option></select>
                     </div>
-                    <div data-horizontal-nav="managerAuthorizedQuantity" class="horizontal-table-nav-anchor"></div>
-                    <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap">
+                    <div class="table-wrap table-shell manager-quantity-wrap quantity-matrix-wrap" id="managerAuthorizedQuantityMatrixShell" data-horizontal-nav="managerAuthorizedQuantity">
                       <table class="data-table manager-quantity-table manager-quantity-wide-table" id="managerAuthorizedQuantityMatrixTable">
                         <thead id="managerAuthorizedQuantityHead"></thead>
                         <tbody id="managerAuthorizedQuantityRows"></tbody>
@@ -802,7 +801,7 @@
               <div id="managerQuantityCarryoverLegend" class="quantity-carryover-legend">
                 Total Demand = original submitted demand. Actual Need = effective demand after applied carryover.
               </div>
-              <div class="table-wrap manager-quantity-wrap">
+              <div class="table-wrap table-shell manager-quantity-wrap quantity-matrix-wrap" id="managerQuantityMatrixShell" data-horizontal-nav="managerQuantity">
                 <table class="data-table manager-quantity-table manager-quantity-wide-table" id="managerQuantityMatrixTable">
                   <thead id="managerQuantityHead"></thead>
                   <tbody id="managerQuantityRows"></tbody>
