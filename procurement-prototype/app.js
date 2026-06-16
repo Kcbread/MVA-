@@ -6419,7 +6419,6 @@ function renderManagerDemandCostHead() {
   if (colgroup) {
     colgroup.innerHTML = `
       <col class="demand-cost-col-review-status">
-      <col class="demand-cost-col-actions">
       <col class="demand-cost-col-request">
       <col class="demand-cost-col-eng">
       <col class="demand-cost-col-cn">
@@ -6432,13 +6431,12 @@ function renderManagerDemandCostHead() {
   }
   head.innerHTML = `
     <tr>
-      <th colspan="8" class="demand-cost-phase-head">Item Master</th>
+      <th colspan="7" class="demand-cost-phase-head">Item Master</th>
       <th colspan="${QUANTITY_DASHBOARD_UNITS.length}" class="demand-cost-phase-head">MFG Total / Non-MFG Department Cost by Selected Phase</th>
       <th colspan="2" class="demand-cost-phase-head shared-total-highlight shared-total-highlight--head">Total</th>
     </tr>
         <tr>
           <th>Review Status</th>
-          <th>Actions</th>
           <th>Request ID</th>
           <th>ENG Name</th>
           <th>CN-ENG Name</th>
@@ -6454,7 +6452,7 @@ function renderManagerDemandCostHead() {
 function syncManagerDemandCostTableWidth() {
   const table = document.getElementById("managerDemandCostTable");
   if (!table) return;
-  const width = 972 + (QUANTITY_DASHBOARD_UNITS.length * 108) + 236;
+  const width = 894 + (QUANTITY_DASHBOARD_UNITS.length * 108) + 236;
   table.style.minWidth = `${width}px`;
   table.style.width = `${width}px`;
 }
@@ -7398,7 +7396,6 @@ function renderManagerDemandCostDashboard({ showCarryoverEvidence = false } = {}
     return `
       <tr class="${activeRowClass} ${pipelineClass}" data-manager-authorized-select-row="${htmlAttr(row.requestId || "")}" data-review-status="${htmlAttr(reviewStatus.label || "")}">
         <td class="review-status-table-cell">${reviewStatusCellHtml(row.request || {}, currentRole)}</td>
-        <td class="cell-action item-quantity-inline-actions">${demandReviewMatrixActionCell(row.request || {})}</td>
         <td class="cell-identity demand-cost-request-cell"><strong>${htmlText(row.requestId || "-")}</strong><div class="reason-text">${htmlText(row.project || "-")}</div></td>
         <td title="${htmlAttr(`${row.item} / ${row.project}`)}"><strong>${row.item}</strong><div class="reason-text">${row.project}</div></td>
         <td title="${htmlAttr(row.cnEngName)}"><div class="quantity-text-clamp">${row.cnEngName}</div></td>
@@ -7413,7 +7410,7 @@ function renderManagerDemandCostDashboard({ showCarryoverEvidence = false } = {}
         <td class="demand-cost-total-cell shared-total-highlight shared-total-highlight--cell ${managerDemandCostCellClass(rowImpact)}" title="${htmlAttr(managerDemandCostImpactTitle(rowImpact))}">${renderManagerDemandCostValue(rowImpact, filters.viewMode, { hasPrice: Boolean(row.unitPrice) })}</td>
         <td class="demand-cost-detail-cell"><button class="mini return" type="button" data-manager-demand-cost-unit="${htmlAttr(row.item)}">Open Matrix</button></td>
       </tr>`;
-  }).join("") : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length + 10}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
+  }).join("") : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length + 9}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
   refreshGlobalHorizontalNavigators();
 }
 
@@ -7583,7 +7580,6 @@ function renderManagerQuantityColgroup() {
   return `
     <colgroup>
       <col style="width:108px" />
-      <col style="width:76px" />
       <col style="width:110px" />
       <col style="width:46px" />
       <col style="width:120px" />
@@ -7598,14 +7594,14 @@ function renderManagerQuantityColgroup() {
 }
 
 function managerQuantityTableWidth() {
-  const fixedColumnsWidth = 108 + 76 + 110 + 46 + 120 + 210 + 86 + 92 + 100 + 52 + 62;
+  const fixedColumnsWidth = 108 + 110 + 46 + 120 + 210 + 86 + 92 + 100 + 52 + 62;
   const matrixWidth = managerQuantityVisibleStages().length
     * managerQuantityPhaseColumns().reduce((sum, column) => sum + managerQuantityColumnWidth(column), 0);
   return fixedColumnsWidth + matrixWidth;
 }
 
 function managerQuantityColumnCount() {
-  const fixedLeftColumns = 9;
+  const fixedLeftColumns = 8;
   const rightColumns = 2;
   return fixedLeftColumns + (managerQuantityVisibleStages().length * managerQuantityPhaseColumns().length) + rightColumns;
 }
@@ -8474,7 +8470,7 @@ function renderManagerQuantityHead() {
   if (!head) return;
   const stages = managerQuantityVisibleStages();
   const groupColspans = managerQuantityGroupColspans();
-  const rowSpanHeaders = ["Review Status", "Actions", "Request ID", "Project", "Item", "Spec", "Changes", "Unit Price", "Est. Amount"];
+  const rowSpanHeaders = ["Review Status", "Request ID", "Project", "Item", "Spec", "Changes", "Unit Price", "Est. Amount"];
   head.innerHTML = `
     <tr>
       ${rowSpanHeaders.map((label) => `<th class="quantity-sticky-head" rowspan="3">${label}</th>`).join("")}
@@ -8522,7 +8518,6 @@ function renderManagerQuantityMatrix({ showCarryoverEvidence = false } = {}) {
       return `
       <tr class="${expandedManagerQuantityRows.has(`${group.keyId}:item`) || expandedManagerQuantityRows.has(`${group.keyId}:spec`) ? "quantity-row-expanded" : ""} ${pipelineClass}" data-approval-pipeline-status="${htmlAttr(pipeline.tone || "pending")}" data-review-status="${htmlAttr(reviewStatus.label || "")}" title="${htmlAttr(pipelineTitle)}">
         <td class="review-status-table-cell">${reviewStatusCellHtml(representative, currentRole)}</td>
-        <td class="cell-action item-quantity-inline-actions">${demandReviewMatrixActionCell(representative)}</td>
         <td class="cell-identity manager-quantity-request-cell"><strong>${htmlText(group.requestId || representative.id || "-")}</strong><div class="reason-text">${htmlText(group.project || "-")}</div></td>
         <td>${group.project}</td>
         <td>${managerQuantityExpandableText(group.item, 2, group.keyId, "item")}</td>
@@ -9697,7 +9692,10 @@ function seedProjectStatusCostDashboardDemoData() {
     (index) => ({
       status: "Submitted",
       submittedAt: `2026-06-${String(1 + (index % 9)).padStart(2, "0")}T08:10:00.000Z`,
-      deptDriReviewStatus: "Pending Dept DRI Review",
+      deptDriReviewStatus: DEPT_DRI_SUBMISSION_PENDING,
+      deptDriReviewType: "Submission",
+      deptDriReviewSubmittedAt: `2026-06-${String(1 + (index % 9)).padStart(2, "0")}T08:20:00.000Z`,
+      nextStep: "Dept DRI submission review",
       procurementStatus: "",
     }),
     (index) => ({
@@ -9705,7 +9703,7 @@ function seedProjectStatusCostDashboardDemoData() {
       submittedAt: `2026-06-${String(1 + (index % 9)).padStart(2, "0")}T08:20:00.000Z`,
       deptDriSubmissionApprovedAt: `2026-06-${String(2 + (index % 9)).padStart(2, "0")}T09:20:00.000Z`,
       deptDriSubmissionApprovedBy: "Dept DRI",
-      deptDriReviewStatus: "Dept DRI Approved",
+      deptDriReviewStatus: DEPT_DRI_SUBMISSION_APPROVED,
       costManagerAuthorizationStatus: COST_MANAGER_AUTH_PENDING,
       costManagerAuthorizationSubmittedAt: `2026-06-${String(2 + (index % 9)).padStart(2, "0")}T09:30:00.000Z`,
     }),
@@ -14668,7 +14666,15 @@ function renderManagerWorkbenchDetail(row) {
 }
 
 function syncSelectedManagerRequest(rows = managerRows(), preferredId = selectedManagerRequestId) {
+  const hasPreferredRow = Boolean(preferredId && rows.some((row) => row.id === preferredId));
   selectedManagerRequestId = nextApprovalSelection(rows, approvalViewportState.manager, preferredId);
+  if (!hasPreferredRow && selectedManagerRequestId) {
+    const selectedRow = rows.find((row) => row.id === selectedManagerRequestId);
+    if (selectedRow && !managerReviewActionable(selectedRow, managerReviewRole(currentRole))) {
+      const actionableRow = rows.find((row) => managerReviewActionable(row, managerReviewRole(currentRole)));
+      if (actionableRow) selectedManagerRequestId = actionableRow.id;
+    }
+  }
   updateApprovalReviewState(managerReviewRole(currentRole), { selectedRowId: selectedManagerRequestId || "" });
 }
 

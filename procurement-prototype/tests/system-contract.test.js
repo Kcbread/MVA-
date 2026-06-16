@@ -201,7 +201,9 @@ test("Cost Manager review embeds protected Demand Analysis baseline instead of d
   assert.match(app, /function reviewStatusCellHtml/);
   assert.match(app, /function roleReviewRows/);
   assert.match(app, /<th>Review Status<\/th>/);
-  assert.match(app, /"Review Status", "Actions", "Request ID"/);
+  assert.match(app, /"Review Status", "Request ID"/);
+  assert.doesNotMatch(app, /"Review Status", "Actions", "Request ID"/);
+  assert.doesNotMatch(app, /<th>Actions<\/th>/);
   assert.match(fs.readFileSync("app-modules/approval-quantity-review.js", "utf8"), /<th>Review Status<\/th>/);
   assert.doesNotMatch(reviewPanel, /Project Status/);
   assert.doesNotMatch(analysisPanel, /Project Status/);
