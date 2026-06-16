@@ -7307,7 +7307,7 @@ function drillManagerDemandCost(unit, phase = "", item = "", project = "", reque
       requestLine: demandFilters.requestLine || scope.requestLine || "",
       item: item || scope.item || "",
       phase: phase || scope.phase || "",
-      station: desired === "MFG" ? "" : (scope.station || ""),
+      station: desired ? "" : (scope.station || ""),
       demandUnit: desired === "MFG" ? "" : (desired || scope.demandUnit || ""),
       reviewMode: desired === "MFG" ? DEMAND_TYPE_MFG : DEMAND_TYPE_NON_MFG,
     };
@@ -14823,19 +14823,24 @@ function renderManagerDemandAnalysisEvidence(selectedRow = null, rows = managerR
   const duplicateEvidence = document.getElementById("managerAuthorizedAnalysis");
   if (duplicateEvidence) duplicateEvidence.hidden = true;
   const scopedRows = selectedRow ? [selectedRow] : rows;
+  const previousRowsOverride = priceReviewAnalysisRowsOverride;
   priceReviewAnalysisRowsOverride = scopedRows;
-  const reviewProject = document.getElementById("managerProjectFilter")?.value || "";
-  if (reviewProject) {
-    ensureSelectValue("managerDemandCostProjectFilter", reviewProject);
-    ensureSelectValue("managerQuantityProjectFilter", reviewProject);
+  try {
+    const reviewProject = document.getElementById("managerProjectFilter")?.value || "";
+    if (reviewProject) {
+      ensureSelectValue("managerDemandCostProjectFilter", reviewProject);
+      ensureSelectValue("managerQuantityProjectFilter", reviewProject);
+    }
+    if (selectedRow && approvalQuantityReviewTab === "dashboard") {
+      ensureSelectValue("managerDemandCostProjectFilter", selectedRow.project || "");
+      ensureSelectValue("managerQuantityProjectFilter", selectedRow.project || "");
+      ensureSelectValue("managerQuantityItemFilter", selectedRow.name || "");
+    }
+    renderManagerDemandCostDashboard({ showCarryoverEvidence: false });
+    renderManagerQuantityMatrix({ showCarryoverEvidence: false });
+  } finally {
+    priceReviewAnalysisRowsOverride = previousRowsOverride;
   }
-  if (selectedRow) {
-    ensureSelectValue("managerDemandCostProjectFilter", selectedRow.project || "");
-    ensureSelectValue("managerQuantityProjectFilter", selectedRow.project || "");
-    ensureSelectValue("managerQuantityItemFilter", selectedRow.name || "");
-  }
-  renderManagerDemandCostDashboard({ showCarryoverEvidence: false });
-  renderManagerQuantityMatrix({ showCarryoverEvidence: false });
 }
 
 function managerReviewDecisionStatus(row = {}, role = managerReviewRole(currentRole)) {
@@ -15892,7 +15897,7 @@ function renderManager() {
   const rows = managerRows(role);
   syncSelectedManagerRequest(rows);
   const selectedRow = rows.find((row) => row.id === selectedManagerRequestId) || null;
-  if (selectedRow) {
+  if (selectedRow && approvalQuantityReviewTab === "dashboard") {
     setApprovalQuantityReviewMode(approvalQuantityReviewModeForRow(selectedRow), { preserveDashboard: true });
     syncApprovalQuantityReviewTabState();
   }
@@ -23940,9 +23945,11 @@ document.addEventListener("change", async (event) => {
   ].includes(event.target.id)) renderOmSubmission();
   if (event.target.id === "currencyDisplaySelect") {
     currencyDisplay = event.target.value === "USD" ? "USD" : "VND";
+    const previousProjectStatusScope = { ...selectedProjectStatusScope };
     renderDepartment();
     renderPriceReview();
     renderManager();
+    selectedProjectStatusScope = previousProjectStatusScope;
     renderProjectStatus();
     renderOmPurchasing();
     renderSourcing();
