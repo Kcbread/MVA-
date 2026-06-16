@@ -77,6 +77,8 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
 - Keep the main thread focused on decisions, tradeoffs, implementation summary, and verification results.
 - Default to Traditional Chinese for user-facing responses unless the user requests another language.
 - Use compact handoffs when context gets long: `Findings / Decision / Risk / Next`.
+- Use context engineering as routing discipline: global/project rules tell Codex what to load next; role, flow, module, skill, validator, archive, and handoff files are loaded on demand.
+- Keep mandatory startup light. Prefer entrypoint scans and targeted reads; do not bulk-load old handoffs, archives, generated outputs, or every skill body before the task proves it needs them.
 - Treat `procurement-prototype/_context/` as the first onboarding source for role, flow, module, and API context.
 - Treat `procurement-prototype/PROJECT_DECISIONS.md` as the full locked-decision source when `_context/` is insufficient.
 - Do not let UI changes redefine business ownership. Lock who creates, approves, views, and edits before implementation.
@@ -105,6 +107,18 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
   - `procurement-testing-standard-op` before running or changing the standard test flow.
   - `procurement-ui-quality-review` for procurement UI review or UI changes.
   - `frontend-layout-stability` for modal, table, dashboard, and responsive layout work.
+- For every non-trivial task, perform a lightweight skill and MCP fit scan before planning or implementation:
+  - Classify the request domain: code, test/debug, UI/Figma, docs, spreadsheet, presentation, image, OpenAI API/docs, database/Supabase, GitHub/CI, security, external app action, skill/plugin work, PM memory/handoff, or unknown.
+  - Check only relevant capability metadata before improvising:
+    - Personal skills: `~/.codex/skills/<skill-name>/SKILL.md`.
+    - System skills: `~/.codex/skills/.system/**/SKILL.md`.
+    - OpenAI/plugin skills: `~/.codex/plugins/cache/**/skills/**/SKILL.md`.
+    - Currently exposed MCP/app tools.
+  - Rank 3-7 likely skills/MCPs by trigger fit, task-domain fit, local availability, project-rule overlap, and permission risk.
+  - Load the full `SKILL.md` only for selected skills before acting; do not read every candidate skill body.
+  - State a compact routing receipt when it affects the plan: selected skill(s) or MCP(s), why selected, obvious alternatives skipped, permission/risk label, and evidence paths.
+  - For external or third-party skill installation, verify that the target is a Codex `SKILL.md` directory before installing. If feasible, scan or inspect it first. Do not install items flagged `DO_NOT_INSTALL` by a security scanner unless Kai explicitly approves the override.
+  - Distinguish `mock`, `dry-run`, `fixture`, and `real execution`; never describe mock or dry-run validation as real completion.
 - General internal-system collaboration rules come from `internal-system-delivery-workflow`; this repo's procurement-specific truth still comes from `procurement-prototype/PROJECT_DECISIONS.md` and the procurement skills.
 - For new thread or subagent startup, read `procurement-prototype/_context/README.zh-TW.md` plus the relevant role file before reading long history or changing product behavior.
 - Use MCP/thread tools for PM memory only when the user asks to coordinate threads, create automations, or inspect another Codex thread.

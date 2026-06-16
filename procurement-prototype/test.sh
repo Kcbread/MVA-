@@ -19,6 +19,7 @@ echo "== Syntax checks =="
 "$NODE_BIN" --check app-modules/ftv-code.js
 "$NODE_BIN" --check app-modules/sap-po-raw-contract.js
 "$NODE_BIN" --check app-modules/sap-po-raw-importer.js
+"$NODE_BIN" --check app-modules/export-allocation.js
 "$NODE_BIN" --check scripts/commit-sap-po-raw-import.js
 "$NODE_BIN" --check app-modules/workflow-status-table.js
 "$NODE_BIN" --check tests/accessibility-smoke.js
@@ -26,6 +27,8 @@ echo "== Syntax checks =="
 "$NODE_BIN" --check tests/price-routing-smoke.js
 "$NODE_BIN" --check tests/global-ui-audit.js
 "$NODE_BIN" --check tests/role-flow-smoke.js
+"$NODE_BIN" --check tests/fixtures/large-quantity-fixture.js
+"$NODE_BIN" --check tests/large-data-ui-audit.js
 
 echo "== Unit and system contract tests =="
 "$NODE_BIN" --test tests/*.test.js
@@ -73,12 +76,23 @@ NODE
     echo "Role flow smoke failed."
     exit 1
   fi
+  if [[ "${RUN_LARGE_DATA_UI_AUDIT:-0}" == "1" ]]; then
+    if "$NODE_BIN" tests/large-data-ui-audit.js; then
+      echo "Large data UI audit passed."
+    else
+      echo "Large data UI audit failed."
+      exit 1
+    fi
+  else
+    echo "Large data UI audit skipped: set RUN_LARGE_DATA_UI_AUDIT=1 to run the P1.0-to-MP fixture stress audit."
+  fi
 else
   echo "Browser smoke skipped: Playwright is not installed in this environment."
   echo "Layout smoke skipped: Playwright is not installed in this environment."
   echo "Price routing smoke skipped: Playwright is not installed in this environment."
   echo "Global UI audit skipped: Playwright is not installed in this environment."
   echo "Role flow smoke skipped: Playwright is not installed in this environment."
+  echo "Large data UI audit skipped: Playwright is not installed in this environment."
 fi
 
 echo "== Accessibility smoke =="

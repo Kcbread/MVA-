@@ -172,7 +172,7 @@
                 </div>
                 <span class="status-pill info" id="projectStatusMfgScope">All MFG rows</span>
               </div>
-              <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
+              <div id="projectStatusMfgMatrixShell" data-horizontal-nav="projectStatusMfgQuantity" class="table-wrap table-shell manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
                 <table class="data-table manager-quantity-table manager-quantity-wide-table project-status-detail-table" id="projectStatusMfgMatrixTable">
                   <thead id="projectStatusMfgHead"></thead>
                   <tbody id="projectStatusMfgRows"></tbody>
@@ -189,7 +189,7 @@
                 </div>
                 <span class="status-pill info" id="projectStatusNonMfgScope">All Non-MFG rows</span>
               </div>
-              <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
+              <div id="projectStatusNonMfgMatrixShell" data-horizontal-nav="projectStatusNonMfgQuantity" class="table-wrap table-shell manager-quantity-wrap quantity-matrix-wrap project-status-matrix-wrap">
                 <table class="data-table manager-quantity-table manager-quantity-wide-table project-status-detail-table" id="projectStatusNonMfgMatrixTable">
                   <thead id="projectStatusNonMfgHead"></thead>
                   <tbody id="projectStatusNonMfgRows"></tbody>
@@ -615,8 +615,7 @@
                       <select id="managerAuthorizedQuantityUnitFilter"><option value="">All demand units</option></select>
                       <select id="managerAuthorizedQuantitySortFilter"><option value="">Default</option></select>
                     </div>
-                    <div data-horizontal-nav="managerAuthorizedQuantity" class="horizontal-table-nav-anchor"></div>
-                    <div class="table-wrap manager-quantity-wrap quantity-matrix-wrap">
+                    <div class="table-wrap table-shell manager-quantity-wrap quantity-matrix-wrap" id="managerAuthorizedQuantityMatrixShell" data-horizontal-nav="managerAuthorizedQuantity">
                       <table class="data-table manager-quantity-table manager-quantity-wide-table" id="managerAuthorizedQuantityMatrixTable">
                         <thead id="managerAuthorizedQuantityHead"></thead>
                         <tbody id="managerAuthorizedQuantityRows"></tbody>
@@ -802,7 +801,7 @@
               <div id="managerQuantityCarryoverLegend" class="quantity-carryover-legend">
                 Total Demand = original submitted demand. Actual Need = effective demand after applied carryover.
               </div>
-              <div class="table-wrap manager-quantity-wrap">
+              <div class="table-wrap table-shell manager-quantity-wrap quantity-matrix-wrap" id="managerQuantityMatrixShell" data-horizontal-nav="managerQuantity">
                 <table class="data-table manager-quantity-table manager-quantity-wide-table" id="managerQuantityMatrixTable">
                   <thead id="managerQuantityHead"></thead>
                   <tbody id="managerQuantityRows"></tbody>
@@ -1241,7 +1240,6 @@
                   <col class="om-quote-col-currency" />
                   <col class="om-quote-col-date" />
                   <col class="om-quote-col-date" />
-                  <col class="om-quote-col-files" />
                   <col class="om-quote-col-status" />
                   <col class="om-quote-col-assignee" />
                   <col class="om-quote-col-actions" />
@@ -1261,7 +1259,6 @@
                     <th>Currency</th>
                     <th>Quote Date</th>
                     <th>Valid Until</th>
-                    <th>Files</th>
                     <th>Completion / Missing</th>
                     <th>Assigned To</th>
                     <th>Actions</th>
@@ -1361,6 +1358,7 @@
                   <col class="om-export-col-phase" />
                   <col class="om-export-col-item" />
                   <col class="om-export-col-qty" />
+                  <col class="om-export-col-allocation" />
                   <col class="om-export-col-assignee" />
                   <col class="om-export-col-package" />
                   <col class="om-export-col-pas" />
@@ -1379,6 +1377,7 @@
                     <th>Phase</th>
                     <th>Item</th>
                     <th>Qty</th>
+                    <th>Allocation</th>
                     <th>Assigned To</th>
                     <th>Package Code</th>
                     <th>PAS Context</th>
@@ -1395,6 +1394,68 @@
                 <tbody id="omFinalExportRows"></tbody>
               </table>
             </div>
+            <section class="work-panel om-export-allocation-workspace" id="omExportAllocationWorkspace">
+              <div class="panel-title section-head-tight">
+                <div>
+                  <h3>My Export Allocation</h3>
+                  <p class="panel-subcopy">Assign allocation lines before generating budget codes and export package output.</p>
+                </div>
+                <span class="status-pill info" id="omExportAllocationScope">Select an export row</span>
+              </div>
+              <div class="summary-grid om-export-allocation-summary" id="omExportAllocationSummary"></div>
+              <div class="table-wrap om-table-wrap table-shell">
+                <table class="data-table workflow-table om-export-source-pool-table">
+                  <thead>
+                    <tr>
+                      <th>Source Pool</th>
+                      <th>Item / Spec</th>
+                      <th>Available Qty</th>
+                      <th>Status</th>
+                      <th>Trace</th>
+                    </tr>
+                  </thead>
+                  <tbody id="omExportSourcePoolRows"></tbody>
+                </table>
+              </div>
+              <div class="table-wrap om-table-wrap">
+                <table class="data-table workflow-table om-export-allocation-table">
+                  <thead>
+                    <tr>
+	                      <th>Target Project</th>
+	                      <th>Target Phase</th>
+	                      <th>Target Type</th>
+	                      <th>Target Station / Unit</th>
+                      <th>Allocated Qty</th>
+                      <th>PAS Quote ID</th>
+                      <th>Budget Code</th>
+                      <th>Quote Attachments</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="omExportAllocationRows"></tbody>
+                </table>
+              </div>
+              <div class="footer-actions">
+                <button class="ghost" type="button" data-action="omAddAllocationLine">Add Split</button>
+              </div>
+              <div class="table-wrap om-table-wrap">
+                <table class="data-table workflow-table om-export-allocation-ledger-table">
+                  <thead>
+                    <tr>
+                      <th>Event</th>
+                      <th>Source</th>
+                      <th>Target</th>
+                      <th>Qty</th>
+                      <th>Budget Code</th>
+                      <th>Actor</th>
+                      <th>Time</th>
+                    </tr>
+                  </thead>
+                  <tbody id="omExportAllocationLedgerRows"></tbody>
+                </table>
+              </div>
+            </section>
           </section>
 
         </section>
@@ -2374,6 +2435,7 @@
     <script src="./app-modules/lead-time.js?v=20260605-usd-delta-v1"></script>
     <script src="./app-modules/workflow-status.js?v=20260615-unified-manager-v1"></script>
     <script src="./app-modules/workflow-status-table.js?v=20260606-workflow-status-v1"></script>
+    <script src="./app-modules/export-allocation.js?v=20260616-om-export-allocation-v1"></script>
     <script src="./app-modules/sap-po-raw-contract.js?v=20260613-sap-po-raw-v1"></script>
     <script src="./app-modules/horizontal-table-navigator.js?v=20260610-evidence-navigator-v2"></script>
     <script src="./app-modules/request-worksheet-matrix.js?v=20260609-approval-workbench-v1"></script>
@@ -2381,6 +2443,7 @@
     <script src="./app-modules/approval-quantity-review.js?v=20260610-direct-quantity-review-v1"></script>
     <script src="./app-modules/approval-review-surface.js?v=20260615-unified-manager-v1"></script>
     <script src="./app-modules/role-queue-config.js?v=20260615-unified-manager-v1"></script>
+    <script src="./tests/fixtures/large-quantity-fixture.js?v=20260616-large-ui-audit-v1"></script>
     <script src="./app.js?v=20260615-unified-manager-v1"></script>
     <script src="./user-a-flow.js?v=20260604-role-routing-v2"></script>
   <script src="carryover-extension.js?v=20260604-role-routing-v2"></script>

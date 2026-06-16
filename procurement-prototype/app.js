@@ -595,6 +595,10 @@ function approvalReviewSurfaceModule() {
   return window.ProcurementApp?.modules?.approvalReviewSurface || null;
 }
 
+function exportAllocationModule() {
+  return window.ProcurementApp?.modules?.exportAllocation || null;
+}
+
 function approvalReviewConfigForRole(role = currentRole) {
   return approvalReviewSurfaceModule()?.configForRole?.(role) || null;
 }
@@ -1062,6 +1066,7 @@ const expandedManagerQuantityRows = new Set();
 const expandedDemandEditorCarryoverRows = new Set();
 let currentHandoffTab = "queue";
 let currentOmTab = "submission";
+let selectedOmExportAllocationRequestId = "";
 let currentPriceReviewTab = "pending";
 let currentPriceReviewQueue = "submission";
 let selectedProjectStatusScope = { requestId: "", unit: "", mode: "mfg" };
@@ -3481,7 +3486,7 @@ function quoteStatus(record) {
 }
 
 function hasOmQuoteData(row) {
-  return Boolean(row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteValidUntil(row) && omQuoteScreenshotFile(row) && row.quotationExcel);
+  return Boolean(row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteValidUntil(row));
 }
 
 function omQuoteReceivedAt(row) {
@@ -5250,8 +5255,14 @@ function renderManagerStageTracking() {
 }
 
 function managerQuantitySourceRows() {
-  const sourceRows = Array.isArray(priceReviewAnalysisRowsOverride) ? priceReviewAnalysisRowsOverride : requests;
-  const allowReviewStatusRows = Array.isArray(priceReviewAnalysisRowsOverride);
+  const selectedManagerAnalysisRow = currentView === "manager" && selectedManagerRequestId
+    ? requests.find((row) => row.id === selectedManagerRequestId)
+    : null;
+  const focusedManagerRows = selectedManagerAnalysisRow ? [selectedManagerAnalysisRow] : null;
+  const sourceRows = Array.isArray(priceReviewAnalysisRowsOverride)
+    ? priceReviewAnalysisRowsOverride
+    : (focusedManagerRows || requests);
+  const allowReviewStatusRows = Array.isArray(priceReviewAnalysisRowsOverride) || Boolean(focusedManagerRows);
   return sourceRows.filter((row) => {
     const status = row.status || "";
     return status
@@ -6419,7 +6430,6 @@ function renderManagerDemandCostHead() {
   if (colgroup) {
     colgroup.innerHTML = `
       <col class="demand-cost-col-review-status">
-      <col class="demand-cost-col-actions">
       <col class="demand-cost-col-request">
       <col class="demand-cost-col-eng">
       <col class="demand-cost-col-cn">
@@ -6432,13 +6442,12 @@ function renderManagerDemandCostHead() {
   }
   head.innerHTML = `
     <tr>
-      <th colspan="8" class="demand-cost-phase-head">Item Master</th>
+      <th colspan="7" class="demand-cost-phase-head">Item Master</th>
       <th colspan="${QUANTITY_DASHBOARD_UNITS.length}" class="demand-cost-phase-head">MFG Total / Non-MFG Department Cost by Selected Phase</th>
       <th colspan="2" class="demand-cost-phase-head shared-total-highlight shared-total-highlight--head">Total</th>
     </tr>
         <tr>
           <th>Review Status</th>
-          <th>Actions</th>
           <th>Request ID</th>
           <th>ENG Name</th>
           <th>CN-ENG Name</th>
@@ -6454,7 +6463,7 @@ function renderManagerDemandCostHead() {
 function syncManagerDemandCostTableWidth() {
   const table = document.getElementById("managerDemandCostTable");
   if (!table) return;
-  const width = 972 + (QUANTITY_DASHBOARD_UNITS.length * 108) + 236;
+  const width = 894 + (QUANTITY_DASHBOARD_UNITS.length * 108) + 236;
   table.style.minWidth = `${width}px`;
   table.style.width = `${width}px`;
 }
@@ -7309,7 +7318,7 @@ function drillManagerDemandCost(unit, phase = "", item = "", project = "", reque
       requestLine: demandFilters.requestLine || scope.requestLine || "",
       item: item || scope.item || "",
       phase: phase || scope.phase || "",
-      station: desired === "MFG" ? "" : (scope.station || ""),
+      station: desired ? "" : (scope.station || ""),
       demandUnit: desired === "MFG" ? "" : (desired || scope.demandUnit || ""),
       reviewMode: desired === "MFG" ? DEMAND_TYPE_MFG : DEMAND_TYPE_NON_MFG,
     };
@@ -7398,7 +7407,6 @@ function renderManagerDemandCostDashboard({ showCarryoverEvidence = false } = {}
     return `
       <tr class="${activeRowClass} ${pipelineClass}" data-manager-authorized-select-row="${htmlAttr(row.requestId || "")}" data-review-status="${htmlAttr(reviewStatus.label || "")}">
         <td class="review-status-table-cell">${reviewStatusCellHtml(row.request || {}, currentRole)}</td>
-        <td class="cell-action item-quantity-inline-actions">${demandReviewMatrixActionCell(row.request || {})}</td>
         <td class="cell-identity demand-cost-request-cell"><strong>${htmlText(row.requestId || "-")}</strong><div class="reason-text">${htmlText(row.project || "-")}</div></td>
         <td title="${htmlAttr(`${row.item} / ${row.project}`)}"><strong>${row.item}</strong><div class="reason-text">${row.project}</div></td>
         <td title="${htmlAttr(row.cnEngName)}"><div class="quantity-text-clamp">${row.cnEngName}</div></td>
@@ -7413,7 +7421,7 @@ function renderManagerDemandCostDashboard({ showCarryoverEvidence = false } = {}
         <td class="demand-cost-total-cell shared-total-highlight shared-total-highlight--cell ${managerDemandCostCellClass(rowImpact)}" title="${htmlAttr(managerDemandCostImpactTitle(rowImpact))}">${renderManagerDemandCostValue(rowImpact, filters.viewMode, { hasPrice: Boolean(row.unitPrice) })}</td>
         <td class="demand-cost-detail-cell"><button class="mini return" type="button" data-manager-demand-cost-unit="${htmlAttr(row.item)}">Open Matrix</button></td>
       </tr>`;
-  }).join("") : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length + 10}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
+  }).join("") : `<tr><td colspan="${QUANTITY_DASHBOARD_UNITS.length + 9}" class="empty-cell">No dashboard demand rows match the selected filters.</td></tr>`;
   refreshGlobalHorizontalNavigators();
 }
 
@@ -7583,7 +7591,6 @@ function renderManagerQuantityColgroup() {
   return `
     <colgroup>
       <col style="width:108px" />
-      <col style="width:76px" />
       <col style="width:110px" />
       <col style="width:46px" />
       <col style="width:120px" />
@@ -7598,14 +7605,14 @@ function renderManagerQuantityColgroup() {
 }
 
 function managerQuantityTableWidth() {
-  const fixedColumnsWidth = 108 + 76 + 110 + 46 + 120 + 210 + 86 + 92 + 100 + 52 + 62;
+  const fixedColumnsWidth = 108 + 110 + 46 + 120 + 210 + 86 + 92 + 100 + 52 + 62;
   const matrixWidth = managerQuantityVisibleStages().length
     * managerQuantityPhaseColumns().reduce((sum, column) => sum + managerQuantityColumnWidth(column), 0);
   return fixedColumnsWidth + matrixWidth;
 }
 
 function managerQuantityColumnCount() {
-  const fixedLeftColumns = 9;
+  const fixedLeftColumns = 8;
   const rightColumns = 2;
   return fixedLeftColumns + (managerQuantityVisibleStages().length * managerQuantityPhaseColumns().length) + rightColumns;
 }
@@ -8474,7 +8481,7 @@ function renderManagerQuantityHead() {
   if (!head) return;
   const stages = managerQuantityVisibleStages();
   const groupColspans = managerQuantityGroupColspans();
-  const rowSpanHeaders = ["Review Status", "Actions", "Request ID", "Project", "Item", "Spec", "Changes", "Unit Price", "Est. Amount"];
+  const rowSpanHeaders = ["Review Status", "Request ID", "Project", "Item", "Spec", "Changes", "Unit Price", "Est. Amount"];
   head.innerHTML = `
     <tr>
       ${rowSpanHeaders.map((label) => `<th class="quantity-sticky-head" rowspan="3">${label}</th>`).join("")}
@@ -8522,7 +8529,6 @@ function renderManagerQuantityMatrix({ showCarryoverEvidence = false } = {}) {
       return `
       <tr class="${expandedManagerQuantityRows.has(`${group.keyId}:item`) || expandedManagerQuantityRows.has(`${group.keyId}:spec`) ? "quantity-row-expanded" : ""} ${pipelineClass}" data-approval-pipeline-status="${htmlAttr(pipeline.tone || "pending")}" data-review-status="${htmlAttr(reviewStatus.label || "")}" title="${htmlAttr(pipelineTitle)}">
         <td class="review-status-table-cell">${reviewStatusCellHtml(representative, currentRole)}</td>
-        <td class="cell-action item-quantity-inline-actions">${demandReviewMatrixActionCell(representative)}</td>
         <td class="cell-identity manager-quantity-request-cell"><strong>${htmlText(group.requestId || representative.id || "-")}</strong><div class="reason-text">${htmlText(group.project || "-")}</div></td>
         <td>${group.project}</td>
         <td>${managerQuantityExpandableText(group.item, 2, group.keyId, "item")}</td>
@@ -9019,6 +9025,72 @@ function setDeptTab(tabName) {
   document.querySelectorAll("[data-dept-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.deptTab === nextTab));
   document.querySelectorAll("[data-dept-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.deptPanel === nextTab));
   renderDepartment();
+}
+
+function largeDemoModeEnabled() {
+  const params = new URLSearchParams(window.location.search || "");
+  const queryEnabled = params.get("large-data") === "1" || params.get("largeDataDemo") === "1";
+  const storageEnabled = (() => {
+    try {
+      return window.localStorage?.getItem("largeDataDemo") === "1";
+    } catch (_error) {
+      return false;
+    }
+  })();
+  return queryEnabled || storageEnabled;
+}
+
+function applyLargeQuantityDemoMode(options = {}) {
+  const fixture = window.ProcurementLargeQuantityFixture;
+  if (!fixture?.installLargeQuantityFixtureRows) return { applied: false, reason: "fixture unavailable", count: 0 };
+  const count = Number(options.count || 160);
+  requests = fixture.installLargeQuantityFixtureRows(requests, {
+    count,
+    scenario: options.scenario || "DEMO-P10-MP",
+  });
+  return {
+    applied: true,
+    reason: "large-data=1|largeDataDemo opt-in fixture applied",
+    count: requests.filter((row) => fixture.fixtureRowMatches?.(row)).length,
+  };
+}
+
+function urlDeepLinkParams() {
+  const params = new URLSearchParams(window.location.search || "");
+  return {
+    role: params.get("role") || "",
+    view: params.get("view") || "",
+    deptTab: params.get("deptTab") || params.get("departmentTab") || "",
+    managerTab: params.get("managerTab") || "",
+    omTab: params.get("omTab") || "",
+    priceReviewTab: params.get("priceReviewTab") || "",
+  };
+}
+
+function applyUrlDeepLink() {
+  const deepLink = urlDeepLinkParams();
+  const role = deepLink.role;
+  const view = deepLink.view;
+  const deptTab = deepLink.deptTab;
+  const managerTab = deepLink.managerTab;
+  const omTab = deepLink.omTab;
+  const priceReviewTab = deepLink.priceReviewTab;
+  const allowedViews = new Set([...document.querySelectorAll("[data-view]")].map((node) => node.dataset.view));
+
+  if (roleProfiles[role]) applyRole(role);
+  if (allowedViews.has(view)) setView(view);
+  if (deptTab) setDeptTab(deptTab);
+  if (managerTab && typeof setManagerTab === "function") setManagerTab(managerTab);
+  if (omTab && typeof setOmTab === "function") setOmTab(omTab);
+  if (priceReviewTab && typeof setPriceReviewTab === "function") setPriceReviewTab(priceReviewTab);
+  return {
+    role: roleProfiles[role] ? role : currentRole,
+    view: allowedViews.has(view) ? view : currentView,
+    deptTab: deptTab || currentDeptTab,
+    managerTab: managerTab || currentManagerTab,
+    omTab: omTab || currentOmTab,
+    priceReviewTab: priceReviewTab || currentPriceReviewTab,
+  };
 }
 
 function openItemPicker() {
@@ -9526,6 +9598,124 @@ function seedOmDemoData() {
       buyerReceivedAt: "",
       demoOmSeed: true,
     }),
+    requestFromRecord({
+      ...validRecord,
+      id: "SRC-HFCOM-0115",
+      name: "HFCOM-0115 HYPER PLA Brand:Creality",
+      spec: "Nhua in 3d Creality Hyper Series PLA Filament 1.75mm 1kg Grey",
+      detail: "Nhua in 3d Creality Hyper Series PLA Filament 1.75mm 1kg Grey, 1KG, Normal; if no grey then white color",
+      unitPriceVnd: 365000,
+      mp: 5,
+      station: "CG",
+      vendor: "HOANG HA",
+    }, {
+      id: "REQ-OM-DEMO-PLA-001",
+      project: "P26",
+      phase: "mp",
+      status: "Approved",
+      procurementStatus: HANDOFF_SENT_TO_OM,
+      pasStatus: PAS_APPROVED,
+      pasRequired: true,
+      pasProjectCode: "L10-MP-COM-MVA2603-63OM",
+      pasReviewDate: "2026-03-27",
+      omStatus: OM_USER_CONFIRMED,
+      externalSystemStatus: "Pending",
+      externalSystemRef: "ERP-DEMO-L10-PLA",
+      vendor: "HOANG HA",
+      vendorPartNo: "HOANGHA-CREALITY-PLA",
+      quoteDate: "2026-03-27",
+      quoteValidUntil: "2026-07-31",
+      quoteExpiry: "2026-07-31",
+      updatedPriceVnd: 365000,
+      pasDemandNo: "PASQ-L10-MP-COM-MVA2603-63OM",
+      pasMaterialNo: "PAS-HFCOM-0115",
+      stationBreakdown: [{ id: "REQ-OM-DEMO-PLA-001-MP-CG", phase: "mp", station: "CG", demandType: DEMAND_TYPE_MFG, qty: 5, requestLine: "Line 10" }],
+      procurementRemark: "Demo from OM purchasing form L10-MP-COM-MVA2603-63OM; allocation-level attachments already mapped.",
+      decidedAt: "2026-03-27T09:00:00.000Z",
+      sentToOmAt: "2026-03-27T10:00:00.000Z",
+      pasResultReceivedAt: "2026-03-27T11:00:00.000Z",
+      quoteReadyAt: "2026-03-27T11:30:00.000Z",
+      omStage: "finalExport",
+      userAQuoteDecisionStatus: OM_USER_CONFIRMED,
+      userAQuoteDecisionAt: "2026-03-27T12:00:00.000Z",
+      userAQuoteDecisionBy: "Requester",
+      finalExportTarget: "ECS",
+      finalExportCostType: OM_COST_TYPE_EXPENSE,
+      finalExportStatus: OM_READY_FOR_ECS,
+      finalExportPackageCode: "L10-MP-COM-MVA2603-63OM",
+      exportAllocationLines: [{
+        allocationId: "REQ-OM-DEMO-PLA-001-ALLOC-01",
+        targetProject: "P26",
+        targetPhase: "MP",
+        targetStationUnit: "CG",
+        allocatedQty: 5,
+        pasQuoteId: "PASQ-L10-MP-COM-MVA2603-63OM",
+        budgetCode: "L10-MP-COM-MVA2603-63OM-A01",
+        quotationPdf: "quote_L10_MP_COM_MVA2603_63OM_PLA.png",
+        quotationExcel: "quote_L10_MP_COM_MVA2603_63OM_PLA.xlsx",
+        status: "Ready for ECS",
+      }],
+      demoOmSeed: true,
+    }),
+    requestFromRecord({
+      ...validRecord,
+      id: "SRC-HFCOM-0116",
+      name: "HFCOM-0116 HYPER PETG Brand:Creality",
+      spec: "Nhua in 3d FDM Creality Hyper PETG 1kg/Cuon Grey",
+      detail: "Nhua in 3d FDM Creality Hyper PETG 1kg/Cuon Grey, 1KG; no grey then white color; weather proof, sun proof, high endurance",
+      unitPriceVnd: 335000,
+      mp: 5,
+      station: "CG",
+      vendor: "HOANG HA",
+    }, {
+      id: "REQ-OM-DEMO-PETG-002",
+      project: "P26",
+      phase: "mp",
+      status: "Approved",
+      procurementStatus: HANDOFF_SENT_TO_OM,
+      pasStatus: PAS_APPROVED,
+      pasRequired: true,
+      pasProjectCode: "L10-MP-COM-MVA2603-63OM",
+      pasReviewDate: "2026-03-27",
+      omStatus: OM_USER_CONFIRMED,
+      externalSystemStatus: "Pending",
+      externalSystemRef: "ERP-DEMO-L10-PETG",
+      vendor: "HOANG HA",
+      vendorPartNo: "HOANGHA-CREALITY-PETG",
+      quoteDate: "2026-03-27",
+      quoteValidUntil: "2026-07-31",
+      quoteExpiry: "2026-07-31",
+      updatedPriceVnd: 335000,
+      pasDemandNo: "PASQ-L10-MP-COM-MVA2603-63OM",
+      pasMaterialNo: "PAS-HFCOM-0116",
+      stationBreakdown: [{ id: "REQ-OM-DEMO-PETG-002-MP-CG", phase: "mp", station: "CG", demandType: DEMAND_TYPE_MFG, qty: 5, requestLine: "Line 10" }],
+      procurementRemark: "Demo from OM purchasing form L10-MP-COM-MVA2603-63OM; quote attachment belongs to this allocation line.",
+      decidedAt: "2026-03-27T09:05:00.000Z",
+      sentToOmAt: "2026-03-27T10:05:00.000Z",
+      pasResultReceivedAt: "2026-03-27T11:05:00.000Z",
+      quoteReadyAt: "2026-03-27T11:35:00.000Z",
+      omStage: "finalExport",
+      userAQuoteDecisionStatus: OM_USER_CONFIRMED,
+      userAQuoteDecisionAt: "2026-03-27T12:05:00.000Z",
+      userAQuoteDecisionBy: "Requester",
+      finalExportTarget: "ECS",
+      finalExportCostType: OM_COST_TYPE_EXPENSE,
+      finalExportStatus: OM_READY_FOR_ECS,
+      finalExportPackageCode: "L10-MP-COM-MVA2603-63OM",
+      exportAllocationLines: [{
+        allocationId: "REQ-OM-DEMO-PETG-002-ALLOC-01",
+        targetProject: "P26",
+        targetPhase: "MP",
+        targetStationUnit: "CG",
+        allocatedQty: 5,
+        pasQuoteId: "PASQ-L10-MP-COM-MVA2603-63OM",
+        budgetCode: "L10-MP-COM-MVA2603-63OM-A02",
+        quotationPdf: "quote_L10_MP_COM_MVA2603_63OM_PETG.png",
+        quotationExcel: "quote_L10_MP_COM_MVA2603_63OM_PETG.xlsx",
+        status: "Ready for ECS",
+      }],
+      demoOmSeed: true,
+    }),
     requestFromRecord(newMaterialRecord, {
       id: "REQ-OM-003",
       project: "P26",
@@ -9559,6 +9749,10 @@ function seedOmDemoData() {
   seedOmHistory(demoRows[2], "Uploaded quote Excel", demoRows[2].quotationExcel);
   seedOmHistory(demoRows[3], "Requester confirmed need", "Demo row is ready for Final Export package testing.");
   seedOmHistory(demoRows[3], "Uploaded quote Excel", demoRows[3].quotationExcel);
+  seedOmHistory(demoRows[4], "Allocation budget code assigned", "L10-MP-COM-MVA2603-63OM-A01 maps PAS quote PASQ-L10-MP-COM-MVA2603-63OM to HYPER PLA.");
+  seedOmHistory(demoRows[4], "Uploaded allocation quote package", "Screenshot + Excel attached after allocation.");
+  seedOmHistory(demoRows[5], "Allocation budget code assigned", "L10-MP-COM-MVA2603-63OM-A02 maps PAS quote PASQ-L10-MP-COM-MVA2603-63OM to HYPER PETG.");
+  seedOmHistory(demoRows[5], "Uploaded allocation quote package", "Screenshot + Excel attached after allocation.");
   demoRows.forEach((row) => seedOmHistory(row, "Received handoff", `Route: ${handoffRoute(row)} / ${handoffWarnings(row).join(" / ") || "No warnings"}`));
 }
 
@@ -9697,7 +9891,10 @@ function seedProjectStatusCostDashboardDemoData() {
     (index) => ({
       status: "Submitted",
       submittedAt: `2026-06-${String(1 + (index % 9)).padStart(2, "0")}T08:10:00.000Z`,
-      deptDriReviewStatus: "Pending Dept DRI Review",
+      deptDriReviewStatus: DEPT_DRI_SUBMISSION_PENDING,
+      deptDriReviewType: "Submission",
+      deptDriReviewSubmittedAt: `2026-06-${String(1 + (index % 9)).padStart(2, "0")}T08:20:00.000Z`,
+      nextStep: "Dept DRI submission review",
       procurementStatus: "",
     }),
     (index) => ({
@@ -9705,7 +9902,7 @@ function seedProjectStatusCostDashboardDemoData() {
       submittedAt: `2026-06-${String(1 + (index % 9)).padStart(2, "0")}T08:20:00.000Z`,
       deptDriSubmissionApprovedAt: `2026-06-${String(2 + (index % 9)).padStart(2, "0")}T09:20:00.000Z`,
       deptDriSubmissionApprovedBy: "Dept DRI",
-      deptDriReviewStatus: "Dept DRI Approved",
+      deptDriReviewStatus: DEPT_DRI_SUBMISSION_APPROVED,
       costManagerAuthorizationStatus: COST_MANAGER_AUTH_PENDING,
       costManagerAuthorizationSubmittedAt: `2026-06-${String(2 + (index % 9)).padStart(2, "0")}T09:30:00.000Z`,
     }),
@@ -10725,9 +10922,17 @@ function refreshGlobalHorizontalNavigators() {
     label: "Unit Cost Columns",
     groups: demandCostNavigatorGroups(),
   }));
-  ["managerQuantity", "priceReviewQuantity", "priceReviewInlineQuantity", "managerAuthorizedQuantity"].forEach((id) => refreshHorizontalTableNavigator(id, {
+  [
+    ["managerQuantity", "#managerQuantityMatrixShell"],
+    ["managerAuthorizedQuantity", "#managerAuthorizedQuantityMatrixShell"],
+    ["projectStatusMfgQuantity", "#projectStatusMfgMatrixShell"],
+    ["projectStatusNonMfgQuantity", "#projectStatusNonMfgMatrixShell"],
+    ["priceReviewQuantity", ""],
+    ["priceReviewInlineQuantity", ""],
+  ].forEach(([id, shellSelector]) => refreshHorizontalTableNavigator(id, {
     label: "Phase / Station Columns",
     groups: quantityNavigatorGroups(),
+    shellSelector,
   }));
   refreshHorizontalTableNavigator("omQuoteResult", { label: "Quote Result Columns" });
 }
@@ -14668,7 +14873,15 @@ function renderManagerWorkbenchDetail(row) {
 }
 
 function syncSelectedManagerRequest(rows = managerRows(), preferredId = selectedManagerRequestId) {
+  const hasPreferredRow = Boolean(preferredId && rows.some((row) => row.id === preferredId));
   selectedManagerRequestId = nextApprovalSelection(rows, approvalViewportState.manager, preferredId);
+  if (!hasPreferredRow && selectedManagerRequestId) {
+    const selectedRow = rows.find((row) => row.id === selectedManagerRequestId);
+    if (selectedRow && !managerReviewActionable(selectedRow, managerReviewRole(currentRole))) {
+      const actionableRow = rows.find((row) => managerReviewActionable(row, managerReviewRole(currentRole)));
+      if (actionableRow) selectedManagerRequestId = actionableRow.id;
+    }
+  }
   updateApprovalReviewState(managerReviewRole(currentRole), { selectedRowId: selectedManagerRequestId || "" });
 }
 
@@ -14817,19 +15030,24 @@ function renderManagerDemandAnalysisEvidence(selectedRow = null, rows = managerR
   const duplicateEvidence = document.getElementById("managerAuthorizedAnalysis");
   if (duplicateEvidence) duplicateEvidence.hidden = true;
   const scopedRows = selectedRow ? [selectedRow] : rows;
+  const previousRowsOverride = priceReviewAnalysisRowsOverride;
   priceReviewAnalysisRowsOverride = scopedRows;
-  const reviewProject = document.getElementById("managerProjectFilter")?.value || "";
-  if (reviewProject) {
-    ensureSelectValue("managerDemandCostProjectFilter", reviewProject);
-    ensureSelectValue("managerQuantityProjectFilter", reviewProject);
+  try {
+    const reviewProject = document.getElementById("managerProjectFilter")?.value || "";
+    if (reviewProject) {
+      ensureSelectValue("managerDemandCostProjectFilter", reviewProject);
+      ensureSelectValue("managerQuantityProjectFilter", reviewProject);
+    }
+    if (selectedRow && approvalQuantityReviewTab === "dashboard") {
+      ensureSelectValue("managerDemandCostProjectFilter", selectedRow.project || "");
+      ensureSelectValue("managerQuantityProjectFilter", selectedRow.project || "");
+      ensureSelectValue("managerQuantityItemFilter", selectedRow.name || "");
+    }
+    renderManagerDemandCostDashboard({ showCarryoverEvidence: false });
+    renderManagerQuantityMatrix({ showCarryoverEvidence: false });
+  } finally {
+    priceReviewAnalysisRowsOverride = previousRowsOverride;
   }
-  if (selectedRow) {
-    ensureSelectValue("managerDemandCostProjectFilter", selectedRow.project || "");
-    ensureSelectValue("managerQuantityProjectFilter", selectedRow.project || "");
-    ensureSelectValue("managerQuantityItemFilter", selectedRow.name || "");
-  }
-  renderManagerDemandCostDashboard({ showCarryoverEvidence: false });
-  renderManagerQuantityMatrix({ showCarryoverEvidence: false });
 }
 
 function managerReviewDecisionStatus(row = {}, role = managerReviewRole(currentRole)) {
@@ -16976,10 +17194,8 @@ function omPasResultStatus(row) {
   if (isOmUserConfirmed(row)) return OM_USER_CONFIRMED;
   if (omReadyForBuyer(row)) return "Ready to Send Requester Confirmation";
   if (!row.pasMaterialNo) return "PAS Material No Missing";
-  if (row.pasMaterialNo && row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteScreenshotFile(row) && row.quotationExcel && !omQuoteValidUntil(row)) return "Quote Validity Missing";
-  if (omQuoteScreenshotFile(row) && !row.quotationExcel) return "Quote Excel Missing";
-  if (row.quotationExcel && !omQuoteScreenshotFile(row)) return "Quote Screenshot Missing";
-  if (omQuoteScreenshotFile(row) || row.quotationExcel || row.vendor || effectiveUnitPrice(row) || row.quoteDate || omQuoteValidUntil(row)) return "Quote Info Incomplete";
+  if (row.pasMaterialNo && row.vendor && effectiveUnitPrice(row) && row.quoteDate && !omQuoteValidUntil(row)) return "Quote Validity Missing";
+  if (row.vendor || effectiveUnitPrice(row) || row.quoteDate || omQuoteValidUntil(row)) return "Quote Info Incomplete";
   return "Quote Completion Needed";
 }
 
@@ -17175,8 +17391,6 @@ function omQuoteMissingFields(row) {
   if (!effectiveUnitPrice(row)) missing.push("Unit Price");
   if (!row.quoteDate) missing.push("Quote Date");
   if (!omQuoteValidUntil(row)) missing.push("Valid Until");
-  if (!omQuoteScreenshotFile(row)) missing.push("Screenshot");
-  if (!row.quotationExcel) missing.push("Excel");
   return missing;
 }
 
@@ -19147,7 +19361,7 @@ function postUserAQuoteConfirmationRoutePatch(row, now = new Date().toISOString(
 }
 
 function omReadyForBuyer(row) {
-  return Boolean(row.pasMaterialNo && omQuoteScreenshotFile(row) && row.quotationExcel && row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteValidUntil(row));
+  return Boolean(row.pasMaterialNo && row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteValidUntil(row));
 }
 
 function omQuoteScreenshotFile(row) {
@@ -19194,20 +19408,20 @@ function omWarnings(row) {
   if (!row.vendor) warnings.push("Missing vendor name");
   if (!row.quoteDate) warnings.push("Missing quote date");
   if (!omQuoteValidUntil(row)) warnings.push("Missing quote validity");
-  if (!omQuoteScreenshotFile(row) && status !== "Quote Screenshot Missing") warnings.push("Missing quote screenshot");
-  if (!row.quotationExcel && status !== "Quote Excel Missing") warnings.push("Missing quote Excel");
   if (!effectiveUnitPrice(row)) warnings.push("Missing price");
   return warnings;
 }
 
-function omHasRequiredQuoteFiles(row) {
-  return Boolean(omQuoteScreenshotFile(row) && row.quotationExcel);
+function omAllocationLineHasQuoteAttachments(line = {}) {
+  return exportAllocationModule()?.lineHasQuoteAttachments?.(line) || Boolean((line.quotationPdf || line.quoteScreenshot) && line.quotationExcel);
 }
 
 function validateOmFinalExportAttachments(rows) {
-  const missing = rows.filter((row) => !omHasRequiredQuoteFiles(row));
+  const missing = rows.flatMap((row) => omExportAllocationLines(row, { ensure: true })
+    .filter((line) => !omAllocationLineHasQuoteAttachments(line))
+    .map((line) => `${row.id}/${line.allocationId}`));
   if (!missing.length) return "";
-  return `Upload both quote screenshot and quote Excel before Export Package. Missing file rows: ${missing.map((row) => row.id).join(", ")}.`;
+  return `Upload quote screenshot and quote Excel for every allocation line before final export. Missing allocation lines: ${missing.join(", ")}.`;
 }
 
 function omTargetForCostType(costType) {
@@ -19257,7 +19471,7 @@ function omStatusLabel(status) {
 function renderOmSummary(rows) {
   const pasRows = omPasResultRows();
   const missingMaterialRows = pasRows.filter((row) => omPasResultStatus(row) === "PAS Material No Missing");
-  const quoteIncompleteRows = pasRows.filter((row) => ["Quote Info Incomplete", "Quote Screenshot Missing", "Quote Excel Missing", "Quote Validity Missing", "Quote Completion Needed"].includes(omPasResultStatus(row)));
+  const quoteIncompleteRows = pasRows.filter((row) => ["Quote Info Incomplete", "Quote Validity Missing", "Quote Completion Needed"].includes(omPasResultStatus(row)));
   const readyRows = pasRows.filter((row) => omPasResultStatus(row) === "Ready to Send Requester Confirmation");
   const expiringRows = pasRows.filter((row) => omQuoteValidity(row) === "Quote Expiring Soon");
   const expiredRows = pasRows.filter((row) => omQuoteValidity(row) === "Quote Expired");
@@ -19303,7 +19517,7 @@ function renderOmPurchasing() {
   if (rowCount) rowCount.textContent = `${quoteConfirmRows.length} row${quoteConfirmRows.length === 1 ? "" : "s"}`;
   const quoteHint = document.getElementById("omQuoteConfirmHint");
   if (quoteHint) {
-    quoteHint.textContent = "Input PAS quote / bidding result, including Quote Valid Until, then send the row to Requester when required.";
+    quoteHint.textContent = "Input PAS quote / bidding result and Quote Valid Until. Upload Screenshot + Excel quote attachments after allocation assigns budget codes.";
   }
   renderOmSubmission();
   renderOmPasRequest();
@@ -19429,25 +19643,29 @@ function renderOmFinalExport() {
   }
   const exportHint = document.getElementById("omFinalExportHint");
   if (exportHint) {
-    exportHint.textContent = "Choose Expense or Capex, then use one Export Package action to prepare Excel and quote screenshot package.";
+    exportHint.textContent = "Assign allocation first, then choose Expense or Capex to generate allocation-linked budget codes and export package output.";
   }
   target.innerHTML = rows.length
-    ? rows.map((row) => `
+    ? rows.map((row) => {
+      const allocationSummary = omExportAllocationSummary(row);
+      return `
       <tr>
         <td>${row.project}</td>
         <td>${currentPhaseLabelForProject(row.project)}</td>
         <td>${omItemCell(row, { stageLabel: "Export package" })}</td>
-        <td>${totalQty(row)}</td>
+        <td class="cell-number">${totalQty(row)}<div class="reason-text">Original Qty</div></td>
+        <td><span class="status-pill ${statusClass(allocationSummary.status)}">${allocationSummary.status}</span><div class="reason-text">Allocated ${allocationSummary.allocatedQty} / Uncovered ${allocationSummary.uncoveredQty} / Split ${allocationSummary.splitCount}</div></td>
         <td>${omAssignmentCell(row)}</td>
-        <td><span class="status-pill ${statusClass(omFinalExportPackageCode(row))}">${omFinalExportPackageCode(row)}</span><div class="reason-text">Payment: ${OM_PAYMENT_METHOD}</div></td>
+        <td><span class="status-pill ${statusClass(omFinalExportPackageCode(row))}">${omFinalExportPackageCode(row)}</span><div class="reason-text">Payment: ${OM_PAYMENT_METHOD} / Budget Codes: ${allocationSummary.budgetCodeCount}</div></td>
         <td>${omPasBundleHtml(row, { editableDemandNo: false, editableMaterialNo: false })}</td>
-        <td>${quoteAttachmentListHtml(row)}</td>
+        <td>${omAllocationAttachmentSummaryHtml(row)}</td>
         <td><span class="status-pill ${statusClass(omUserQuoteDecisionLabel(row))}">${omUserQuoteDecisionLabel(row)}</span></td>
         <td class="om-export-target-cell"><span class="status-pill ${statusClass(omCostTypeTargetLabel(row))}">${omCostTypeTargetLabel(row)}</span><div class="reason-text">Expense → ECS / Capex → CFA</div></td>
         <td class="om-export-status-cell"><span class="status-pill ${statusClass(omFinalExportStatusLabel(row))}">${omFinalExportStatusLabel(row)}</span><div class="reason-text">${row.finalExportedAt ? `Exported ${new Date(row.finalExportedAt).toLocaleString("en-US")}` : isOmFinalExportPrepared(row) ? "Ready to mark exported" : "Waiting export target"}</div></td>
         <td>${row.finalExportedAt ? new Date(row.finalExportedAt).toLocaleDateString("en-US") : "-"}</td>
         <td class="cell-action om-export-actions-cell">
           <div class="row-action-stack">
+            <button class="mini" type="button" title="Open allocation workspace" data-om-row-button="${row.id}" data-om-row-button-action="openAllocation">Allocate</button>
             <button class="mini" type="button" title="Prepare Expense / ECS package" data-om-row-button="${row.id}" data-om-row-button-action="prepareExpense" ${omActionDisabledAttr(row, isOmFinalExported(row))}>Expense</button>
             <button class="mini" type="button" title="Prepare Capex / CFA package" data-om-row-button="${row.id}" data-om-row-button-action="prepareCapex" ${omActionDisabledAttr(row, isOmFinalExported(row))}>Capex</button>
             <button class="mini" type="button" title="Export Excel package and quote screenshot package" data-om-row-button="${row.id}" data-om-row-button-action="exportPackage" ${omActionDisabledAttr(row, !(isOmFinalExportPrepared(row) || isOmFinalExported(row)))}>Export</button>
@@ -19457,8 +19675,10 @@ function renderOmFinalExport() {
         </td>
         <td class="cell-action"><button class="mini return" type="button" title="Contact DRI" data-contact-dri="${row.id}">Contact</button></td>
         <td class="cell-action">${itemDetailButton("request", row.id)}</td>
-      </tr>`).join("")
-    : `<tr><td colspan="15" class="empty-cell">No Requester confirmed rows are ready for export package.</td></tr>`;
+      </tr>`;
+    }).join("")
+    : `<tr><td colspan="16" class="empty-cell">No Requester confirmed rows are ready for export package.</td></tr>`;
+  renderOmExportAllocationWorkspace();
 }
 
 function omAmendmentEditorHtml(row) {
@@ -19492,14 +19712,14 @@ function renderOmQuoteConfirmRows(rows) {
   const target = document.getElementById("omWorkbenchRows");
   if (!target) return;
   if (!rows.length) {
-    target.innerHTML = `<tr><td colspan="17" class="empty-cell">No quote or user confirmation rows are available for this project package.</td></tr>`;
+    target.innerHTML = `<tr><td colspan="16" class="empty-cell">No quote or user confirmation rows are available for this project package.</td></tr>`;
     return;
   }
   const waitingRows = rows.filter((row) => isOmWaitingUserConfirm(row) || row.amendmentStatus === AMENDMENT_WAITING_USER_CONFIRM);
   const editingRows = rows.filter((row) => !waitingRows.includes(row));
   const sectionRow = (label, helper) => `
     <tr class="om-quote-section-row">
-      <td colspan="17"><strong>${label}</strong><span>${helper}</span></td>
+      <td colspan="16"><strong>${label}</strong><span>${helper}</span></td>
     </tr>`;
   const quoteRowHtml = (row) => {
       const amendmentAwaitingOm = row.amendmentStatus === AMENDMENT_WAITING_OM || row.amendmentStatus === AMENDMENT_REWORK_REQUIRED;
@@ -19527,12 +19747,8 @@ function renderOmQuoteConfirmRows(rows) {
           ? "All required quote fields are ready. Use this row action to send."
           : status === "PAS Material No Missing"
             ? "Enter PAS Material No after PAS bidding result, then complete quote fields."
-          : status === "Quote Excel Missing"
-            ? "Upload the quote Excel file to complete the quote package."
-            : status === "Quote Screenshot Missing"
-              ? "Upload the quote screenshot image to complete the quote package."
         : quoteCompletionNeeded
-            ? "Complete PAS Material No, vendor name, price, quote date, screenshot, and Excel."
+            ? "Complete PAS Material No, vendor name, price, quote date, and validity. Attachments are added after allocation."
             : "Quote data is partially filled. Complete the missing fields below.";
       const rowClasses = [
         waitingUserConfirm ? "om-row-waiting-confirm" : "",
@@ -19564,7 +19780,6 @@ function renderOmQuoteConfirmRows(rows) {
         </td>
         <td>${omQuoteResultInput(row, "quoteDate", row.quoteDate, { type: "date", readOnly })}</td>
         <td>${omQuoteResultInput(row, "quoteValidUntil", validUntil, { type: "date", readOnly })}</td>
-        <td>${omQuoteResultFileCell(row, readOnly)}</td>
         <td>${omQuoteResultCompletionCell(row, amendmentAwaitingOm ? OM_QUOTE_REVIEW_REQUIRED : status, readOnlyReason)}</td>
         <td class="om-quote-assignee-cell">${omAssignmentCell(row)}</td>
         <td>
@@ -19578,7 +19793,7 @@ function renderOmQuoteConfirmRows(rows) {
       </tr>`;
   };
   target.innerHTML = [
-    editingRows.length ? sectionRow("Quote Editing", "Input PAS quote / bidding result, quote validity, and attachments in the row.") : "",
+    editingRows.length ? sectionRow("Quote Editing", "Input PAS quote / bidding result and quote validity. Screenshot + Excel attachments move to allocation lines after budget code assignment.") : "",
     ...editingRows.map(quoteRowHtml),
     waitingRows.length ? sectionRow("Waiting User A Confirmation", "Rows already sent to User A stay here as read-only tracking.") : "",
     ...waitingRows.map(quoteRowHtml),
@@ -20386,15 +20601,30 @@ function updateFinalExportTarget(rows, target) {
     showToast(scopeError, "error");
     return;
   }
-  const attachmentError = validateOmFinalExportAttachments(rows);
-  if (attachmentError) {
-    showToast(attachmentError, "error");
+  const allocationError = rows.map((row) => validateOmExportAllocation(row, omExportAllocationLines(row, { ensure: true }))).find(Boolean);
+  if (allocationError) {
+    showToast(allocationError, "error");
     return;
   }
   const now = new Date();
   const packageCode = generateOmFinalExportPackageCode(rows, now);
   const nextStatus = target === "CFA" ? OM_READY_FOR_CFA : OM_READY_FOR_ECS;
   const costType = omCostTypeForTarget(target);
+  rows.forEach((row) => {
+    const module = exportAllocationModule();
+    if (!module) return;
+    const preparedLines = module.prepareAllocationsForExport(
+      { ...row, totalQty: totalQty(row) },
+      omExportAllocationLines(row, { ensure: true }),
+      { packageCode, target, costType, preparedAt: now.toISOString() }
+    );
+    module.replaceLinesForRequest({ ...row, totalQty: totalQty(row) }, preparedLines, {
+      storage: window.localStorage,
+      actor: omExportAllocationActor(),
+      reason: `${packageCode} prepared for ${target}.`,
+      eventType: "Budget Code Generated",
+    });
+  });
   requests = requests.map((row) => rows.some((selected) => selected.id === row.id) ? {
     ...row,
     omSelected: false,
@@ -20453,6 +20683,21 @@ function markOmFinalExportRowsExported(rows) {
   }
   const packageCode = generateOmFinalExportPackageCode(rows);
   const now = new Date().toISOString();
+  rows.forEach((row) => {
+    const module = exportAllocationModule();
+    if (!module) return;
+    const exportedLines = module.markAllocationsExported(
+      { ...row, totalQty: totalQty(row) },
+      omExportAllocationLines(row, { ensure: true }),
+      { target: omFinalExportTargetForRow(row), exportedAt: now }
+    );
+    module.replaceLinesForRequest({ ...row, totalQty: totalQty(row) }, exportedLines, {
+      storage: window.localStorage,
+      actor: omExportAllocationActor(),
+      reason: `${row.finalExportPackageCode || packageCode} marked exported.`,
+      eventType: "Exported",
+    });
+  });
   requests = requests.map((row) => {
     const selected = rows.find((item) => item.id === row.id);
     if (!selected) return row;
@@ -21672,6 +21917,451 @@ function filteredAdminAuditRows() {
   });
 }
 
+function omExportAllocationActor() {
+  return roleProfiles[currentRole]?.name || selectedOmOperator()?.name || "OM Purchasing";
+}
+
+function omExportAllocationLines(row, { ensure = false } = {}) {
+  const module = exportAllocationModule();
+  if (!module || !row?.id) return [];
+  if (ensure) return module.ensureDefaultAllocation(row, { storage: window.localStorage, actor: omExportAllocationActor() });
+  return module.linesForRequest(row.id, window.localStorage);
+}
+
+function omExportAllocationEvents(row) {
+  const module = exportAllocationModule();
+  if (!module || !row?.id) return [];
+  return module.eventsForRequest(row.id, window.localStorage);
+}
+
+function omExportAllocationSummary(row) {
+  const module = exportAllocationModule();
+  if (!module) {
+    return { originalQty: totalQty(row), allocatedQty: 0, uncoveredQty: totalQty(row), splitCount: 0, budgetCodeCount: 0, status: "Not Allocated" };
+  }
+  return module.summarizeSourceRow({ ...row, totalQty: totalQty(row) }, omExportAllocationLines(row));
+}
+
+function omExportSourcePoolRows(row) {
+  const module = exportAllocationModule();
+  if (!module?.buildSourcePool || !row) return [];
+  return module.buildSourcePool({ ...row, totalQty: totalQty(row), spec: userVisibleItemDetail(row) || itemDetail(row) || row.detail || "" }, {
+    warehouseRows: warehouseInventoryRows(warehouseMonthForDemand(row)),
+    carryoverRows: managerCarryoverRows(),
+  });
+}
+
+function selectedOmExportAllocationRow() {
+  return omFinalExportRows().find((row) => row.id === selectedOmExportAllocationRequestId) || null;
+}
+
+function openOmExportAllocation(requestId = "") {
+  selectedOmExportAllocationRequestId = requestId || "";
+  const row = selectedOmExportAllocationRow();
+  if (row) omExportAllocationLines(row, { ensure: true });
+  renderOmFinalExport();
+}
+
+function validateOmExportAllocation(row, lines = omExportAllocationLines(row)) {
+  const total = lines.reduce((sum, line) => sum + clampQty(line.allocatedQty || 0), 0);
+  const original = totalQty(row);
+  if (!lines.length) return "Create at least one allocation line before export.";
+  if (lines.some((line) => !line.targetProject || !line.targetDemandType || !line.targetPhase || !line.targetStationUnit || clampQty(line.allocatedQty || 0) <= 0)) {
+    return "Each allocation line needs target project, type, phase, station/unit, and allocated qty > 0.";
+  }
+  const overAllocated = lines.find((line) => clampQty(line.allocatedQty || 0) > omAllocationLineAvailableQty(row, line, lines));
+  if (overAllocated) {
+    return `Allocated qty for ${overAllocated.allocationId} exceeds available PAS demand qty ${omAllocationLineAvailableQty(row, overAllocated, lines)}.`;
+  }
+  if (total !== original) {
+    return `Allocation total ${total} must equal original qty ${original}.`;
+  }
+  return "";
+}
+
+function omUniqueTextOptions(values = []) {
+  const seen = new Set();
+  return values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function omAllocationPhaseValue(value = "") {
+  const key = phaseKeyFromInput(value);
+  return key ? STAGE_LABELS[key] : String(value || "").trim();
+}
+
+function omAllocationDemandTypeValue(row = {}, line = {}) {
+  if (line.targetDemandType || line.demandType) return demandTypeFor({ demandType: line.targetDemandType || line.demandType });
+  const firstDemand = stationBreakdownRowsForDetail(row).find((entry) => stationBreakdownRowTotal(entry) > 0) || {};
+  return demandTypeFor(firstDemand);
+}
+
+function omAllocationDemandTypeOptions(row = {}, line = {}) {
+  const breakdownTypes = stationBreakdownRowsForDetail(row)
+    .filter((entry) => stationBreakdownRowTotal(entry) > 0)
+    .map((entry) => demandTypeFor(entry));
+  return omUniqueTextOptions([
+    omAllocationDemandTypeValue(row, line),
+    ...breakdownTypes,
+    ...DEMAND_TYPES,
+  ]);
+}
+
+function omAllocationStationUnitValue(row = {}, demandType = DEMAND_TYPE_MFG) {
+  return demandType === DEMAND_TYPE_NON_MFG
+    ? String(row.demandUnit || row.department || "").trim()
+    : String(row.station || row.stationOrUnit || "").trim();
+}
+
+function omAllocationNonMfgDemandUnitValue(value = "") {
+  const unit = String(value || "").trim();
+  return unit && unit !== DEMAND_TYPE_MFG ? unit : "";
+}
+
+function omAllocationTargetProjectOptions(row = {}, line = {}) {
+  return omUniqueTextOptions([
+    line.targetProject,
+    row.project,
+    row.targetProject,
+    currentProjectCode,
+    ...PROJECTS,
+    ...projectConfigs.map((project) => project.code),
+    ...requests.map((item) => item.project),
+  ]);
+}
+
+function omAllocationPhaseOptions(row = {}, line = {}) {
+  const breakdownPhases = stationBreakdownRowsForDetail(row)
+    .filter((entry) => stationBreakdownRowTotal(entry) > 0)
+    .map((entry) => omAllocationPhaseValue(stationBreakdownPhaseKey(entry) || entry.phase));
+  return omUniqueTextOptions([
+    omAllocationPhaseValue(line.targetPhase),
+    ...breakdownPhases,
+    omAllocationPhaseValue(row.currentPhase || row.phase),
+    omAllocationPhaseValue(currentStageForProject(line.targetProject || row.project)),
+    ...STAGES.map((stage) => STAGE_LABELS[stage]),
+  ]);
+}
+
+function omAllocationStationUnitOptions(row = {}, line = {}) {
+  const demandType = omAllocationDemandTypeValue(row, line);
+  const breakdownStationUnits = stationBreakdownRowsForDetail(row)
+    .filter((entry) => stationBreakdownRowTotal(entry) > 0)
+    .filter((entry) => demandTypeFor(entry) === demandType)
+    .map((entry) => omAllocationStationUnitValue(entry, demandType));
+  const fallbackMaster = breakdownStationUnits.length
+    ? []
+    : demandType === DEMAND_TYPE_NON_MFG
+      ? DEMAND_UNIT_OPTIONS.filter((unit) => unit !== DEMAND_TYPE_MFG)
+      : STATION_MASTER;
+  return omUniqueTextOptions([
+    ...breakdownStationUnits,
+    demandType === DEMAND_TYPE_NON_MFG ? omAllocationNonMfgDemandUnitValue(row.demandUnit || row.department) : row.station,
+    ...fallbackMaster,
+  ]);
+}
+
+function omAllocationSelectedStationUnit(row = {}, line = {}) {
+  const options = omAllocationStationUnitOptions(row, line);
+  return options.includes(line.targetStationUnit) ? line.targetStationUnit : options[0] || "";
+}
+
+function omAllocationSelectOptionsHtml(options = [], selected = "") {
+  const selectedText = String(selected || "").trim();
+  return options.map((value) => `<option value="${htmlAttr(value)}" ${value === selectedText ? "selected" : ""}>${htmlText(value)}</option>`).join("");
+}
+
+function omAllocationControlledSelectHtml(row, line, field, options, selected, readOnly = false) {
+  return `<select class="compact-input om-allocation-select" data-om-allocation-request="${htmlAttr(row.id)}" data-om-allocation-id="${htmlAttr(line.allocationId)}" data-om-allocation-field="${field}" aria-label="${htmlAttr(field)}" ${readOnly ? "disabled" : ""}>${omAllocationSelectOptionsHtml(options, selected)}</select>`;
+}
+
+function omAllocationSameScope(left = {}, right = {}) {
+  const leftDemandType = demandTypeFor({ demandType: left.targetDemandType || left.demandType });
+  const rightDemandType = demandTypeFor({ demandType: right.targetDemandType || right.demandType });
+  const leftStation = String(left.targetStationUnit || left.station || left.demandUnit || "").trim().toLowerCase();
+  const rightStation = String(right.targetStationUnit || right.station || right.demandUnit || "").trim().toLowerCase();
+  return leftDemandType === rightDemandType && leftStation === rightStation;
+}
+
+function omAllocationSourceQtyForScope(row = {}, line = {}) {
+  const breakdown = stationBreakdownRowsForDetail(row).filter((entry) => stationBreakdownRowTotal(entry) > 0);
+  if (!breakdown.length) return totalQty(row);
+  const selectedDemandType = omAllocationDemandTypeValue(row, line);
+  const selectedStation = String(line.targetStationUnit || row.station || row.demandUnit || "").trim().toLowerCase();
+  const scopedRows = breakdown.filter((entry) => {
+    if (demandTypeFor(entry) !== selectedDemandType) return false;
+    const entryStation = omAllocationStationUnitValue(entry, selectedDemandType).toLowerCase();
+    return !selectedStation || entryStation === selectedStation;
+  });
+  if (scopedRows.length) return scopedRows.reduce((sum, entry) => sum + stationBreakdownRowTotal(entry), 0);
+  return 0;
+}
+
+function omAllocationLineAvailableQty(row = {}, line = {}, lines = omExportAllocationLines(row)) {
+  const sourceQty = omAllocationSourceQtyForScope(row, line);
+  const allocatedElsewhere = lines
+    .filter((item) => item.allocationId !== line.allocationId && omAllocationSameScope(item, line))
+    .reduce((sum, item) => sum + clampQty(item.allocatedQty || 0), 0);
+  return Math.max(0, sourceQty - allocatedElsewhere);
+}
+
+function readOmExportAllocationDraft(requestId, allocationId) {
+  const readValue = (field) => document.querySelector(`[data-om-allocation-request="${requestId}"][data-om-allocation-id="${allocationId}"][data-om-allocation-field="${field}"]`)?.value || "";
+  return {
+    targetProject: readValue("targetProject").trim(),
+    targetDemandType: readValue("targetDemandType").trim(),
+    targetPhase: readValue("targetPhase").trim(),
+    targetStationUnit: readValue("targetStationUnit").trim(),
+    allocatedQty: clampQty(readValue("allocatedQty") || 0),
+    pasQuoteId: readValue("pasQuoteId").trim(),
+  };
+}
+
+function refreshOmAllocationDependentControls(requestId, allocationId) {
+  const row = requests.find((item) => item.id === requestId);
+  if (!row) return;
+  const draft = readOmExportAllocationDraft(requestId, allocationId);
+  const stationSelect = document.querySelector(`[data-om-allocation-request="${requestId}"][data-om-allocation-id="${allocationId}"][data-om-allocation-field="targetStationUnit"]`);
+  if (stationSelect) {
+    const stationOptions = omAllocationStationUnitOptions(row, draft);
+    const previousStation = stationSelect.value;
+    stationSelect.innerHTML = omAllocationSelectOptionsHtml(stationOptions, previousStation);
+    stationSelect.value = stationOptions.includes(previousStation) ? previousStation : stationOptions[0] || "";
+    draft.targetStationUnit = stationSelect.value;
+  }
+  const existingLines = omExportAllocationLines(row, { ensure: true });
+  const draftLine = {
+    ...(existingLines.find((line) => line.allocationId === allocationId) || {}),
+    ...draft,
+    allocationId,
+  };
+  const nextLines = existingLines.map((line) => line.allocationId === allocationId ? draftLine : line);
+  const sourceQty = omAllocationSourceQtyForScope(row, draftLine);
+  const availableQty = omAllocationLineAvailableQty(row, draftLine, nextLines);
+  const qtyInput = document.querySelector(`[data-om-allocation-request="${requestId}"][data-om-allocation-id="${allocationId}"][data-om-allocation-field="allocatedQty"]`);
+  if (qtyInput) {
+    qtyInput.max = String(availableQty);
+    qtyInput.dataset.omAllocationSourceQty = String(sourceQty);
+    qtyInput.title = `Available ${availableQty} from PAS demand qty ${sourceQty}`;
+    const currentQty = clampQty(qtyInput.value || 0);
+    if (currentQty > availableQty) qtyInput.value = String(availableQty);
+    const helper = qtyInput.closest(".om-allocation-qty-cell")?.querySelector(".reason-text");
+    if (helper) helper.textContent = `Available ${availableQty} / PAS qty ${sourceQty}`;
+  }
+}
+
+function omAllocationAttachmentFileHtml(label, fileName, ready, attachmentId = "", downloadUrl = "") {
+  const fileLabel = ready
+    ? attachmentLinkHtml(fileName, attachmentId, downloadUrl, { allowDownload: currentRole !== "requester" })
+    : htmlText(`No ${label}`);
+  return `<span class="status-pill ${ready ? "success" : "warning"}">${fileLabel}</span>`;
+}
+
+function omAllocationAttachmentListHtml(row, line, readOnly = false) {
+  const screenshot = line.quotationPdf || line.quoteScreenshot || "";
+  const excel = line.quotationExcel || "";
+  return `
+    <div class="om-allocation-attachment-list">
+      <div class="om-allocation-attachment-status">
+        ${omAllocationAttachmentFileHtml("Screenshot", screenshot, Boolean(screenshot), line.quotationPdfAttachmentId || line.quotationScreenshotAttachmentId, line.quotationPdfUrl || line.quotationScreenshotUrl)}
+        ${omAllocationAttachmentFileHtml("Excel", excel, Boolean(excel), line.quotationExcelAttachmentId, line.quotationExcelUrl)}
+      </div>
+      ${readOnly ? "" : `<div class="om-allocation-attachment-actions">
+        <label class="mini upload ${screenshot ? "uploaded" : ""}" title="${htmlAttr(screenshot || "Upload quote screenshot for this allocation line")}">
+          Shot
+          <input type="file" accept="image/*,.jpg,.jpeg,.png" data-om-allocation-screenshot="${htmlAttr(row.id)}" data-om-allocation-id="${htmlAttr(line.allocationId)}" />
+        </label>
+        <label class="mini upload ${excel ? "uploaded" : ""}" title="${htmlAttr(excel || "Upload quote Excel for this allocation line")}">
+          Excel
+          <input type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" data-om-allocation-excel="${htmlAttr(row.id)}" data-om-allocation-id="${htmlAttr(line.allocationId)}" />
+        </label>
+      </div>`}
+    </div>`;
+}
+
+function omAllocationAttachmentSummaryHtml(row) {
+  const lines = omExportAllocationLines(row, { ensure: true });
+  const complete = lines.filter(omAllocationLineHasQuoteAttachments).length;
+  const total = lines.length;
+  return `
+    <div class="om-allocation-attachment-summary">
+      <span class="status-pill ${complete === total && total ? "success" : "warning"}">${complete}/${total || 0} lines ready</span>
+      <div class="reason-text">Upload after allocation / budget code.</div>
+    </div>`;
+}
+
+function saveOmExportAllocationLine(requestId, allocationId) {
+  const row = requests.find((item) => item.id === requestId);
+  const module = exportAllocationModule();
+  if (!row || !module) return;
+  const existing = omExportAllocationLines(row, { ensure: true });
+  const next = existing.map((line) => line.allocationId === allocationId ? {
+    ...line,
+    ...readOmExportAllocationDraft(requestId, allocationId),
+    updatedAt: new Date().toISOString(),
+  } : line);
+  const nextLine = next.find((line) => line.allocationId === allocationId);
+  if (nextLine) {
+    const availableQty = omAllocationLineAvailableQty(row, nextLine, next);
+    if (clampQty(nextLine.allocatedQty || 0) > availableQty) {
+      showToast(`Allocated qty ${clampQty(nextLine.allocatedQty || 0)} exceeds available PAS demand qty ${availableQty} for ${nextLine.targetPhase || "-"} / ${nextLine.targetStationUnit || "-"}.`, "error");
+      return;
+    }
+  }
+  const nextSummary = module.summarizeSourceRow({ ...row, totalQty: totalQty(row) }, next);
+  if (nextSummary.allocatedQty > totalQty(row)) {
+    showToast(`Allocated qty ${nextSummary.allocatedQty} exceeds original qty ${totalQty(row)}.`, "error");
+    return;
+  }
+  module.replaceLinesForRequest({ ...row, totalQty: totalQty(row) }, next, {
+    storage: window.localStorage,
+    actor: omExportAllocationActor(),
+    reason: "OM updated allocation line.",
+    eventType: "Retargeted",
+  });
+  renderOmFinalExport();
+}
+
+function addOmExportAllocationLine() {
+  const row = selectedOmExportAllocationRow();
+  const module = exportAllocationModule();
+  if (!row || !module) {
+    showToast("Select an export row before adding a split line.", "error");
+    return;
+  }
+  module.addAllocationLine({ ...row, totalQty: totalQty(row) }, {}, {
+    storage: window.localStorage,
+    actor: omExportAllocationActor(),
+  });
+  renderOmFinalExport();
+}
+
+function removeOmExportAllocationLine(requestId, allocationId) {
+  const row = requests.find((item) => item.id === requestId);
+  const module = exportAllocationModule();
+  if (!row || !module) return;
+  module.removeAllocationLine({ ...row, totalQty: totalQty(row) }, allocationId, {
+    storage: window.localStorage,
+    actor: omExportAllocationActor(),
+  });
+  renderOmFinalExport();
+}
+
+function updateOmAllocationLineAttachment(requestId, allocationId, patch, { eventType = "Quote Attachment Uploaded", reason = "OM uploaded allocation quote attachment." } = {}) {
+  const row = requests.find((item) => item.id === requestId);
+  const module = exportAllocationModule();
+  if (!row || !module) return;
+  const existing = omExportAllocationLines(row, { ensure: true });
+  const next = existing.map((line) => line.allocationId === allocationId ? {
+    ...line,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  } : line);
+  module.replaceLinesForRequest({ ...row, totalQty: totalQty(row) }, next, {
+    storage: window.localStorage,
+    actor: omExportAllocationActor(),
+    reason,
+    eventType,
+  });
+  renderOmFinalExport();
+}
+
+function renderOmExportAllocationWorkspace() {
+  const scope = document.getElementById("omExportAllocationScope");
+  const summary = document.getElementById("omExportAllocationSummary");
+  const sourcePoolTarget = document.getElementById("omExportSourcePoolRows");
+  const rowsTarget = document.getElementById("omExportAllocationRows");
+  const ledgerTarget = document.getElementById("omExportAllocationLedgerRows");
+  if (!scope || !summary || !rowsTarget || !ledgerTarget) return;
+  const row = selectedOmExportAllocationRow();
+  if (!row) {
+    scope.textContent = "Select an export row";
+    summary.innerHTML = "";
+    if (sourcePoolTarget) sourcePoolTarget.innerHTML = `<tr><td colspan="5" class="empty-cell om-export-allocation-empty">Choose a row from My Exports to review source evidence.</td></tr>`;
+    rowsTarget.innerHTML = `<tr><td colspan="10" class="empty-cell om-export-allocation-empty">Choose a row from My Exports to assign allocation lines.</td></tr>`;
+    ledgerTarget.innerHTML = `<tr><td colspan="7" class="empty-cell om-export-allocation-empty">Allocation tracking will appear here after you start splitting the row.</td></tr>`;
+    return;
+  }
+  const lines = omExportAllocationLines(row, { ensure: true });
+  const events = omExportAllocationEvents(row);
+  const allocationSummary = omExportAllocationSummary(row);
+  const sourcePoolRows = omExportSourcePoolRows(row);
+  scope.textContent = `${row.project} / ${row.name || row.item || row.id}`;
+  summary.innerHTML = summaryCardsHtml([
+    { label: "Original Qty", value: allocationSummary.originalQty, helper: "Source demand", variant: "hero" },
+    ["Allocated", allocationSummary.allocatedQty],
+    ["Uncovered", allocationSummary.uncoveredQty],
+    ["Budget Codes", allocationSummary.budgetCodeCount],
+  ]);
+  if (sourcePoolTarget) {
+    sourcePoolTarget.innerHTML = sourcePoolRows.length ? sourcePoolRows.map((source) => `
+      <tr>
+        <td><span class="status-pill ${statusClass(source.sourceType)}">${htmlText(source.sourceType)}</span></td>
+        <td><div class="item-primary">${htmlText(source.item || "-")}</div><div class="reason-text dense-cell-clamp" title="${htmlAttr(source.spec || "")}">${htmlText(source.spec || "-")}</div></td>
+        <td class="cell-number">${clampQty(source.availableQty || 0)}</td>
+        <td><span class="status-pill ${statusClass(source.status || "-")}">${htmlText(source.status || "-")}</span></td>
+        <td class="om-export-source-pool-trace" title="${htmlAttr(source.sourceTrace || "-")}">${htmlText(source.sourceTrace || "-")}</td>
+      </tr>`).join("") : `<tr><td colspan="5" class="empty-cell om-export-allocation-empty">No source evidence matched this item/spec.</td></tr>`;
+  }
+  rowsTarget.innerHTML = lines.map((line) => {
+    const readOnly = /^Exported/.test(line.status);
+    const targetProjectOptions = omAllocationTargetProjectOptions(row, line);
+    const phaseOptions = omAllocationPhaseOptions(row, line);
+    const selectedDemandType = omAllocationDemandTypeValue(row, line);
+    const demandTypeOptions = omAllocationDemandTypeOptions(row, line);
+    const selectedPhase = omAllocationPhaseValue(line.targetPhase);
+    const displayLine = {
+      ...line,
+      targetDemandType: selectedDemandType,
+      targetPhase: selectedPhase,
+      targetStationUnit: omAllocationSelectedStationUnit(row, { ...line, targetDemandType: selectedDemandType }),
+    };
+    const stationUnitOptions = omAllocationStationUnitOptions(row, displayLine);
+    const allocationAvailableQty = omAllocationLineAvailableQty(row, displayLine, lines);
+    const allocationSourceQty = omAllocationSourceQtyForScope(row, displayLine);
+    return `
+      <tr>
+        <td>${omAllocationControlledSelectHtml(row, line, "targetProject", targetProjectOptions, line.targetProject || row.project || "", readOnly)}</td>
+        <td>${omAllocationControlledSelectHtml(row, line, "targetPhase", phaseOptions, selectedPhase, readOnly)}</td>
+        <td>${omAllocationControlledSelectHtml(row, line, "targetDemandType", demandTypeOptions, selectedDemandType, readOnly)}</td>
+        <td>${omAllocationControlledSelectHtml(row, line, "targetStationUnit", stationUnitOptions, displayLine.targetStationUnit, readOnly)}</td>
+        <td class="om-allocation-qty-cell">
+          <input type="number" min="0" max="${omAllocationLineAvailableQty(row, displayLine)}" step="1" value="${clampQty(line.allocatedQty || 0)}" data-om-allocation-source-qty="${allocationSourceQty}" data-om-allocation-request="${row.id}" data-om-allocation-id="${line.allocationId}" data-om-allocation-field="allocatedQty" title="${htmlAttr(`Available ${allocationAvailableQty} from PAS demand qty ${allocationSourceQty}`)}" ${readOnly ? "readonly" : ""} />
+          <div class="reason-text">Available ${allocationAvailableQty} / PAS qty ${allocationSourceQty}</div>
+        </td>
+        <td><input type="text" value="${htmlAttr(line.pasQuoteId || row.pasDemandNo || "")}" data-om-allocation-request="${row.id}" data-om-allocation-id="${line.allocationId}" data-om-allocation-field="pasQuoteId" ${readOnly ? "readonly" : ""} /></td>
+        <td><span class="status-pill ${statusClass(line.budgetCode || "-")}">${line.budgetCode || "-"}</span></td>
+        <td>${omAllocationAttachmentListHtml(row, line, readOnly)}</td>
+        <td><span class="status-pill ${statusClass(line.status || "Draft")}">${line.status || "Draft"}</span></td>
+        <td class="cell-action">
+          <div class="row-action-stack">
+            <button class="mini" type="button" data-om-allocation-save="${row.id}" data-om-allocation-id="${line.allocationId}" ${readOnly ? "disabled" : ""}>Save</button>
+            <button class="mini danger" type="button" data-om-allocation-remove="${row.id}" data-om-allocation-id="${line.allocationId}" ${readOnly ? "disabled" : ""}>Remove</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join("");
+  ledgerTarget.innerHTML = events.length
+    ? events.slice().reverse().map((entry) => `
+      <tr>
+        <td>${entry.type || "-"}</td>
+        <td>${entry.sourceProject || "-"}</td>
+        <td>${entry.targetProject || "-"}</td>
+        <td class="cell-number">${clampQty(entry.allocatedQty || 0)}</td>
+        <td>${entry.budgetCode || "-"}</td>
+        <td>${entry.actor || "-"}</td>
+        <td>${entry.timestamp ? new Date(entry.timestamp).toLocaleString("en-US") : "-"}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="7" class="empty-cell om-export-allocation-empty">No allocation tracking events yet.</td></tr>`;
+}
+
 function renderAdminRolePermissionMatrix() {
   const target = document.getElementById("adminRolePermissionRows");
   if (!target) return;
@@ -22611,6 +23301,9 @@ function runOmRowAction(requestId, action) {
   if (action === "rejectToDri") {
     rejectOmRowsToDri([row]);
   }
+  if (action === "openAllocation") {
+    openOmExportAllocation(requestId);
+  }
   if (action === "prepareCfa") {
     updateFinalExportTarget([row], "CFA");
   }
@@ -22650,6 +23343,13 @@ function omPackageFileName(packageCode) {
   return `${packageCode || "OM-Purchasing-Package"}.xlsx`.replace(/[^a-zA-Z0-9._-]+/g, "-");
 }
 
+function buildOmAllocationFallbackCode(row, packageCode, index) {
+  return exportAllocationModule()?.buildAllocationLineBudgetCode?.(
+    row.finalExportPackageCode || packageCode || "OM-ALLOC",
+    index
+  ) || `${row.finalExportPackageCode || packageCode || "OM-ALLOC"}-A${String(index + 1).padStart(2, "0")}`;
+}
+
 function omSummarySheetRows(rows) {
   const packageCode = omPackageCodeForRows(rows);
   const totalVnd = rows.reduce((sum, row) => sum + omAmountVnd(row), 0);
@@ -22686,6 +23386,9 @@ function omDetailSheetRows(rows) {
     "庫存量\ninventory",
     "上次請購數量\nPR quantity\n(last time)",
     "本次請購數量\nPR quantity \n(this time)",
+    "Allocation Budget Code",
+    "Target Project",
+    "PAS Quote ID",
     "單價\n（VND）\nunit price",
     "總價\n（VND）\nAmount",
     "單價\n（USD）\nunit price",
@@ -22696,29 +23399,35 @@ function omDetailSheetRows(rows) {
     "廠商\nVendor",
     "供應商代碼\nVendor Code",
   ];
-  const title = [packageCode, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
-  const bodyRows = rows.map((row, index) => [
-    index + 1,
-    row.name,
-    row.pasMaterialNo || "",
-    partName(row),
-    itemDetail(row) || "\\",
-    omUnit(row),
-    omLastPurchaseTime(row) || "\\",
-    "\\",
-    omLastPrQty(row) || "\\",
-    omCurrentPrQty(row),
-    omUnitPriceVnd(row),
-    omAmountVnd(row),
-    omUnitPriceUsd(row),
-    omAmountUsd(row),
-    omPurchaseReason(row),
-    OM_PAYMENT_METHOD,
-    OM_DEPARTMENT_CODE,
-    row.vendor || "",
-    row.vendorPartNo || "",
-  ]);
-  const totalRow = ["Total", "", "", "", "", "", "", "", "", "", "", bodyRows.reduce((sum, row) => sum + Number(row[11] || 0), 0), "", bodyRows.reduce((sum, row) => sum + Number(row[13] || 0), 0), "", "", "", "", ""];
+  const title = [packageCode, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
+  const bodyRows = rows.flatMap((row) => {
+    const allocationLines = omExportAllocationLines(row, { ensure: true });
+    return allocationLines.map((line, index) => [
+      `${row.id}-${index + 1}`,
+      row.name,
+      row.pasMaterialNo || "",
+      partName(row),
+      itemDetail(row) || "\\",
+      omUnit(row),
+      omLastPurchaseTime(row) || "\\",
+      "\\",
+      omLastPrQty(row) || "\\",
+      clampQty(line.allocatedQty || 0),
+      line.budgetCode || buildOmAllocationFallbackCode(row, packageCode, index),
+      line.targetProject || row.project || "",
+      line.pasQuoteId || row.pasDemandNo || "",
+      omUnitPriceVnd(row),
+      clampQty(line.allocatedQty || 0) * omUnitPriceVnd(row),
+      omUnitPriceUsd(row),
+      clampQty(line.allocatedQty || 0) * omUnitPriceUsd(row),
+      `${omPurchaseReason(row)} / ${line.targetPhase || "-"} / ${line.targetStationUnit || "-"}`,
+      OM_PAYMENT_METHOD,
+      OM_DEPARTMENT_CODE,
+      row.vendor || "",
+      row.vendorPartNo || "",
+    ]);
+  });
+  const totalRow = ["Total", "", "", "", "", "", "", "", "", "", "", "", "", bodyRows.reduce((sum, row) => sum + Number(row[14] || 0), 0), "", bodyRows.reduce((sum, row) => sum + Number(row[16] || 0), 0), "", "", "", "", "", ""];
   return [
     title,
     header,
@@ -22745,9 +23454,9 @@ function omExportWorkbookSheets(rows) {
       rows: omDetailSheetRows(rows),
       minWidth: 8,
       maxWidth: 42,
-      preferred: { 0: 4, 1: 28, 2: 18, 3: 20, 4: 24, 5: 32, 6: 34, 8: 13, 10: 13, 11: 13, 12: 13, 13: 13, 14: 13, 15: 13, 16: 28, 19: 18 },
+      preferred: { 0: 10, 1: 28, 2: 18, 3: 20, 4: 24, 5: 32, 6: 34, 8: 13, 9: 13, 10: 24, 11: 14, 12: 22, 13: 13, 14: 13, 15: 13, 16: 13, 17: 28, 20: 18, 21: 18 },
       rowHeights: [26.25, 63.75],
-      merges: ["A1:T1"],
+      merges: ["A1:V1"],
       freezeHeader: true,
     },
   ];
@@ -22816,16 +23525,27 @@ function exportOmQuotePdfRows(rows) {
     return;
   }
   const packageCode = omPackageCodeForRows(rows);
+  const allocationAttachmentRows = rows.flatMap((row) => omExportAllocationLines(row, { ensure: true }).map((line) => [
+    row.id,
+    row.project,
+    row.name,
+    line.allocationId,
+    line.budgetCode || "-",
+    line.pasQuoteId || row.pasDemandNo || "-",
+    line.quotationPdf || "No uploaded screenshot",
+    line.quotationExcel || "No uploaded Excel",
+  ].join(" | ")));
   const content = [
     "OM Purchasing Quote Screenshot Package",
     `Project Package: ${packageCode}`,
     `Generated: ${new Date().toLocaleString("en-US")}`,
+    "Request | Project | Item | Allocation | Budget Code | PAS Quote ID | Screenshot | Excel",
     "",
-    ...rows.map((row) => `${row.id} | ${row.project} | ${row.name} | ${omQuoteValidity(row)} | ${omQuoteScreenshotFile(row) || "No uploaded screenshot"}`),
+    ...allocationAttachmentRows,
   ].join("\n");
   downloadFile(`${packageCode}-OM-Quote-Screenshot-Package.txt`, content, "text/plain");
   const now = new Date().toISOString();
-  rows.forEach((row) => addOmHistory(row, "Prepared export screenshot package", omQuoteScreenshotFile(row) || `Exported ${packageCode} prototype quote screenshot package.`));
+  rows.forEach((row) => addOmHistory(row, "Prepared export screenshot package", `Exported ${packageCode} allocation-level quote screenshot package.`));
   requests = requests.map((row) => rows.some((selected) => selected.id === row.id) ? {
     ...row,
     quotePdfExportedAt: now,
@@ -23244,7 +23964,8 @@ function exportHandoffPackages() {
 
 document.getElementById("loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const selectedRole = document.getElementById("roleSelect")?.value || "requester";
+  const deepLink = urlDeepLinkParams();
+  const selectedRole = roleProfiles[deepLink.role] ? deepLink.role : (document.getElementById("roleSelect")?.value || "requester");
   const identifier = apiModeEnabled()
     ? syncLoginAccountForRole(selectedRole)
     : document.getElementById("loginAccountInput")?.value || document.getElementById("loginEmailInput")?.value || document.querySelector('#loginForm input[type="text"]')?.value || document.querySelector('#loginForm input[type="email"]')?.value || "";
@@ -23255,6 +23976,7 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
       setScreen("workspace");
       if (user.role === "omMember" && user.id) selectedOmOperatorId = user.id;
       applyRole(user.role);
+      window.urlDeepLinkStatus = applyUrlDeepLink();
       showToast(`Signed in as ${user.name}.`, "success");
       return;
     }
@@ -23264,6 +23986,7 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
       if (persona) applyRequesterPersonaContext(persona);
     }
     applyRole(selectedRole);
+    window.urlDeepLinkStatus = applyUrlDeepLink();
   } catch (error) {
     showToast(`Login failed: ${error.message}`, "error");
   }
@@ -23416,6 +24139,8 @@ document.addEventListener("click", (event) => {
   const omSubmissionDetailButton = event.target.closest("[data-om-submission-detail]");
   const projectAccessButton = event.target.closest("[data-project-config-access]");
   const omRowButton = event.target.closest("[data-om-row-button]");
+  const omAllocationSaveButton = event.target.closest("[data-om-allocation-save]");
+  const omAllocationRemoveButton = event.target.closest("[data-om-allocation-remove]");
   const rfqGroupButton = event.target.closest("[data-rfq-group-action]");
   const buyerProgressButton = event.target.closest("[data-buyer-progress]");
   const mfgPackageDetailButton = event.target.closest("[data-mfg-package-detail]");
@@ -23617,6 +24342,7 @@ document.addEventListener("click", (event) => {
   if (action === "omPrepareCfa") prepareOmFinalExport("CFA");
   if (action === "omPrepareEcs") prepareOmFinalExport("ECS");
   if (action === "omMarkExported") markOmFinalExported();
+  if (action === "omAddAllocationLine") addOmExportAllocationLine();
   if (action === "omExportExcel") exportOmExcel();
   if (action === "omExportQuotePdf") exportOmQuotePdf();
   if (action === "omExportPackage") exportOmPackage();
@@ -23786,6 +24512,8 @@ document.addEventListener("click", (event) => {
   );
   if (projectAccessButton) updateProjectSetup(projectAccessButton.dataset.projectConfigAccess, "openToUser", projectAccessButton.dataset.projectConfigOpen === "true");
   if (omRowButton) runOmRowAction(omRowButton.dataset.omRowButton, omRowButton.dataset.omRowButtonAction);
+  if (omAllocationSaveButton) saveOmExportAllocationLine(omAllocationSaveButton.dataset.omAllocationSave, omAllocationSaveButton.dataset.omAllocationId || "");
+  if (omAllocationRemoveButton) removeOmExportAllocationLine(omAllocationRemoveButton.dataset.omAllocationRemove, omAllocationRemoveButton.dataset.omAllocationId || "");
   if (rfqGroupButton) runRfqBuyerGroupAction(rfqGroupButton.dataset.rfqGroupBuyer, rfqGroupButton.dataset.rfqGroupAction);
   if (buyerProgressButton) {
     const row = requests.find((item) => item.id === buyerProgressButton.dataset.buyerProgress);
@@ -23817,6 +24545,13 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", async (event) => {
+  const omAllocationField = event.target.dataset.omAllocationField || "";
+  const omAllocationRequest = event.target.dataset.omAllocationRequest || "";
+  const omAllocationId = event.target.dataset.omAllocationId || "";
+  if (omAllocationField && omAllocationRequest && omAllocationId) {
+    refreshOmAllocationDependentControls(omAllocationRequest, omAllocationId);
+  }
+
   if (event.target.id === "projectTypeSelect") {
     currentProjectType = event.target.value || currentProjectType;
     const firstProject = projectCodesByType(currentProjectType, { openOnly: true })[0];
@@ -23934,9 +24669,11 @@ document.addEventListener("change", async (event) => {
   ].includes(event.target.id)) renderOmSubmission();
   if (event.target.id === "currencyDisplaySelect") {
     currencyDisplay = event.target.value === "USD" ? "USD" : "VND";
+    const previousProjectStatusScope = { ...selectedProjectStatusScope };
     renderDepartment();
     renderPriceReview();
     renderManager();
+    selectedProjectStatusScope = previousProjectStatusScope;
     renderProjectStatus();
     renderOmPurchasing();
     renderSourcing();
@@ -24376,6 +25113,50 @@ document.addEventListener("change", async (event) => {
     showToast("Quote Excel uploaded.", "success");
   }
 
+  const allocationScreenshotRequestId = event.target.dataset.omAllocationScreenshot;
+  const allocationExcelRequestId = event.target.dataset.omAllocationExcel;
+  const allocationAttachmentRequestId = allocationScreenshotRequestId || allocationExcelRequestId;
+  const allocationId = event.target.dataset.omAllocationId || "";
+  if (allocationAttachmentRequestId && allocationId) {
+    const accessRow = requests.find((item) => item.id === allocationAttachmentRequestId);
+    if (!accessRow || !ensureOmRowAccess(accessRow, "upload allocation quote attachment")) {
+      event.target.value = "";
+      return;
+    }
+    const file = event.target.files?.[0] || null;
+    const fileName = file?.name || (allocationScreenshotRequestId ? "allocation-quote-screenshot.jpg" : "allocation-quote.xlsx");
+    let attachment = null;
+    const isScreenshot = Boolean(allocationScreenshotRequestId);
+    try {
+      if (file && apiModeEnabled()) {
+        attachment = await uploadAttachment(file, {
+          linkedEntityType: "om_allocation_quote",
+          linkedEntityId: allocationId,
+          attachmentKind: isScreenshot ? "om_allocation_quote_screenshot" : "om_allocation_quote_excel",
+          visibilityScope: "om_internal",
+          metadata: { source: "om_export_allocation", requestId: allocationAttachmentRequestId, allocationId },
+        });
+      }
+    } catch (error) {
+      event.target.value = "";
+      showToast(`Allocation quote attachment upload failed: ${error.message}`, "error");
+      return;
+    }
+    addOmHistory(accessRow, isScreenshot ? "Uploaded allocation quote screenshot" : "Uploaded allocation quote Excel", `${allocationId}: ${fileName}`);
+    updateOmAllocationLineAttachment(allocationAttachmentRequestId, allocationId, isScreenshot ? {
+      quotationPdf: fileName,
+      quotationPdfAttachmentId: attachment?.id || "",
+      quotationPdfUrl: attachment?.downloadUrl || "",
+    } : {
+      quotationExcel: fileName,
+      quotationExcelAttachmentId: attachment?.id || "",
+      quotationExcelUrl: attachment?.downloadUrl || "",
+    }, {
+      reason: `OM uploaded ${isScreenshot ? "quote screenshot" : "quote Excel"} for allocation ${allocationId}.`,
+    });
+    showToast(isScreenshot ? "Allocation quote screenshot uploaded." : "Allocation quote Excel uploaded.", "success");
+  }
+
 });
 
 document.addEventListener("input", (event) => {
@@ -24458,9 +25239,16 @@ seedCoordinatorComputerData();
 seedOmDemoData();
 seedManagerQuantityMatrixDemoData();
 seedProjectStatusCostDashboardDemoData();
+window.applyLargeQuantityDemoMode = applyLargeQuantityDemoMode;
+window.largeDemoModeEnabled = largeDemoModeEnabled;
+window.largeQuantityDemoModeStatus = largeDemoModeEnabled()
+  ? applyLargeQuantityDemoMode()
+  : { applied: false, reason: "large-data=1|largeDataDemo opt-in not enabled", count: 0 };
+window.applyUrlDeepLink = applyUrlDeepLink;
 renderDepartment();
 renderSourcing();
 renderBuyer();
+window.urlDeepLinkStatus = applyUrlDeepLink();
 (() => {
   const SIMPLIFIED_LOGIN_ROLES = [
     { value: "requester", label: "Requester" },
@@ -24816,6 +25604,8 @@ renderBuyer();
     const roleSelect = document.getElementById("roleSelect");
     if (roleSelect) {
       roleSelect.innerHTML = SIMPLIFIED_LOGIN_ROLES.map((role) => `<option value="${role.value}">${role.label}</option>`).join("");
+      const deepLinkRole = urlDeepLinkParams().role;
+      if (roleProfiles[deepLinkRole]) roleSelect.value = deepLinkRole;
       syncLoginAccountForRole(roleSelect.value || "requester");
     }
     syncOmOperatorField(roleSelect?.value || "requester");

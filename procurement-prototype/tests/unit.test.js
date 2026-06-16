@@ -7,6 +7,7 @@ const priceDecision = require("../app-modules/price-decision.js");
 const leadTime = require("../app-modules/lead-time.js");
 const workflowStatus = require("../app-modules/workflow-status.js");
 const workflowStatusTable = require("../app-modules/workflow-status-table.js");
+const exportAllocation = require("../app-modules/export-allocation.js");
 const ftvCode = require("../app-modules/ftv-code.js");
 const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
@@ -210,6 +211,188 @@ test("workflow status table exposes assignment for OM roles", () => {
     "assignment",
     "detail",
   ]);
+});
+
+test("export allocation summary preserves original demand while tracking allocated and uncovered qty", () => {
+  const row = {
+    id: "REQ-OM-001",
+    project: "P26",
+    name: "Mini PC",
+    totalQty: 100,
+  };
+  const summary = exportAllocation.summarizeSourceRow(row, [
+    {
+      allocationId: "ALLOC-1",
+      targetProject: "P26",
+      allocatedQty: 60,
+      budgetCode: "FATP-MP-P26-MVA2606-01OM-A01",
+      status: "Ready for ECS",
+    },
+    {
+      allocationId: "ALLOC-2",
+      targetProject: "OR5",
+      allocatedQty: 30,
+      budgetCode: "FATP-MP-P26-MVA2606-01OM-A02",
+      status: "Draft",
+    },
+  ]);
+
+  assert.equal(summary.originalQty, 100);
+  assert.equal(summary.allocatedQty, 90);
+  assert.equal(summary.uncoveredQty, 10);
+  assert.equal(summary.splitCount, 2);
+  assert.equal(summary.budgetCodeCount, 2);
+  assert.equal(summary.status, "Partial Allocation");
+});
+
+test("export allocation prepare assigns line-level budget codes from one package code", () => {
+  const prepared = exportAllocation.prepareAllocationsForExport({
+    id: "REQ-OM-002",
+    project: "P26",
+    totalQty: 80,
+  }, [
+    { allocationId: "ALLOC-1", allocatedQty: 50, targetProject: "P26", status: "Draft" },
+    { allocationId: "ALLOC-2", allocatedQty: 30, targetProject: "OR5", status: "Draft" },
+  ], {
+    packageCode: "FATP-MP-P26-MVA2606-21OM",
+    target: "ECS",
+    costType: "Expense",
+    preparedAt: "2026-06-16T09:00:00.000Z",
+  });
+
+  assert.deepEqual(prepared.map((line) => line.budgetCode), [
+    "FATP-MP-P26-MVA2606-21OM-A01",
+    "FATP-MP-P26-MVA2606-21OM-A02",
+  ]);
+  assert.deepEqual(prepared.map((line) => line.status), ["Ready for ECS", "Ready for ECS"]);
+  assert.deepEqual(prepared.map((line) => line.costType), ["Expense", "Expense"]);
+});
+
+test("export allocation source pool keeps export row, warehouse, and carryover evidence separate", () => {
+  const sourceRow = {
+    id: "REQ-OM-003",
+    project: "P26",
+    name: "Mini PC",
+    detail: "Intel i3 / 16GB RAM",
+    totalQty: 20,
+    currentPhase: "MP",
+    station: "CG",
+  };
+  const pool = exportAllocation.buildSourcePool(sourceRow, {
+    warehouseRows: [{
+      item: "Mini PC",
+      spec: "Intel i3 / 16GB RAM",
+      availableQty: 12,
+      status: "Available",
+      topSource: {
+        sourceProject: "OR5",
+        sourceLine: "Line 2",
+        sourceStage: "DVT",
+        sourceStation: "CG",
+        sourceRequestId: "WAREHOUSE-OR5-DVT",
+      },
+    }],
+    carryoverRows: [{
+      item: "Mini PC",
+      spec: "Intel i3 / 16GB RAM",
+      carryoverQty: 4,
+      status: "Applied",
+      sourceProject: "P25",
+      sourceLine: "Line 1",
+      targetProject: "P26",
+      targetLine: "Line 3",
+      sourceEvidenceRequestId: "REQ-P25-L1-MINI",
+    }],
+  });
+
+  assert.deepEqual(pool.map((row) => row.sourceType), [
+    "Export Row",
+    "Warehouse Stock",
+    "Carryover",
+  ]);
+  assert.equal(pool[0].availableQty, 20);
+  assert.equal(pool[1].availableQty, 12);
+  assert.equal(pool[2].availableQty, 4);
+  assert.equal(pool[0].status, "Original demand");
+  assert.match(pool[1].sourceTrace, /WAREHOUSE-OR5-DVT/);
+  assert.match(pool[2].sourceTrace, /REQ-P25-L1-MINI/);
+});
+
+test("export allocation defaults allocated qty from PAS station breakdown demand", () => {
+  const line = exportAllocation.defaultAllocationLine({
+    id: "REQ-OM-005",
+    project: "P26",
+    name: "Robot fixture",
+    demandUnit: "MFG",
+    stationBreakdown: [
+      { phase: "mp", demandType: "MFG", station: "CG", demandUnit: "MFG", qty: 3 },
+      { phase: "mp", demandType: "MFG", station: "BG", demandUnit: "MFG", qty: 2 },
+    ],
+  });
+
+  assert.equal(line.originalQty, 5);
+  assert.equal(line.allocatedQty, 5);
+  assert.equal(line.targetDemandType, "MFG");
+  assert.equal(line.targetStationUnit, "CG");
+  assert.notEqual(line.targetStationUnit, "MFG");
+});
+
+test("export allocation defaults Non-MFG station unit to demand department", () => {
+  const line = exportAllocation.defaultAllocationLine({
+    id: "REQ-OM-005-NON-MFG",
+    project: "P26",
+    name: "Lab service",
+    stationBreakdown: [
+      { phase: "mp", demandType: "Non-MFG", station: "CG", demandUnit: "ENG1", qty: 4 },
+    ],
+  });
+
+  assert.equal(line.originalQty, 4);
+  assert.equal(line.targetDemandType, "Non-MFG");
+  assert.equal(line.targetStationUnit, "ENG1");
+  assert.notEqual(line.targetStationUnit, "CG");
+});
+
+test("export allocation allows one PAS quote id to split across station scopes within PAS qty", () => {
+  const source = {
+    id: "REQ-OM-006",
+    project: "P26",
+    name: "Fixture",
+    pasDemandNo: "PASQ-2606-001",
+    stationBreakdown: [
+      { phase: "mp", station: "CG", qty: 3 },
+      { phase: "mp", station: "BG", qty: 2 },
+    ],
+  };
+  const lines = [
+    { allocationId: "ALLOC-CG", targetProject: "P26", targetPhase: "MP", targetStationUnit: "CG", allocatedQty: 3, pasQuoteId: "PASQ-2606-001", status: "Draft" },
+    { allocationId: "ALLOC-BG", targetProject: "P26", targetPhase: "MP", targetStationUnit: "BG", allocatedQty: 2, pasQuoteId: "PASQ-2606-001", status: "Draft" },
+  ];
+
+  const summary = exportAllocation.summarizeSourceRow(source, lines);
+
+  assert.equal(summary.originalQty, 5);
+  assert.equal(summary.allocatedQty, 5);
+  assert.equal(summary.uncoveredQty, 0);
+  assert.equal(summary.status, "Allocated");
+});
+
+test("export allocation normalizes line-level quote attachment metadata", () => {
+  const line = exportAllocation.defaultAllocationLine({
+    id: "REQ-OM-006",
+    project: "P26",
+    name: "Filament",
+    totalQty: 5,
+    pasDemandNo: "AIDB260603-63OM",
+    quotationPdf: "legacy-row-screenshot.png",
+    quotationExcel: "legacy-row-quote.xlsx",
+  });
+
+  assert.equal(line.pasQuoteId, "AIDB260603-63OM");
+  assert.equal(line.quotationPdf, "legacy-row-screenshot.png");
+  assert.equal(line.quotationExcel, "legacy-row-quote.xlsx");
+  assert.equal(exportAllocation.lineHasQuoteAttachments(line), true);
+  assert.equal(exportAllocation.lineHasQuoteAttachments({ ...line, quotationExcel: "" }), false);
 });
 
 test("role guards normalize legacy role names and preserve business ownership", () => {

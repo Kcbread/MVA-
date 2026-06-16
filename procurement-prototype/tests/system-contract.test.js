@@ -33,6 +33,12 @@ const macMiniCompose = fs.existsSync("../deploy/mac-mini/docker-compose.yml")
 const sapPoRawCommitScript = fs.existsSync("scripts/commit-sap-po-raw-import.js")
   ? fs.readFileSync("scripts/commit-sap-po-raw-import.js", "utf8")
   : "";
+const largeQuantityFixture = fs.existsSync("tests/fixtures/large-quantity-fixture.js")
+  ? fs.readFileSync("tests/fixtures/large-quantity-fixture.js", "utf8")
+  : "";
+const largeDataUiAudit = fs.existsSync("tests/large-data-ui-audit.js")
+  ? fs.readFileSync("tests/large-data-ui-audit.js", "utf8")
+  : "";
 
 function between(source, start, end) {
   const startIndex = source.indexOf(start);
@@ -59,6 +65,25 @@ test("Mac mini Docker runtime supports SAP PO Raw Excel import", () => {
   assert.match(sapPoRawCommitScript, /--require-clean-preview/);
   assert.match(sapPoRawCommitScript, /commitSapPoRawImport/);
   assert.match(sapPoRawCommitScript, /postCommitChecks/);
+});
+
+test("Large P1.0-to-MP UI audit fixture is opt-in and test-scoped", () => {
+  assert.match(html, /tests\/fixtures\/large-quantity-fixture\.js/);
+  assert.match(largeQuantityFixture, /quantity-bulk-v1/);
+  assert.match(largeQuantityFixture, /TEST-QTY-BULK-/);
+  assert.match(largeQuantityFixture, /buildLargeQuantityFixture/);
+  assert.match(largeQuantityFixture, /clearLargeQuantityFixtureRows/);
+  assert.match(largeQuantityFixture, /P1\.0|P1\.1|EVT|DVT|PVT|MP/);
+  assert.match(app, /largeDemoModeEnabled/);
+  assert.match(app, /applyLargeQuantityDemoMode/);
+  assert.match(app, /large-data=1|largeDataDemo/);
+  assert.match(largeDataUiAudit, /large-data-ui-audit/);
+  assert.match(largeDataUiAudit, /test-artifacts/);
+  assert.match(largeDataUiAudit, /large-data-ui-audit\.md/);
+  assert.match(largeDataUiAudit, /RUN_LARGE_DATA_UI_AUDIT/);
+  assert.match(largeDataUiAudit, /Requester|Dept DRI|Cost Manager|OM Leader|OM Purchasing|Budget Approver|Buyer Handoff|Admin/);
+  assert.match(fs.readFileSync("test.sh", "utf8"), /RUN_LARGE_DATA_UI_AUDIT/);
+  assert.match(fs.readFileSync("test.sh", "utf8"), /tests\/large-data-ui-audit\.js/);
 });
 
 test("Demand Review top-level tabs are consolidated", () => {
@@ -201,7 +226,9 @@ test("Cost Manager review embeds protected Demand Analysis baseline instead of d
   assert.match(app, /function reviewStatusCellHtml/);
   assert.match(app, /function roleReviewRows/);
   assert.match(app, /<th>Review Status<\/th>/);
-  assert.match(app, /"Review Status", "Actions", "Request ID"/);
+  assert.match(app, /"Review Status", "Request ID"/);
+  assert.doesNotMatch(app, /"Review Status", "Actions", "Request ID"/);
+  assert.doesNotMatch(app, /<th>Actions<\/th>/);
   assert.match(fs.readFileSync("app-modules/approval-quantity-review.js", "utf8"), /<th>Review Status<\/th>/);
   assert.doesNotMatch(reviewPanel, /Project Status/);
   assert.doesNotMatch(analysisPanel, /Project Status/);
@@ -1021,12 +1048,13 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
     "Currency",
     "Quote Date",
     "Valid Until",
-    "Files",
     "Completion / Missing",
     "Assigned To",
     "Actions",
     "Detail",
   ].forEach((label) => assert.match(quoteTable, new RegExp(`<th[^>]*>${label.replace("/", "\\/")}<\\/th>`)));
+  assert.doesNotMatch(quoteTable, /<th[^>]*>Files<\/th>/);
+  assert.doesNotMatch(quoteTable, /om-quote-col-files/);
   assert.match(quoteTable, /<th[^>]*>Assigned To<\/th>/);
   assert.doesNotMatch(quoteTable, /<th>PAS Tracking<\/th>/);
   assert.doesNotMatch(quoteTable, /<th>Quote Result<\/th>/);

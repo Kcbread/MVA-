@@ -6386,6 +6386,32 @@ tr.approval-pipeline-current td {
   background: #fbfcfd;
 }
 
+.buyer-item-cell .item-name-stack {
+  display: grid;
+  gap: 4px;
+  max-height: 132px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.buyer-item-cell .item-name-stack strong,
+.buyer-item-cell .item-name-stack span,
+.buyer-item-cell .item-name-stack small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.buyer-item-cell .item-name-stack strong,
+.buyer-item-cell .item-name-stack span {
+  -webkit-line-clamp: 2;
+}
+
+.buyer-item-cell .item-name-stack small {
+  -webkit-line-clamp: 1;
+}
+
 .buyer-package-cell .reason-text,
 .buyer-status-cell .reason-text,
 .buyer-progress-cell .reason-text {
@@ -7567,6 +7593,7 @@ tr.approval-pipeline-current td {
 .om-final-export-table col.om-export-col-phase { width: 64px; }
 .om-final-export-table col.om-export-col-item { width: 260px; }
 .om-final-export-table col.om-export-col-qty { width: 64px; }
+.om-final-export-table col.om-export-col-allocation { width: 196px; }
 .om-final-export-table col.om-export-col-assignee { width: 150px; }
 .om-final-export-table col.om-export-col-package { width: 132px; }
 .om-final-export-table col.om-export-col-pas { width: 260px; }
@@ -7622,6 +7649,86 @@ tr.approval-pipeline-current td {
   max-width: 100% !important;
   padding: 4px 6px !important;
   white-space: nowrap;
+}
+
+.om-export-allocation-workspace {
+  margin-top: 18px;
+}
+
+.om-export-allocation-summary {
+  margin-bottom: 12px;
+}
+
+.om-export-source-pool-table {
+  margin-bottom: 12px;
+  table-layout: fixed;
+}
+
+.om-export-source-pool-table th:nth-child(1),
+.om-export-source-pool-table td:nth-child(1) {
+  width: 130px;
+}
+
+.om-export-source-pool-table th:nth-child(3),
+.om-export-source-pool-table td:nth-child(3) {
+  width: 96px;
+}
+
+.om-export-source-pool-table th:nth-child(4),
+.om-export-source-pool-table td:nth-child(4) {
+  width: 132px;
+}
+
+.om-export-source-pool-trace {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.om-export-allocation-table input,
+.om-export-allocation-table select {
+  width: 100%;
+  min-width: 0;
+}
+
+.om-allocation-select {
+  min-height: 32px;
+}
+
+.om-allocation-qty-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.om-allocation-attachment-list {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.om-allocation-attachment-status,
+.om-allocation-attachment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.om-allocation-attachment-status .status-pill {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.om-allocation-attachment-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.om-export-allocation-empty {
+  text-align: center;
 }
 
 /* v0.9 layout stabilization: compact, readable, action-visible tables */
@@ -8183,9 +8290,9 @@ tr.approval-pipeline-current td {
 }
 
 .price-review-table--excel .pending-work-action-cell {
-  width: 82px !important;
-  min-width: 82px !important;
-  max-width: 84px !important;
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 108px !important;
 }
 
 .price-review-table--excel .row-action-stack {
@@ -8195,10 +8302,13 @@ tr.approval-pipeline-current td {
 
 .price-review-table--excel .row-action-stack .mini,
 .price-review-table--excel .cell-action .mini {
+  width: 100%;
+  min-width: 0;
   min-height: 26px;
-  padding: 3px 6px;
-  font-size: 10px;
+  padding: 3px 4px;
+  font-size: 9.5px;
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .pending-work-detail-card {
@@ -8328,6 +8438,19 @@ tr.approval-pipeline-current td {
 @media (max-width: 900px) {
   .admin-setup-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-setup-grid,
+  .admin-governance-grid,
+  .admin-setup-card,
+  .role-matrix-wrap {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-setup-card,
+  .role-matrix-wrap {
+    overflow-x: auto;
   }
 }
 
@@ -10741,20 +10864,29 @@ tr.approval-pipeline-current td {
 
 .item-quantity-action-stack,
 .item-quantity-inline-actions .item-quantity-action-stack {
-  display: flex;
+  display: grid;
   max-width: 100%;
-  flex-wrap: wrap;
   gap: 3px;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
 }
 
 .item-quantity-action-stack .mini {
-  min-width: 0;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
   padding: 3px 5px;
   font-size: 10px;
   line-height: 1.05;
   white-space: nowrap;
+}
+
+.item-quantity-inline-actions .row-action-stack .mini {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  padding: 3px 4px;
+  font-size: 10px;
+  line-height: 1.05;
 }
 
 .item-review-change-stack {
@@ -10920,7 +11052,7 @@ tr.approval-pipeline-current td {
 
 .manager-quantity-wide-table thead tr:first-child th:nth-child(4),
 .manager-quantity-wide-table tbody td:nth-child(4) {
-  left: 294px;
+  left: 264px;
 }
 
 .manager-quantity-wide-table thead tr:first-child th:nth-child(5),
@@ -11004,6 +11136,134 @@ tr.approval-pipeline-current td {
   width: 100px;
   white-space: normal;
 }
+
+/* Shared quantity matrix contract: freeze identity through Est. Amount; CG is the first scrollable evidence column. */
+.manager-quantity-wrap {
+  width: 100%;
+  max-width: calc(100vw - 72px);
+  min-width: 0;
+  overflow: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.quantity-matrix-wrap,
+.project-status-matrix-wrap {
+  width: 100%;
+  max-width: calc(100vw - 72px);
+  min-width: 0;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(1) th {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(2) th {
+  position: sticky;
+  top: 24px;
+  z-index: 9;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(3) th {
+  position: sticky;
+  top: 48px;
+  z-index: 9;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(1) th {
+  height: 24px;
+}
+
+.manager-quantity-wide-table thead tr:nth-child(2) th,
+.manager-quantity-wide-table thead tr:nth-child(3) th {
+  height: 24px;
+}
+
+.manager-quantity-table th:nth-child(1),
+.manager-quantity-table td:nth-child(1) { width: 108px; }
+
+.manager-quantity-table th:nth-child(2),
+.manager-quantity-table td:nth-child(2) { width: 110px; }
+
+.manager-quantity-table th:nth-child(3),
+.manager-quantity-table td:nth-child(3) { width: 46px; }
+
+.manager-quantity-table th:nth-child(4),
+.manager-quantity-table td:nth-child(4) { width: 120px; }
+
+.manager-quantity-table th:nth-child(5),
+.manager-quantity-table td:nth-child(5) { width: 210px; }
+
+.manager-quantity-table th:nth-child(6),
+.manager-quantity-table td:nth-child(6) { width: 86px; }
+
+.manager-quantity-table th:nth-child(7),
+.manager-quantity-table td:nth-child(7) { width: 92px; }
+
+.manager-quantity-table th:nth-child(8),
+.manager-quantity-table td:nth-child(8) { width: 100px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(1),
+.manager-quantity-wide-table tbody td:nth-child(1),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(2),
+.manager-quantity-wide-table tbody td:nth-child(2),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(3),
+.manager-quantity-wide-table tbody td:nth-child(3),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(4),
+.manager-quantity-wide-table tbody td:nth-child(4),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(5),
+.manager-quantity-wide-table tbody td:nth-child(5),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(6),
+.manager-quantity-wide-table tbody td:nth-child(6),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(7),
+.manager-quantity-wide-table tbody td:nth-child(7),
+.manager-quantity-wide-table thead tr:first-child th:nth-child(8),
+.manager-quantity-wide-table tbody td:nth-child(8) {
+  position: sticky;
+  z-index: 5;
+  background: #fff;
+}
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(1),
+.manager-quantity-wide-table tbody td:nth-child(1) { left: 0; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(2),
+.manager-quantity-wide-table tbody td:nth-child(2) { left: 108px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(3),
+.manager-quantity-wide-table tbody td:nth-child(3) { left: 218px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(4),
+.manager-quantity-wide-table tbody td:nth-child(4) { left: 264px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(5),
+.manager-quantity-wide-table tbody td:nth-child(5) { left: 384px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(6),
+.manager-quantity-wide-table tbody td:nth-child(6) { left: 594px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(7),
+.manager-quantity-wide-table tbody td:nth-child(7) { left: 680px; }
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(8),
+.manager-quantity-wide-table tbody td:nth-child(8) {
+  left: 772px;
+  box-shadow: 2px 0 0 #9aa9b2;
+}
+
+.manager-quantity-wide-table thead tr:first-child th:nth-child(-n + 8) {
+  z-index: 16;
+  background: #eaf1f5;
+}
+
+.manager-quantity-wide-table tbody tr.approval-pipeline-pending td:nth-child(-n + 8) { background: #fff9df; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-sent td:nth-child(-n + 8) { background: #edf5ff; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-approved td:nth-child(-n + 8),
+.manager-quantity-wide-table tbody tr.approval-pipeline-po td:nth-child(-n + 8) { background: #eef8f2; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-rejected td:nth-child(-n + 8) { background: #fff0f1; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-revise td:nth-child(-n + 8) { background: #fff6e8; }
+.manager-quantity-wide-table tbody tr.approval-pipeline-denied td:nth-child(-n + 8) { background: #f2f4f6; }
 
 .item-proposal-card {
   border-left: 4px solid #d39400;
@@ -11521,6 +11781,15 @@ tr.approval-pipeline-current td {
 .table-shell:has(.dense-dashboard-table),
 .table-shell:has(.matrix-table) {
   max-width: 100%;
+  overflow-x: auto;
+}
+
+.table-wrap.table-shell.manager-quantity-wrap,
+.table-wrap.table-shell.quantity-matrix-wrap,
+.table-wrap.table-shell.project-status-matrix-wrap {
+  width: 100%;
+  max-width: calc(100vw - 72px);
+  min-width: 0;
   overflow-x: auto;
 }
 
