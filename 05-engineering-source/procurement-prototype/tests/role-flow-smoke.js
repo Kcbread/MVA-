@@ -909,9 +909,9 @@ async function clickPriceReviewSelection(page, requestId) {
   await expectNoPageErrors(pageErrors, "OM Leader");
   await expectText(page, "OM Leader", [
     /OM Purchasing/,
-    /Submission Dashboard/,
+    /OM Leader Console/,
     /PAS Demand No/,
-    /PAS Quote Result/,
+    /Quote Result \/ Monitor/,
     /Export Package/,
   ], 'section[data-view="om"]');
   await rejectText(page, "OM Leader", [

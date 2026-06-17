@@ -393,7 +393,8 @@ function buildTaxonomyFromOmMaster(masterRows) {
   }, {});
 }
 
-const LV_TAXONOMY = buildTaxonomyFromOmMaster(REAL_OM_MASTER_SOURCE);
+const LV_TAXONOMY_FALLBACK = buildTaxonomyFromOmMaster(REAL_OM_MASTER_SOURCE);
+let LV_TAXONOMY = Object.keys(LV_TAXONOMY_FALLBACK).length ? LV_TAXONOMY_FALLBACK : buildTaxonomy(LV_TAXONOMY_SOURCE);
 
 const PROJECT_TYPES = ["G", "Non-G"];
 
@@ -540,7 +541,7 @@ const roleWorkspaceConfigs = {
     defaultOmTab: "submission",
     omTabs: ["submission", "pasRequest", "quoteConfirm", "finalExport"],
     omTabLabels: {
-      submission: "Submission Dashboard",
+      submission: "OM Leader Console",
       pasRequest: "PAS Demand No",
       quoteConfirm: "Quote Result / Monitor",
       finalExport: "Export Package",
@@ -767,6 +768,7 @@ const PRICE_AUTO_CLEARED = "Auto Cleared";
 const PRICE_ESCALATION_REQUIRED = "Price Escalation Required";
 const PRICE_HIGH_HISTORY_REVIEW = "High History Quote Review";
 const PRICE_REQUESTER_QUOTE_CONFIRMATION_REQUIRED = "Requester Quote Confirmation Required";
+const QUOTE_CONFIRMATION_BEFORE_APPROVAL = "Quote Confirmed Before Approval";
 const PRICE_ESCALATION_PENDING_DRI = "Pending Dept DRI Review";
 const PRICE_ESCALATION_PENDING_PROJECT_DRI = "Pending Budget Approver Review";
 const PRICE_ESCALATION_APPROVED = "Price Escalation Approved";
@@ -1059,6 +1061,8 @@ const expandedDemandEditorCarryoverRows = new Set();
 let currentHandoffTab = "queue";
 let currentOmTab = "submission";
 let currentOmSubmissionPivotMode = "project";
+let currentOmStageFilter = "all";
+let currentOmCategoryFilter = "";
 let currentPriceReviewTab = "pending";
 let currentPriceReviewQueue = "submission";
 let selectedProjectStatusScope = { requestId: "", unit: "", mode: "mfg" };
@@ -2007,6 +2011,40 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
+function lvTaxonomyTreeFromApiRows(rows = []) {
+  return rows.reduce((tree, row) => {
+    const level1 = String(row.lv1 || "").trim();
+    const level2 = String(row.lv2 || "").trim();
+    const level3 = String(row.lv3 || "").trim();
+    if (!level1 || !level2 || !level3) return tree;
+    tree[level1] ??= {};
+    tree[level1][level2] ??= [];
+    if (!tree[level1][level2].includes(level3)) tree[level1][level2].push(level3);
+    return tree;
+  }, {});
+}
+
+function refreshLvTaxonomyConsumers() {
+  syncCascade("natural");
+  syncCascade("history");
+  syncRequestItemPickerFilters();
+  const pickerModal = document.getElementById("requestItemPickerModal");
+  if (pickerModal && !pickerModal.hidden) renderRequestItemPicker();
+}
+
+async function hydrateLvTaxonomy() {
+  if (!apiModeEnabled()) return;
+  try {
+    const payload = await apiRequest("/api/taxonomy/lv123");
+    const apiTree = payload.tree && Object.keys(payload.tree).length ? payload.tree : lvTaxonomyTreeFromApiRows(payload.taxonomy || []);
+    if (!Object.keys(apiTree).length) return;
+    LV_TAXONOMY = apiTree;
+    refreshLvTaxonomyConsumers();
+  } catch (error) {
+    console.warn("Lv123 taxonomy API unavailable; using local fallback.", error);
+  }
+}
+
 async function uploadAttachment(file, fields = {}) {
   if (!file || !apiModeEnabled()) return null;
   const formData = new FormData();
@@ -2307,7 +2345,7 @@ async function hydrateWorkflowReviewRows(role = currentRole, { silent = true } =
 
 function omTabLabel(tab = currentOmTab) {
   const labels = {
-    submission: "Submission Dashboard",
+    submission: "OM Leader Console",
     pasRequest: "PAS Demand No",
     quoteConfirm: "Quote Result / Monitor",
     finalExport: "Export Package",
@@ -2497,6 +2535,10 @@ function leadTimeModule() {
 
 function workflowStatusModule() {
   return globalThis.ProcurementApp?.modules?.workflowStatus || {};
+}
+
+function omProgressModule() {
+  return globalThis.ProcurementApp?.modules?.omProgress || {};
 }
 
 function workflowStatusForRow(row, role = "requester") {
@@ -4877,8 +4919,19 @@ function renderManagerStageTracking() {
     : `<tr><td colspan="11" class="empty-cell">No blocker rows match the selected filters.</td></tr>`;
 }
 
+function selectedManagerReviewRowForQuantityScope() {
+  if (Array.isArray(priceReviewAnalysisRowsOverride)) return null;
+  if (currentView !== "manager" || currentManagerTab !== "review" || !selectedManagerRequestId) return null;
+  return requests.find((row) => row.id === selectedManagerRequestId) || null;
+}
+
 function managerQuantitySourceRows() {
-  const sourceRows = Array.isArray(priceReviewAnalysisRowsOverride) ? priceReviewAnalysisRowsOverride : requests;
+  const selectedManagerRow = selectedManagerReviewRowForQuantityScope();
+  const sourceRows = Array.isArray(priceReviewAnalysisRowsOverride)
+    ? priceReviewAnalysisRowsOverride
+    : selectedManagerRow
+      ? [selectedManagerRow]
+      : requests;
   const allowReviewStatusRows = Array.isArray(priceReviewAnalysisRowsOverride);
   return sourceRows.filter((row) => {
     const status = row.status || "";
@@ -4900,18 +4953,20 @@ function managerRequestLineSort(left = "", right = "") {
 }
 
 function managerQuantityFlattenRows(rawRows = managerQuantitySourceRows()) {
+  const selectedLine = selectedManagerReviewRowForQuantityScope()?.requestLine || "";
   return rawRows.flatMap((request) => stationBreakdownRowsForDetail(request)
     .flatMap((breakdown) => {
       if (isLongFormStationBreakdown(breakdown)) {
         const qty = stationBreakdownRowTotal(breakdown);
         const demandType = demandTypeFor(breakdown);
-        return qty > 0 ? [{
+        const requestLine = managerQuantityRequestLine(breakdown, request);
+        return qty > 0 && (!selectedLine || requestLine === selectedLine) ? [{
           request,
           demandType,
           phase: stationBreakdownPhaseKey(breakdown),
           station: demandType === DEMAND_TYPE_MFG ? (breakdown.station || STATION_MASTER[0]) : "",
           demandUnit: demandType === DEMAND_TYPE_MFG ? "" : (breakdown.demandUnit || DEMAND_UNIT_FALLBACK),
-          requestLine: managerQuantityRequestLine(breakdown, request),
+          requestLine,
           qty,
           remark: breakdown.remark || "",
         }] : [];
@@ -4927,7 +4982,7 @@ function managerQuantityFlattenRows(rawRows = managerQuantitySourceRows()) {
           qty: clampQty(breakdown[stage]),
           remark: breakdown.remark || "",
         }))
-        .filter((item) => item.qty > 0);
+        .filter((item) => item.qty > 0 && (!selectedLine || item.requestLine === selectedLine));
     }));
 }
 
@@ -14932,169 +14987,169 @@ function managerDeliveryStatusCell(group) {
   return `<div class="pivot-status-stack">${pills.join("")}<small>${summary}</small></div>`;
 }
 
-function omSubmissionPivotMode() {
-  return currentOmSubmissionPivotMode === "item" ? "item" : "project";
-}
-
 function omSubmissionItemKey(row = {}) {
   return row.name || row.item || omItemBucket(row) || "-";
 }
 
-function omSubmissionPivotKey(row, filters = {}) {
-  const pivotPrefix = omSubmissionPivotMode() === "item" ? "item" : "project";
-  return [
-    pivotPrefix,
-    managerProgressYearProject(row),
-    managerProgressProject(row),
-    omSubmissionItemKey(row),
-    managerProgressStage(row),
-    row.department || "-",
-    filters.requestType || "all",
-  ].join("::");
+function omProductCategory(row = {}) {
+  return omProgressModule().omProductCategory?.(row) || {
+    level2: row.omCategoryLevel2 || "Need OM Classification",
+    level3: row.omCategoryLevel3 || "Unclassified",
+    path: `${row.omCategoryLevel2 || "Need OM Classification"} / ${row.omCategoryLevel3 || "Unclassified"}`,
+    status: row.omCategoryLevel2 && row.omCategoryLevel3 ? "Classified" : "Need OM Classification",
+  };
 }
 
-function omSubmissionScopeLabel(filters = omSubmissionFilterState()) {
-  if (omSubmissionPivotMode() === "item") {
-    return `Item View · ${filters.item || "All items"} · ${filters.project || "All projects"}`;
-  }
-  return `Project View · ${filters.project || "All projects"} · ${filters.item || "All items"} pending`;
+const OM_PAS_DEMAND_SLA_DAYS = 2;
+const OM_BIDDING_RESULT_SLA_DAYS = 14;
+const OM_INTERNAL_SLA_DAYS = 7;
+
+function omStageSlaStatus(row, options = {}) {
+  return omProgressModule().omStageSlaStatus?.(row, options) || workflowStatusForRow(row, "om");
+}
+
+function omEstimatedUnitPrice(row = {}) {
+  return omProgressModule().estimatedUnitPrice?.(row) || effectiveUnitPrice(row) || 0;
+}
+
+function omBuyerHandoffStatus(row = {}) {
+  return omProgressModule().buyerHandoffStatus?.(row) || "Buyer owns PR-PO";
 }
 
 function omSubmissionFilterState() {
   return {
-    yearProject: document.getElementById("omSubmissionYearFilter")?.value || "",
-    project: document.getElementById("omSubmissionProjectFilter")?.value || "",
-    item: document.getElementById("omSubmissionItemFilter")?.value || "",
-    process: document.getElementById("omSubmissionProcessFilter")?.value || "",
-    stage: document.getElementById("omSubmissionStageFilter")?.value || "",
-    department: document.getElementById("omSubmissionDepartmentFilter")?.value || "",
-    requestType: document.getElementById("omSubmissionRequestTypeFilter")?.value || "",
-    quoteValidity: document.getElementById("omSubmissionQuoteValidityFilter")?.value || "",
-    lateOnly: Boolean(document.getElementById("omSubmissionLateOnly")?.checked),
-    pendingOnly: Boolean(document.getElementById("omSubmissionPendingOnly")?.checked),
+    stage: currentOmStageFilter || "all",
+    category: currentOmCategoryFilter || "",
   };
 }
 
-function omSubmissionMatchesFilters(row, filters) {
-  if (filters.yearProject && managerProgressYearProject(row) !== filters.yearProject) return false;
-  if (filters.project && managerProgressProject(row) !== filters.project) return false;
-  if (filters.item && omSubmissionItemKey(row) !== filters.item) return false;
-  if (filters.process && row.process !== filters.process) return false;
-  if (filters.stage && managerProgressStage(row) !== filters.stage) return false;
-  if (filters.department && row.department !== filters.department) return false;
-  if (filters.requestType === "temporary" && !isProgressTempBudget(row)) return false;
-  if (filters.requestType === "standard" && isProgressTempBudget(row)) return false;
-  if (filters.quoteValidity) {
-    const status = progressQuoteValidity(row).status;
-    if (filters.quoteValidity === "expiring" && status !== "Expiring Soon") return false;
-    if (filters.quoteValidity === "expired" && status !== "Expired / Requote Required") return false;
-    if (filters.quoteValidity === "missing" && status !== "Missing validity") return false;
-    if (filters.quoteValidity === "valid" && !["Valid", "Quote Valid"].includes(status)) return false;
-  }
-  if (filters.lateOnly && !managerProgressIsLate(row)) return false;
-  if (filters.pendingOnly && !managerProgressIsPending(row)) return false;
-  return true;
+function omSubmissionScopeLabel(filters = omSubmissionFilterState()) {
+  const stageLabels = {
+    all: "All active OM stages",
+    pendingPasDemand: "Pending PAS Demand",
+    pendingBiddingResult: "Pending Bidding Result",
+    readyToExport: "Ready to Export",
+    buyerHandoff: "Buyer Handoff / PR",
+    overdue: "Overdue",
+  };
+  return `Lv2 → Lv3 · ${filters.category || "All categories"} · ${stageLabels[filters.stage] || stageLabels.all}`;
+}
+
+function omSubmissionMatchesFilters(group, filters) {
+  if (filters.category && group.category.level2 !== filters.category) return false;
+  if (filters.stage === "all") return true;
+  if (filters.stage === "overdue") return group.sla.isOverdue;
+  return group.sla.stageKey === filters.stage;
 }
 
 function syncOmSubmissionFilters() {
-  const rawRows = managerProgressRawRows();
-  const controls = [
-    ["omSubmissionYearFilter", "All year projects", (row) => managerProgressYearProject(row)],
-    ["omSubmissionProjectFilter", "All projects", (row) => managerProgressProject(row)],
-    ["omSubmissionItemFilter", "All items", (row) => omSubmissionItemKey(row)],
-    ["omSubmissionProcessFilter", "All process", (row) => row.process],
-    ["omSubmissionStageFilter", "All stage", (row) => managerProgressStage(row)],
-    ["omSubmissionDepartmentFilter", "All departments", (row) => row.department],
-  ];
-  controls.forEach(([id, allLabel, getter]) => {
-    const select = document.getElementById(id);
-    if (!select) return;
-    const currentValue = select.value;
-    const values = [...new Set(rawRows.map(getter).filter(Boolean))].sort((left, right) => String(left).localeCompare(String(right)));
-    select.innerHTML = `<option value="">${allLabel}</option>${values.map((value) => optionHtml(value, currentValue)).join("")}`;
-    if (currentValue && values.includes(currentValue)) select.value = currentValue;
+  const rows = omInternalRows().map(applyOmResponsibility);
+  const categoryCounts = rows.reduce((map, row) => {
+    const category = omProductCategory(row);
+    map.set(category.level2, (map.get(category.level2) || 0) + 1);
+    return map;
+  }, new Map());
+  const categories = [...categoryCounts.entries()].sort((left, right) => left[0].localeCompare(right[0]));
+  if (currentOmCategoryFilter && !categoryCounts.has(currentOmCategoryFilter)) currentOmCategoryFilter = "";
+  document.querySelectorAll("[data-om-stage-filter]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.omStageFilter === (currentOmStageFilter || "all"));
   });
+  const rail = document.getElementById("omCategoryFilterRows");
+  if (rail) {
+    rail.innerHTML = `
+      <button class="om-category-filter-button ${currentOmCategoryFilter ? "" : "active"}" type="button" data-om-category-filter="">
+        <span>All Lv2</span><strong>${rows.length}</strong>
+      </button>
+      ${categories.map(([category, count]) => `
+        <button class="om-category-filter-button ${category === currentOmCategoryFilter ? "active" : ""}" type="button" data-om-category-filter="${htmlAttr(category)}">
+          <span>${htmlText(category)}</span><strong>${count}</strong>
+        </button>`).join("")}`;
+  }
 }
 
 function clearOmSubmissionFilters() {
-  [
-    "omSubmissionYearFilter",
-    "omSubmissionProjectFilter",
-    "omSubmissionItemFilter",
-    "omSubmissionProcessFilter",
-    "omSubmissionStageFilter",
-    "omSubmissionDepartmentFilter",
-    "omSubmissionRequestTypeFilter",
-    "omSubmissionQuoteValidityFilter",
-  ].forEach((id) => {
-    const control = document.getElementById(id);
-    if (control) control.value = "";
-  });
-  ["omSubmissionLateOnly", "omSubmissionPendingOnly"].forEach((id) => {
-    const control = document.getElementById(id);
-    if (control) control.checked = false;
-  });
+  currentOmStageFilter = "all";
+  currentOmCategoryFilter = "";
   renderOmSubmission();
 }
 
-function omSubmissionRows() {
-  const filters = omSubmissionFilterState();
+function omMostUrgentSla(statuses = []) {
+  const priority = {
+    pendingPasDemand: 10,
+    pendingBiddingResult: 8,
+    readyToExport: 5,
+    buyerHandoff: 3,
+    waitingRequester: 2,
+    quoteReady: 1,
+  };
+  return [...statuses].sort((left, right) => {
+    if (left.isOverdue !== right.isOverdue) return left.isOverdue ? -1 : 1;
+    if ((left.overdueDays || 0) !== (right.overdueDays || 0)) return (right.overdueDays || 0) - (left.overdueDays || 0);
+    if ((priority[left.stageKey] || 0) !== (priority[right.stageKey] || 0)) return (priority[right.stageKey] || 0) - (priority[left.stageKey] || 0);
+    return (right.daysInStage || 0) - (left.daysInStage || 0);
+  })[0] || omStageSlaStatus({});
+}
+
+function omProductProgressRows() {
   const groups = new Map();
-  managerProgressRawRows().forEach((row) => {
-    if (!omSubmissionMatchesFilters(row, filters)) return;
-    const key = omSubmissionPivotKey(row, filters);
+  omInternalRows().map(applyOmResponsibility).forEach((row) => {
+    const category = omProductCategory(row);
+    const project = managerProgressProject(row);
+    const phase = currentPhaseLabelForProject(project);
+    const item = omSubmissionItemKey(row);
+    const key = [category.path, item, project, phase].join("::");
     if (!groups.has(key)) {
       groups.set(key, {
         key,
-        keyId: stableHash(`OM::${key}`),
+        keyId: stableHash(`OM-PROGRESS::${key}`),
+        category,
+        item,
+        spec: itemDetail(row) || row.spec || row.detail || "",
+        project,
+        phase,
         yearProject: managerProgressYearProject(row),
-        project: managerProgressProject(row),
-        item: omSubmissionItemKey(row),
         department: row.department || "-",
         quantity: 0,
-        budgetDone: 0,
-        prDone: 0,
-        poDone: 0,
-        arrived: 0,
-        lateRows: 0,
-        pendingRows: 0,
-        notArrivedRows: 0,
-        requiredDateValues: new Set(),
-        deadlineValues: new Set(),
-        etaValues: new Set(),
-        dtaValues: new Set(),
+        estimatedAmountUsd: 0,
+        estimatedUnitPriceUsd: 0,
+        assigneeNames: new Set(),
+        buyerStatuses: new Set(),
+        remarks: new Set(),
         pendingReasons: new Set(),
+        stageStatuses: [],
         rows: [],
       });
     }
     const group = groups.get(key);
-    const qty = managerProgressQty(row);
+    const qty = managerProgressQty(row) || totalQty(row);
+    const estimatedUnitPriceUsd = omEstimatedUnitPrice(row);
+    const sla = omStageSlaStatus(row);
     group.quantity += qty;
-    group.budgetDone += managerProgressDoneQty(row, "qtyDoneBudget", "budgetStatus");
-    group.prDone += managerProgressDoneQty(row, "qtyDonePr", "prStatus");
-    group.poDone += managerProgressDoneQty(row, "qtyDonePo", "poStatus");
-    group.arrived += managerProgressArrivedQty(row);
-    if (managerProgressIsLate(row)) group.lateRows += 1;
-    if (managerProgressIsPending(row)) group.pendingRows += 1;
-    if (managerProgressArrivedQty(row) < qty) group.notArrivedRows += 1;
-    if (row.requiredDeliveryDate) group.requiredDateValues.add(row.requiredDeliveryDate);
-    if (row.requestDeadline) group.deadlineValues.add(row.requestDeadline);
-    if (row.etaPlan || row.eta) group.etaValues.add(row.etaPlan || row.eta);
-    if (row.dtaActual || row.actualEta) group.dtaValues.add(row.dtaActual || row.actualEta);
+    group.estimatedAmountUsd += estimatedUnitPriceUsd * qty;
+    group.estimatedUnitPriceUsd = group.quantity ? group.estimatedAmountUsd / group.quantity : estimatedUnitPriceUsd;
+    group.assigneeNames.add(omAssigneeName(row) || "Unassigned");
+    group.buyerStatuses.add(omBuyerHandoffStatus(row));
+    if (sla.remark) group.remarks.add(sla.remark);
     const pendingReason = managerProgressPendingReason(row);
     if (pendingReason) group.pendingReasons.add(pendingReason);
+    group.stageStatuses.push(sla);
     group.rows.push(row);
   });
-  return [...groups.values()].sort((left, right) => {
-    const leftRisk = (left.lateRows ? 100 : 0) + (left.pendingRows ? 40 : 0) + (left.notArrivedRows ? 20 : 0);
-    const rightRisk = (right.lateRows ? 100 : 0) + (right.pendingRows ? 40 : 0) + (right.notArrivedRows ? 20 : 0);
-    if (leftRisk !== rightRisk) return rightRisk - leftRisk;
-    if (left.quantity !== right.quantity) return right.quantity - left.quantity;
-    return `${left.yearProject} ${left.project} ${left.item}`.localeCompare(`${right.yearProject} ${right.project} ${right.item}`);
-  });
+  return [...groups.values()]
+    .map((group) => ({ ...group, sla: omMostUrgentSla(group.stageStatuses) }))
+    .filter((group) => omSubmissionMatchesFilters(group, omSubmissionFilterState()))
+    .sort((left, right) => {
+      if (left.sla.isOverdue !== right.sla.isOverdue) return left.sla.isOverdue ? -1 : 1;
+      if ((left.sla.overdueDays || 0) !== (right.sla.overdueDays || 0)) return (right.sla.overdueDays || 0) - (left.sla.overdueDays || 0);
+      if (left.sla.stageKey !== right.sla.stageKey) return left.sla.stageKey.localeCompare(right.sla.stageKey);
+      if (left.quantity !== right.quantity) return right.quantity - left.quantity;
+      return `${left.category.path} ${left.item} ${left.project}`.localeCompare(`${right.category.path} ${right.item} ${right.project}`);
+    });
 }
 
-const OM_INTERNAL_SLA_DAYS = 7;
+function omSubmissionRows() {
+  return omProductProgressRows();
+}
 
 function daysBetweenDates(startText, endText = new Date().toISOString()) {
   if (!startText) return 0;
@@ -15392,72 +15447,127 @@ function renderOmSubmissionTriage(rows = []) {
     </div>`;
 }
 
+function omProgressCategoryCell(group) {
+  return `
+    <div class="om-category-cell">
+      <strong>${htmlText(group.category.level2)}</strong>
+      <span>${htmlText(group.category.level3)}</span>
+      ${group.category.status !== "Classified" ? `<small>${htmlText(group.category.status)}</small>` : ""}
+    </div>`;
+}
+
+function omProgressItemCell(group) {
+  return `
+    <div class="item-primary">${htmlText(group.item)}</div>
+    <div class="reason-text">${htmlText(group.spec || "No spec")}</div>
+    <div class="reason-text">${group.rows.length} request row${group.rows.length === 1 ? "" : "s"}</div>`;
+}
+
+function omProgressProjectCell(group) {
+  return `
+    <strong>${htmlText(group.project)}</strong>
+    <div class="reason-text">${htmlText(group.phase || group.yearProject || "-")}</div>`;
+}
+
+function omEstimatedPriceCell(group) {
+  const unit = group.estimatedUnitPriceUsd || 0;
+  const amount = group.estimatedAmountUsd || 0;
+  return `
+    <div class="om-estimate-cell">
+      <strong>${unit ? formatMoneyFromUsd(unit) : "Price pending"}</strong>
+      <span>${amount ? formatMoneyFromUsd(amount) : "-"}</span>
+    </div>`;
+}
+
+function omSlaStatusCell(group) {
+  const sla = group.sla || {};
+  return `
+    <div class="om-sla-cell">
+      <span class="status-pill ${sla.isOverdue ? "warning" : statusClass(sla.status)}">${htmlText(sla.status || "-")}</span>
+      <small>${sla.slaDays ? `${sla.daysInStage || 0}d / SLA ${sla.slaDays}d` : `${sla.daysInStage || 0}d`}</small>
+    </div>`;
+}
+
+function omAssigneeProgressCell(group) {
+  const names = [...(group.assigneeNames || new Set())].filter(Boolean);
+  const label = names.length > 2 ? `${names.slice(0, 2).join(" / ")} +${names.length - 2}` : names.join(" / ");
+  return `<span class="status-pill ${label && label !== "Unassigned" ? "info" : "warning"}">${htmlText(label || "Unassigned")}</span>`;
+}
+
+function omBuyerHandoffCell(group) {
+  const statuses = [...(group.buyerStatuses || new Set())].filter(Boolean);
+  const label = statuses.includes("PR Done") ? "PR Done" : statuses.includes("PR Pending") ? "PR Pending" : "Buyer owns PR-PO";
+  return `<span class="status-pill ${statusClass(label)}">${htmlText(label)}</span>`;
+}
+
+function omProgressRemarkCell(group) {
+  const primary = group.sla?.remark || [...(group.remarks || new Set())][0] || "-";
+  const pending = [...(group.pendingReasons || new Set())].filter(Boolean).slice(0, 2).join(" / ");
+  return `<div class="reason-text om-progress-remark">${htmlText(primary)}</div>${pending ? `<div class="reason-text">${htmlText(pending)}</div>` : ""}`;
+}
+
 function renderOmSubmission() {
   syncOmSubmissionFilters();
   renderOmExchangeRatePanel();
   const filters = omSubmissionFilterState();
-  document.querySelectorAll("[data-om-pivot-mode]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.omPivotMode === omSubmissionPivotMode());
-  });
   const scopeLabel = document.getElementById("omSubmissionScopeLabel");
   if (scopeLabel) scopeLabel.textContent = omSubmissionScopeLabel(filters);
   const rows = omSubmissionRows();
   const totalQty = rows.reduce((sum, row) => sum + row.quantity, 0);
   const summary = document.getElementById("omSubmissionSummary");
   if (summary) {
-    const waitingOm = rows.filter((group) => omPendingOwnerForGroup(group) === "OM Purchasing").length;
-    const waitingPasReply = rows.filter((group) => omPendingOwnerForGroup(group) === "PAS / Bidding").length;
-    const waitingConfirm = rows.filter((group) => omCurrentStageForGroup(group) === "Waiting Requester").length;
-    const exportPending = rows.filter((group) => group.rows.some((row) => row.userAQuoteDecisionStatus === OM_USER_CONFIRMED && !row.finalExportedAt)).length;
-    const expiringSoon = rows.filter((group) => omQuoteStatusForGroup(group) === "Expiring Soon").length;
-    const expired = rows.filter((group) => omQuoteStatusForGroup(group) === "Expired / Requote Required").length;
-    const overSla = rows.filter((group) => {
-      const days = omDaysInStage(group);
-      return days !== null && days > OM_INTERNAL_SLA_DAYS;
-    }).length;
+    const pendingPas = rows.filter((group) => group.sla.stageKey === "pendingPasDemand").length;
+    const pendingBidding = rows.filter((group) => group.sla.stageKey === "pendingBiddingResult").length;
+    const readyToExport = rows.filter((group) => group.sla.stageKey === "readyToExport").length;
+    const buyerHandoff = rows.filter((group) => group.sla.stageKey === "buyerHandoff").length;
+    const overSla = rows.filter((group) => group.sla.isOverdue).length;
     summary.innerHTML = summaryCardsHtml([
-      { label: "Waiting OM", value: waitingOm, helper: "PAS no / quote input / export", variant: "hero" },
-      { label: "Waiting PAS Reply", value: waitingPasReply, helper: "PAS bidding result not returned" },
-      { label: "Waiting Requester", value: waitingConfirm, helper: "Need confirm / cancel" },
-      { label: "Export Pending", value: exportPending, helper: "Confirmed, not exported" },
-      { label: "Expired / Requote", value: expired, helper: "Quote expired", variant: expired ? "warning" : "" },
-      { label: "Over SLA", value: overSla, helper: `>${OM_INTERNAL_SLA_DAYS}d pending`, variant: overSla ? "warning" : "" },
-      { label: "Expiring Soon", value: expiringSoon, helper: `Quote expires within ${QUOTE_EXPIRING_SOON_DAYS}d` },
+      { label: "Product / Project Rows", value: rows.length, helper: `${totalQty} qty · Lv2 → Lv3 grain`, variant: "hero" },
+      { label: "Pending PAS Demand", value: pendingPas, helper: `SLA ${OM_PAS_DEMAND_SLA_DAYS}d` },
+      { label: "Pending Bidding Result", value: pendingBidding, helper: `SLA ${OM_BIDDING_RESULT_SLA_DAYS}d` },
+      { label: "Ready to Export", value: readyToExport, helper: "Requester confirmed" },
+      { label: "Buyer Handoff / PR", value: buyerHandoff, helper: "PR stays buyer-owned" },
+      { label: "Overdue", value: overSla, helper: "Row highlight + remark", variant: overSla ? "warning" : "" },
     ]);
   }
-  renderOmSubmissionTriage(rows);
-  renderOmSubmissionExpiryMonitor();
   const body = document.getElementById("omSubmissionRows");
   if (!body) return;
   const headRow = body.closest("table")?.querySelector("thead tr");
   if (headRow) {
     headRow.innerHTML = `
-      <th>Project</th>
-      <th>Item</th>
+      <th>Category</th>
+      <th>Item / Spec</th>
+      <th>Project / Phase</th>
       <th>Qty</th>
-      <th>Submitted / Received Date</th>
-      <th>Pending Owner</th>
+      <th>Estimated Unit / Amount</th>
       <th>Current Stage</th>
-      <th>Days Pending</th>
+      <th>Stage Entered</th>
+      <th>SLA Status</th>
+      <th>Assignee</th>
+      <th>Buyer Handoff / PR</th>
+      <th>Remark</th>
       <th>Detail</th>`;
   }
   body.innerHTML = rows.length
     ? rows.map((row) => {
-      const omStage = omCurrentStageForGroup(row);
-      const pendingOwner = omPendingOwnerForGroup(row);
+      const sla = row.sla;
       return `
-      <tr class="${row.lateRows || row.pendingRows || row.notArrivedRows ? "pivot-risk-row" : ""}">
-        <td>${row.project}</td>
-        <td><div class="item-primary">${row.item}</div><div class="reason-text">${row.rows.length} raw row${row.rows.length === 1 ? "" : "s"}</div></td>
+      <tr class="${sla.isOverdue ? "om-row-overdue" : ""}">
+        <td>${omProgressCategoryCell(row)}</td>
+        <td>${omProgressItemCell(row)}</td>
+        <td>${omProgressProjectCell(row)}</td>
         <td><strong>${row.quantity}</strong></td>
-        <td>${omSubmittedReceivedCell(row)}</td>
-        <td><span class="status-pill ${statusClass(pendingOwner)}">${pendingOwner}</span><div class="reason-text">${omPendingOwnerHelper(row, pendingOwner)}</div></td>
-        <td><span class="status-pill ${statusClass(omStage)}">${omStage}</span><div class="reason-text">${row.department || "-"}</div></td>
-        <td>${omAgingCell(row)}</td>
+        <td>${omEstimatedPriceCell(row)}</td>
+        <td><span class="status-pill ${statusClass(sla.stageLabel)}">${htmlText(sla.stageLabel)}</span></td>
+        <td><strong>${sla.stageEnteredAt ? compactDateTime(sla.stageEnteredAt) : "-"}</strong></td>
+        <td>${omSlaStatusCell(row)}</td>
+        <td>${omAssigneeProgressCell(row)}</td>
+        <td>${omBuyerHandoffCell(row)}</td>
+        <td>${omProgressRemarkCell(row)}</td>
         <td><button class="mini return" data-om-submission-detail="${row.keyId}">Detail</button></td>
       </tr>`;
     }).join("")
-    : `<tr><td colspan="8" class="empty-cell">No OM submission rows match the selected filters.</td></tr>`;
+    : `<tr><td colspan="12" class="empty-cell">No OM submission rows match the selected filters.</td></tr>`;
 }
 
 function openOmSubmissionDetail(groupKeyId) {
@@ -16566,6 +16676,23 @@ function canOperateOmRow(row) {
   );
 }
 
+function isOmLeaderSupervisorMode() {
+  return currentRole === "omLeader";
+}
+
+function omLeaderSupervisorNote() {
+  return "OM Leader supervisor view · assignment only";
+}
+
+function omSupervisorActionCell() {
+  if (isOmLeaderSupervisorMode()) return `
+    <div class="om-readonly-action">
+      <span class="status-pill info">Read-only</span>
+      <div class="reason-text">${omLeaderSupervisorNote()}</div>
+    </div>`;
+  return "";
+}
+
 function omRowAccessReason(row) {
   return globalThis.ProcurementApp?.roleGuards?.omRowAccessReason({
     canOperate: canOperateOmRow(row),
@@ -16853,6 +16980,7 @@ function omQuoteMissingFields(row) {
 }
 
 function omQuoteResultReadOnlyReason(row, waitingUserConfirm = false) {
+  if (isOmLeaderSupervisorMode()) return omLeaderSupervisorNote();
   if (waitingUserConfirm) return "Quote package locked after send.";
   if (!canOperateOmRow(row)) return omRowAccessReason(row) || "Only the assigned OM member can edit.";
   return "";
@@ -16950,6 +17078,7 @@ function renderOmPasRequest() {
   target.innerHTML = rows.length
     ? rows.map((row) => {
       const enriched = applyOmResponsibility(row);
+      const supervisorAction = omSupervisorActionCell();
       return `
       <tr>
         <td>${row.project}</td>
@@ -16964,10 +17093,10 @@ function renderOmPasRequest() {
           <div class="reason-text">${omRowAccessReason(row) || (row.pasDemandNo ? "Ready for quote result input" : "PAS Demand No is required.")}</div>
         </td>
         <td>
-          <div class="row-action-stack">
+          ${supervisorAction || `<div class="row-action-stack">
             <button class="mini approve" type="button" title="${row.pasDemandNo ? "Move to PAS Quote Result" : "Enter PAS Demand No first"}" data-om-row-button="${row.id}" data-om-row-button-action="moveToQuoteCompletion" ${omActionDisabledAttr(row, !row.pasDemandNo)}>Move to Quote</button>
             <button class="mini danger" type="button" data-om-row-button="${row.id}" data-om-row-button-action="rejectToDri" ${omActionDisabledAttr(row)}>Reject to DRI</button>
-          </div>
+          </div>`}
         </td>
         <td><button class="mini return" type="button" data-contact-dri="${row.id}">Contact DRI</button></td>
         <td>${itemDetailButton("request", row.id)}</td>
@@ -18678,6 +18807,26 @@ function isTemporaryBudgetRequest(row) {
   return row.requestType === "Temporary Budget Request" || row.temporaryBudgetRequest === true;
 }
 
+function hasReusableHistoryPrice(row) {
+  return historyUnitPriceUsdForDecision(row) > 0;
+}
+
+function isNewItemQuotePreApproval(row) {
+  return Boolean(row?.quoteBeforeApprovalRequired)
+    || row?.requestType === "New Item Request"
+    || isMaterialNoPending(row)
+    || !hasReusableHistoryPrice(row);
+}
+
+function isHighHistoryQuoteReview(row) {
+  return row?.priceDecisionStatus === PRICE_HIGH_HISTORY_REVIEW || row?.quoteChoiceRequired === true;
+}
+
+function isRequesterQuoteConfirmationRequired(row) {
+  return row?.priceDecisionStatus === PRICE_REQUESTER_QUOTE_CONFIRMATION_REQUIRED
+    || row?.quoteBeforeApprovalRequired === true;
+}
+
 function priceDecisionForRow(row) {
   const mod = priceDecisionModule();
   const category = mod.classifyPriceThresholdCategory?.(row) || "Need Classification";
@@ -19156,7 +19305,9 @@ function renderOmFinalExport() {
     exportHint.textContent = "Choose Expense or Capex, then use one Export Package action to prepare Excel and quote screenshot package.";
   }
   target.innerHTML = rows.length
-    ? rows.map((row) => `
+    ? rows.map((row) => {
+      const supervisorAction = omSupervisorActionCell();
+      return `
       <tr>
         <td>${row.project}</td>
         <td>${currentPhaseLabelForProject(row.project)}</td>
@@ -19171,17 +19322,18 @@ function renderOmFinalExport() {
         <td class="om-export-status-cell"><span class="status-pill ${statusClass(omFinalExportStatusLabel(row))}">${omFinalExportStatusLabel(row)}</span><div class="reason-text">${row.finalExportedAt ? `Exported ${new Date(row.finalExportedAt).toLocaleString("en-US")}` : isOmFinalExportPrepared(row) ? "Ready to mark exported" : "Waiting export target"}</div></td>
         <td>${row.finalExportedAt ? new Date(row.finalExportedAt).toLocaleDateString("en-US") : "-"}</td>
         <td class="cell-action om-export-actions-cell">
-          <div class="row-action-stack">
+          ${supervisorAction || `<div class="row-action-stack">
             <button class="mini" type="button" title="Prepare Expense / ECS package" data-om-row-button="${row.id}" data-om-row-button-action="prepareExpense" ${omActionDisabledAttr(row, isOmFinalExported(row))}>Expense</button>
             <button class="mini" type="button" title="Prepare Capex / CFA package" data-om-row-button="${row.id}" data-om-row-button-action="prepareCapex" ${omActionDisabledAttr(row, isOmFinalExported(row))}>Capex</button>
             <button class="mini" type="button" title="Export Excel package and quote screenshot package" data-om-row-button="${row.id}" data-om-row-button-action="exportPackage" ${omActionDisabledAttr(row, !(isOmFinalExportPrepared(row) || isOmFinalExported(row)))}>Export</button>
             <button class="mini approve" type="button" title="Mark package exported" data-om-row-button="${row.id}" data-om-row-button-action="markExported" ${omActionDisabledAttr(row, !isOmFinalExportPrepared(row))}>Mark</button>
             <button class="mini danger" type="button" title="Reject to DRI" data-om-row-button="${row.id}" data-om-row-button-action="rejectToDri" ${omActionDisabledAttr(row, isOmFinalExported(row))}>Reject</button>
-          </div>
+          </div>`}
         </td>
         <td class="cell-action"><button class="mini return" type="button" title="Contact DRI" data-contact-dri="${row.id}">Contact</button></td>
         <td class="cell-action">${itemDetailButton("request", row.id)}</td>
-      </tr>`).join("")
+      </tr>`;
+    }).join("")
     : `<tr><td colspan="15" class="empty-cell">No Requester confirmed rows are ready for export package.</td></tr>`;
 }
 
@@ -19264,8 +19416,9 @@ function renderOmQuoteConfirmRows(rows) {
         quoteCompletionNeeded ? "om-row-awaiting-pas" : "",
         amendmentAwaitingOm ? "om-row-amendment-work" : "",
       ].filter(Boolean).join(" ");
-      const readOnly = waitingUserConfirm || !canOperateOmRow(row);
+      const readOnly = waitingUserConfirm || isOmLeaderSupervisorMode() || !canOperateOmRow(row);
       const readOnlyReason = omQuoteResultReadOnlyReason(row, waitingUserConfirm);
+      const supervisorAction = omSupervisorActionCell();
       const quoteCurrency = omQuoteInputCurrency(row);
       const priceField = omQuotePriceFieldForCurrency(quoteCurrency);
       const priceValue = omQuotePriceInputValue(row, quoteCurrency);
@@ -19301,11 +19454,11 @@ function renderOmQuoteConfirmRows(rows) {
         <td><div class="reason-text">${htmlText(nextAction)}</div><span class="status-pill ${statusClass(omQuoteExpiryStatusLabel(row))}">${omQuoteExpiryStatusLabel(row)}</span></td>
         <td class="om-quote-assignee-cell">${omAssignmentCell(row)}</td>
         <td>
-          <div class="row-action-stack om-quote-action-stack">
+          ${supervisorAction || `<div class="row-action-stack om-quote-action-stack">
             <button class="mini" type="button" title="Save Quote Info" aria-label="Save Quote Info" data-om-row-button="${row.id}" data-om-row-button-action="saveQuoteInfo" ${omActionDisabledAttr(row, waitingUserConfirm)}>Save</button>
             <button class="mini approve" type="button" title="Send to User A" aria-label="Send to User A" data-om-row-button="${row.id}" data-om-row-button-action="sendToUserConfirm" ${omActionDisabledAttr(row, !(readyToSend && !waitingUserConfirm))}>Send</button>
             <button class="mini danger" type="button" title="Reject to DRI" aria-label="Reject to DRI" data-om-row-button="${row.id}" data-om-row-button-action="rejectToDri" ${omActionDisabledAttr(row)}>Reject</button>
-          </div>
+          </div>`}
         </td>
         <td>${itemDetailButton("request", row.id)}</td>
       </tr>`;
@@ -23153,6 +23306,8 @@ document.addEventListener("click", (event) => {
   const contactDriButton = event.target.closest("[data-contact-dri]");
   const omSubmissionDetailButton = event.target.closest("[data-om-submission-detail]");
   const omSubmissionPivotButton = event.target.closest("[data-om-pivot-mode]");
+  const omSubmissionStageButton = event.target.closest("[data-om-stage-filter]");
+  const omSubmissionCategoryButton = event.target.closest("[data-om-category-filter]");
   const projectAccessButton = event.target.closest("[data-project-config-access]");
   const omRowButton = event.target.closest("[data-om-row-button]");
   const rfqGroupButton = event.target.closest("[data-rfq-group-action]");
@@ -23226,6 +23381,14 @@ document.addEventListener("click", (event) => {
   if (omTab) setOmTab(omTab.dataset.omTab);
   if (omSubmissionPivotButton) {
     currentOmSubmissionPivotMode = omSubmissionPivotButton.dataset.omPivotMode === "item" ? "item" : "project";
+    renderOmSubmission();
+  }
+  if (omSubmissionStageButton) {
+    currentOmStageFilter = omSubmissionStageButton.dataset.omStageFilter || "all";
+    renderOmSubmission();
+  }
+  if (omSubmissionCategoryButton) {
+    currentOmCategoryFilter = omSubmissionCategoryButton.dataset.omCategoryFilter || "";
     renderOmSubmission();
   }
   if (action === "logout") {
@@ -24181,6 +24344,7 @@ document.getElementById("historyQuery")?.addEventListener("input", () => {
 
 renderRequesterPersonaOptions();
 syncProjectControls();
+hydrateLvTaxonomy();
 renderProjectSetup();
 seedCoordinatorComputerData();
 seedOmDemoData();

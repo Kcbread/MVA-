@@ -1030,8 +1030,9 @@
         </section>
 
         <section class="view" data-view="om">
+          <div class="workspace-inline-title">OM Purchasing</div>
           <div class="inner-tabs om-tabs" aria-label="OM purchasing sections">
-            <button class="inner-tab active" data-om-tab="submission">Submission Dashboard</button>
+            <button class="inner-tab active" data-om-tab="submission">OM Leader Console</button>
             <button class="inner-tab" data-om-tab="pasRequest">PAS Demand No</button>
             <button class="inner-tab" data-om-tab="quoteConfirm">Quote Result / Monitor</button>
             <button class="inner-tab" data-om-tab="finalExport">Export Package</button>
@@ -1055,100 +1056,36 @@
               <span class="status-pill info" id="omRateStatus">Fallback Rate</span>
             </section>
             <div class="manager-progress-toolbar om-submission-toolbar">
-              <div class="toolbar-label">Submission Status Scope</div>
-              <div class="segmented-control om-pivot-toggle" role="group" aria-label="OM submission pivot mode">
-                <button class="segment active" type="button" data-om-pivot-mode="project">Project View</button>
-                <button class="segment" type="button" data-om-pivot-mode="item">Item View</button>
+              <div class="toolbar-label">OM Purchasing · OM Leader Console</div>
+              <div class="segmented-control om-stage-filter" role="group" aria-label="OM stage filter">
+                <button class="segment active" type="button" data-om-stage-filter="all">All</button>
+                <button class="segment" type="button" data-om-stage-filter="pendingPasDemand">Pending PAS Demand</button>
+                <button class="segment" type="button" data-om-stage-filter="pendingBiddingResult">Pending Bidding Result</button>
+                <button class="segment" type="button" data-om-stage-filter="readyToExport">Ready to Export</button>
+                <button class="segment" type="button" data-om-stage-filter="buyerHandoff">Buyer Handoff / PR</button>
+                <button class="segment" type="button" data-om-stage-filter="overdue">Overdue</button>
               </div>
-              <div class="manager-progress-controls">
-                <label>
-                  Year Project
-                  <select id="omSubmissionYearFilter">
-                    <option value="">All year projects</option>
-                  </select>
-                </label>
-                <label>
-                  Project
-                  <select id="omSubmissionProjectFilter">
-                    <option value="">All projects</option>
-                  </select>
-                </label>
-                <label>
-                  Item
-                  <select id="omSubmissionItemFilter">
-                    <option value="">All items</option>
-                  </select>
-                </label>
-                <label>
-                  Process
-                  <select id="omSubmissionProcessFilter">
-                    <option value="">All process</option>
-                  </select>
-                </label>
-                <label>
-                  Stage
-                  <select id="omSubmissionStageFilter">
-                    <option value="">All stage</option>
-                  </select>
-                </label>
-                <label>
-                  Department
-                  <select id="omSubmissionDepartmentFilter">
-                    <option value="">All departments</option>
-                  </select>
-                </label>
-              </div>
-              <div class="manager-risk-controls" aria-label="OM submission risk filters">
-                <label class="risk-toggle">
-                  <input id="omSubmissionLateOnly" type="checkbox" />
-                  <span>Late only</span>
-                </label>
-                <label class="risk-toggle">
-                  <input id="omSubmissionPendingOnly" type="checkbox" />
-                  <span>Pending only</span>
-                </label>
-                <button class="ghost" type="button" data-action="clearOmSubmissionFilters">Clear Filters</button>
-              </div>
-              <div class="scope-label" id="omSubmissionScopeLabel">Project View · All projects · All items pending</div>
+              <div class="om-category-filter-rail" id="omCategoryFilterRows" aria-label="OM Lv2 category filters"></div>
+              <button class="ghost" type="button" data-action="clearOmSubmissionFilters">Clear Filters</button>
+              <div class="scope-label" id="omSubmissionScopeLabel">Lv2 → Lv3 · All categories · All active OM stages</div>
             </div>
             <div class="summary-grid" id="omSubmissionSummary"></div>
             <div id="omSubmissionTriage" class="queue-triage-strip"></div>
-            <section class="work-panel om-expiry-monitor-panel">
-              <div class="panel-title section-head-tight">
-                <div>
-                  <h3>Quote Validity Monitor</h3>
-                  <p class="panel-subcopy">Quote validity is entered in Quote Result / Monitor. This monitor highlights expiring or expired bidding results.</p>
-                </div>
-              </div>
-              <div class="table-wrap om-expiry-monitor-wrap">
-                <table class="data-table om-expiry-monitor-table">
-                  <thead>
-                    <tr>
-                      <th>Project</th>
-                      <th>Item</th>
-                      <th>PAS Demand No</th>
-                      <th>PAS Material No</th>
-                      <th>Valid Until</th>
-                      <th>Expiry Status</th>
-                      <th>Pending Action</th>
-                      <th>Detail</th>
-                    </tr>
-                  </thead>
-                  <tbody id="omSubmissionExpiryRows"></tbody>
-                </table>
-              </div>
-            </section>
             <div class="table-wrap manager-cost-wrap om-table-wrap om-submission-wrap">
               <table class="data-table manager-cost-table om-submission-workbench-table" id="omSubmissionTable">
                 <thead>
                   <tr>
-                    <th>Project</th>
-                    <th>Item</th>
+                    <th>Category</th>
+                    <th>Item / Spec</th>
+                    <th>Project / Phase</th>
                     <th>Qty</th>
-                    <th>Submitted / Received Date</th>
-                    <th>Pending Owner</th>
+                    <th>Estimated Unit / Amount</th>
                     <th>Current Stage</th>
-                    <th>Days Pending</th>
+                    <th>Stage Entered</th>
+                    <th>SLA Status</th>
+                    <th>Assignee</th>
+                    <th>Buyer Handoff / PR</th>
+                    <th>Remark</th>
                     <th>Detail</th>
                   </tr>
                 </thead>
@@ -2220,7 +2157,9 @@
     <script src="./app-modules/price-decision.js?v=20260605-usd-delta-v1"></script>
     <script src="./app-modules/lead-time.js?v=20260605-usd-delta-v1"></script>
     <script src="./app-modules/workflow-status.js?v=20260615-unified-manager-v1"></script>
+    <script src="./app-modules/om-progress.js?v=20260617-om-leader-sla-v1"></script>
     <script src="./app-modules/workflow-status-table.js?v=20260606-workflow-status-v1"></script>
+    <script src="./app-modules/material-coding.js?v=20260617-lv123-coding-v1"></script>
     <script src="./app-modules/sap-po-raw-contract.js?v=20260613-sap-po-raw-v1"></script>
     <script src="./app-modules/horizontal-table-navigator.js?v=20260610-evidence-navigator-v2"></script>
     <script src="./app-modules/request-worksheet-matrix.js?v=20260609-approval-workbench-v1"></script>
