@@ -126,7 +126,6 @@ test("workflow review rows require review role and return a stable rows payload"
   try {
     const anonymous = await request(baseUrl, "/api/workflow/review-rows");
     assert.equal(anonymous.response.status, 401);
-
     const requester = await login(baseUrl, "V1524505");
     const blocked = await request(baseUrl, "/api/workflow/review-rows", { cookie: requester.cookie });
     assert.equal(blocked.response.status, 403);
@@ -389,90 +388,8 @@ test("Requester can sign in with employee ID and receives responsibility scope",
   }
 });
 
-test("authenticated users can submit UAT feedback and read their own feedback", async () => {
-  memoryStore.uatFeedback.clear();
-  const server = createServer();
-  const baseUrl = await listen(server);
-  try {
-    const giang = await login(baseUrl, "giangth1");
 
-    const submitted = await request(baseUrl, "/api/uat-feedback", {
-      method: "POST",
-      cookie: giang.cookie,
-      body: {
-        pageKey: "om-pas-demand-no",
-        rowScopeType: "pasDemand",
-        rowScopeId: "PAS-001",
-        rowScopeLabel: "PAS Demand No PAS-001",
-        category: "data",
-        severity: "high",
-        feedbackText: "PAS demand owner is not clear enough for UAT.",
-        metadata: { tab: "PAS Demand No" },
-      },
-    });
-    assert.equal(submitted.response.status, 201);
-    assert.equal(submitted.json.feedback.submittedByUserId, "om-member-giang");
-    assert.equal(submitted.json.feedback.pageKey, "om-pas-demand-no");
-    assert.equal(submitted.json.feedback.rowScopeId, "PAS-001");
-    assert.equal(submitted.json.feedback.status, "open");
 
-    const mine = await request(baseUrl, "/api/uat-feedback/my", { cookie: giang.cookie });
-    assert.equal(mine.response.status, 200);
-    assert.equal(mine.json.feedback.length, 1);
-    assert.equal(mine.json.feedback[0].id, submitted.json.feedback.id);
-  } finally {
-    server.close();
-  }
-});
-
-test("OM Leader can view all UAT feedback while OM member cannot", async () => {
-  memoryStore.uatFeedback.clear();
-  const server = createServer();
-  const baseUrl = await listen(server);
-  try {
-    const mai = await login(baseUrl, "maint5");
-    const giang = await login(baseUrl, "giangth1");
-
-    await request(baseUrl, "/api/uat-feedback", {
-      method: "POST",
-      cookie: giang.cookie,
-      body: {
-        pageKey: "submission-dashboard",
-        rowScopeType: "request",
-        rowScopeId: "REQ-UAT-001",
-        feedbackText: "Need clearer carryover marker.",
-      },
-    });
-
-    const memberAll = await request(baseUrl, "/api/uat-feedback", { cookie: giang.cookie });
-    assert.equal(memberAll.response.status, 403);
-
-    const leaderAll = await request(baseUrl, "/api/uat-feedback", { cookie: mai.cookie });
-    assert.equal(leaderAll.response.status, 200);
-    assert.equal(leaderAll.json.feedback.length, 1);
-    assert.equal(leaderAll.json.feedback[0].submittedByUserId, "om-member-giang");
-  } finally {
-    server.close();
-  }
-});
-
-test("UAT feedback submit requires login", async () => {
-  memoryStore.uatFeedback.clear();
-  const server = createServer();
-  const baseUrl = await listen(server);
-  try {
-    const submitted = await request(baseUrl, "/api/uat-feedback", {
-      method: "POST",
-      body: {
-        pageKey: "submission-dashboard",
-        feedbackText: "Anonymous feedback should not be accepted.",
-      },
-    });
-    assert.equal(submitted.response.status, 401);
-  } finally {
-    server.close();
-  }
-});
 
 test("attachments persist metadata, download bytes, and guard OM-internal files", async () => {
   memoryStore.attachments.clear();
@@ -483,29 +400,6 @@ test("attachments persist metadata, download bytes, and guard OM-internal files"
   try {
     const requester = await login(baseUrl, "V1524505");
     const giang = await login(baseUrl, "giangth1");
-
-    const feedbackUpload = await uploadFile(baseUrl, "/api/attachments", {
-      cookie: requester.cookie,
-      fields: {
-        linkedEntityType: "uat_feedback",
-        linkedEntityId: "REQ-UAT-ATTACH-001",
-        attachmentKind: "uat_screenshot",
-        visibilityScope: "uat_feedback",
-        metadata: { pageKey: "om-quote-confirm" },
-      },
-      file: { name: "feedback-note.txt", type: "text/plain", content: "feedback screenshot bytes" },
-    });
-    assert.equal(feedbackUpload.response.status, 201);
-    assert.equal(feedbackUpload.json.attachment.originalFileName, "feedback-note.txt");
-    assert.equal(feedbackUpload.json.attachment.uploadedByUserId, "requester-v1524505");
-    assert.ok(fs.existsSync(feedbackUpload.json.attachment.storagePath));
-
-    const feedbackDownload = await fetch(`${baseUrl}${feedbackUpload.json.attachment.downloadUrl}`, {
-      headers: { Cookie: requester.cookie },
-    });
-    assert.equal(feedbackDownload.status, 200);
-    assert.equal(await feedbackDownload.text(), "feedback screenshot bytes");
-
     const omUpload = await uploadFile(baseUrl, "/api/attachments", {
       cookie: giang.cookie,
       fields: {
@@ -532,63 +426,6 @@ test("attachments persist metadata, download bytes, and guard OM-internal files"
     assert.ok(memoryStore.auditEvents.some((event) => event.event_type === "attachment.uploaded"));
     assert.ok(memoryStore.auditEvents.some((event) => event.event_type === "attachment.downloaded"));
     assert.ok(memoryStore.auditEvents.some((event) => event.event_type === "attachment.download_blocked"));
-  } finally {
-    server.close();
-  }
-});
-
-test("OM Leader can update UAT feedback status and owner with audit-ish response", async () => {
-  memoryStore.uatFeedback.clear();
-  memoryStore.auditEvents.length = 0;
-  const server = createServer();
-  const baseUrl = await listen(server);
-  try {
-    const mai = await login(baseUrl, "maint5");
-    const giang = await login(baseUrl, "giangth1");
-
-    const submitted = await request(baseUrl, "/api/uat-feedback", {
-      method: "POST",
-      cookie: giang.cookie,
-      body: {
-        pageKey: "pas-quote-result",
-        rowScopeType: "quote",
-        rowScopeId: "QUOTE-UAT-001",
-        feedbackText: "Quote status wording needs triage.",
-      },
-    });
-    const feedbackId = submitted.json.feedback.id;
-
-    const status = await request(baseUrl, `/api/uat-feedback/${feedbackId}/status`, {
-      method: "PATCH",
-      cookie: mai.cookie,
-      body: { status: "in_review" },
-    });
-    assert.equal(status.response.status, 200);
-    assert.equal(status.json.feedback.status, "in_review");
-    assert.equal(status.json.audit.eventType, "uat_feedback.status_updated");
-    assert.equal(status.json.audit.actorUserId, "om-leader-mai");
-    assert.equal(status.json.audit.entityId, feedbackId);
-
-	    const invalidOwner = await request(baseUrl, `/api/uat-feedback/${feedbackId}/owner`, {
-	      method: "PATCH",
-	      cookie: mai.cookie,
-	      body: { ownerUserId: "om-member-linh" },
-	    });
-	    assert.equal(invalidOwner.response.status, 400);
-	    assert.equal(invalidOwner.json.error, "Feedback owner must be Admin or OM Leader");
-
-	    const owner = await request(baseUrl, `/api/uat-feedback/${feedbackId}/owner`, {
-	      method: "PATCH",
-	      cookie: mai.cookie,
-	      body: { ownerUserId: "om-leader-mai" },
-	    });
-	    assert.equal(owner.response.status, 200);
-	    assert.equal(owner.json.feedback.ownerUserId, "om-leader-mai");
-	    assert.equal(owner.json.audit.eventType, "uat_feedback.owner_updated");
-	    assert.equal(owner.json.audit.metadata.ownerUserId, "om-leader-mai");
-
-    assert.ok(memoryStore.auditEvents.some((event) => event.event_type === "uat_feedback.status_updated"));
-    assert.ok(memoryStore.auditEvents.some((event) => event.event_type === "uat_feedback.owner_updated"));
   } finally {
     server.close();
   }

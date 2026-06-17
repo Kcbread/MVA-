@@ -24,8 +24,7 @@
    - Mai 可調整 assignment。
 6. `OM Purchasing` 處理 assigned row。
    - PAS Demand No。
-   - PAS Quote Result。
-   - Quote Expiry tracking。
+   - Quote Result / Monitor：報價結果、有效期限、blocker、stage aging、next action。
    - Export Package。
 7. `Buyer Handoff`。
    - OM export 後 Buyer owns PR / PO。

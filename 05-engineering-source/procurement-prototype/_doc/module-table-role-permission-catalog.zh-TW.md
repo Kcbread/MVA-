@@ -26,9 +26,9 @@
 | `Dept DRI` | DRI | 第一層需求與異常確認者；包含 requester submit review、carryover review、price/budget exception review | 自己部門或 mapping 範圍內的待審項 | 不做最終 budget approval；不做 OM 派工 |
 | `Budget Approver` | Project DRI | 最終預算/價格異常核准 | Dept DRI 通過後的 budget / price review rows | 不處理 requester 建單細節；不做 OM 作業 |
 | `Cost Manager` | Manager B / Cost Owner | Dept DRI 後的下一層成本授權者 | Dept DRI approved rows、Quantity Dashboard、Quantity Detail Matrix、Review History | 不提供獨立 Demand Analysis；不做 requester demand / OM export / project setup |
-| `OM Leader` | Mai / OM leader | OM 派工、匯率、全 OM row 操作、UAT feedback triage | 所有 OM work rows、assignment、exchange rate、feedback triage | 不取代 Dept DRI / Budget Approver 的 business approval |
+| `OM Leader` | Mai / OM leader | OM 派工、匯率、全 OM row 操作、UAT OM orchestration | 所有 OM work rows、assignment、exchange rate、OM orchestration | 不取代 Dept DRI / Budget Approver 的 business approval |
 | `OM Purchasing` | Giang / Linh / OM member | 處理被派工的 PAS Demand No、PAS Quote Result、Export Package | assigned rows | 不派工；不改匯率；不操作未派工 rows |
-| `Admin` | System admin | 使用者、角色、mapping、threshold、approval chain、OM member setup、audit / feedback setup | 設定資料與測試資料 | 不做 business approval，除非未來另開 emergency override 並強制 audit |
+| `Admin` | System admin | 使用者、角色、mapping、threshold、approval chain、OM member setup、audit setup | 設定資料與測試資料 | 不做 business approval，除非未來另開 emergency override 並強制 audit |
 | `Buyer Handoff` | downstream / Buyer | OM export 後承接 PR / PO / buyer execution | prototype 內主要是狀態呈現 | 不應被叫作 `Downstream`；畫面文案用 `Buyer Handoff` 或 `Buyer PR / PO` |
 
 ## 2. 權限分類
@@ -45,7 +45,6 @@
 | OM 派工 | Assign / reassign / clear OM assignee | OM Leader, Admin | `canAssignOm(role)` |
 | OM row 操作 | PAS Demand No、Quote Result、Export Package | OM Leader, OM Purchasing, Admin | 已有 `canOperateOmRow()`，需保留 |
 | 匯率維護 | 每月 USD/VND exchange rate | OM Leader, Admin | `canMaintainExchangeRate(role)` |
-| Feedback triage | UAT feedback status / owner | OM Leader, Admin | `canTriageFeedback(role)` |
 | Admin setup | User / role / mapping / threshold / approval chain | Admin | `canAdminSetup(role)` |
 | Internal procurement fields | vendor / PAS material / factory material / OM assignee | OM Leader, OM Purchasing, Admin | `visibilityFlags.showVendor / showPasMaterial / showFactoryMaterial / showOmAssignee` |
 
@@ -143,7 +142,6 @@ Budget Approver 只看最終金額、variance、history price delta、temporary 
 | Export Package | `workflow-table` | Expense/Capex、CFA/ECS package、export package | `OmExportPackageTable` |
 | Assignment Controls | row action / select | Mai assign / reassign / clear | `AssignmentControl` |
 | Exchange Rate Utility | toolbar utility | OM Leader 維護匯率 | `ExchangeRateUtility` |
-| UAT Feedback Review | `workflow-table` | Admin + Mai triage feedback | `FeedbackReviewTable` |
 
 OM Purchasing row actions 必須吃 `canOperateOmRow()`。Giang/Linh 只操作 assigned rows；Mai/Admin 可操作全部。
 
@@ -156,7 +154,7 @@ OM Purchasing row actions 必須吃 `canOperateOmRow()`。Giang/Linh 只操作 a
 | Threshold Rules | `admin-table` | history price delta threshold、temporary budget rules | `ThresholdRuleTable` |
 | Approval Chain Setup | `admin-table` | Dept DRI -> Budget Approver | `ApprovalChainTable` |
 | OM Member Setup | `admin-table` | OM Leader / OM Purchasing assignment scope | `OmTeamSetupTable` |
-| Audit / Feedback | `ledger-table` | audit events / UAT feedback triage | `AuditEventTable`, `FeedbackReviewTable` |
+| Audit | `ledger-table` | audit events | `AuditEventTable` |
 
 Admin 是設定角色，不是 business approval 角色。
 
@@ -176,7 +174,6 @@ Admin 是設定角色，不是 business approval 角色。
 | `CarryoverModule` | 部分在 `carryover-extension.js` / app.js | suggestion、ledger、effective qty / cost impact | Requester / Dept DRI / Cost Owner |
 | `WarehouseModule` | 待正式拆 | month + item/spec summary、source breakdown | Requester / Dept DRI / Cost Owner |
 | `AssignmentModule` | Phase 1 API partially available | OM assignment display/guard/audit | OM Leader / OM Purchasing |
-| `FeedbackModule` | Phase 1 API planned/partially available | page/row feedback metadata、triage | OM / Admin |
 | `FtvCodeModule` | 已有 `app-modules/ftv-code.js` | purchase route、FTV audit key、export gate、cost/FTV key 分離 | OM / Admin / Accounting audit |
 
 ### 5.1A 現有 helper 的升級方向
@@ -268,7 +265,6 @@ FTV code 是海關、Trading、Accounting audit 維度，不是 Cost Owner 成�
 - `users`
 - `sessions`
 - `om_assignments`
-- `uat_feedback`
 - `audit_events`
 
 workflow rows 仍主要在 prototype 前端資料中。API 化時不要讓 UI 直接碰 DB，也不要把 overloaded `requests` object 整包搬進 MySQL。
@@ -279,7 +275,6 @@ workflow rows 仍主要在 prototype 前端資料中。API 化時不要讓 UI �
 | --- | --- | --- |
 | `AuthApiClient` | login/logout/me/session role | Login / topbar / role guard |
 | `OmAssignmentApiClient` | assignees / assignments / assign / clear | OM assignment controls |
-| `FeedbackApiClient` | submit feedback / my feedback / review feedback | OM / Admin |
 | `RequestApiClient` | submit / revise / request status | 後續 Requester |
 | `WorkflowApiClient` | status model source | Requester / Cost Owner / OM |
 | `CostApiClient` | cost dashboard / station matrix source | Cost Owner |

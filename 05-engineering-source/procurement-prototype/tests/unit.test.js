@@ -236,7 +236,6 @@ test("role guards separate OM leader controls from assigned member work", () => 
   assert.equal(roleGuards.canAssignOm("omMember"), false);
   assert.equal(roleGuards.canMaintainExchangeRate("omLeader"), true);
   assert.equal(roleGuards.canMaintainExchangeRate("omMember"), false);
-  assert.equal(roleGuards.canTriageFeedback("omLeader"), true);
   assert.equal(roleGuards.canAdminSetup("admin"), true);
   assert.equal(roleGuards.canAdminSetup("omLeader"), false);
 

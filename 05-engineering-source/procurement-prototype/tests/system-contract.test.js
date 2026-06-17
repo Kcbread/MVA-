@@ -1,6 +1,13 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const path = require("node:path");
+
+function readIfExists(filePath) {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+}
+
+const repoRoot = path.resolve(__dirname, "../../..");
 
 const html = fs.readFileSync("index.html", "utf8");
 const app = fs.readFileSync("app.js", "utf8");
@@ -22,17 +29,11 @@ const sapPoRawScopeMigration = fs.existsSync("db/migrations/003_sap_po_raw_scope
   ? fs.readFileSync("db/migrations/003_sap_po_raw_scope.sql", "utf8")
   : "";
 const projectDecisions = fs.existsSync("PROJECT_DECISIONS.md") ? fs.readFileSync("PROJECT_DECISIONS.md", "utf8") : "";
-const dataDictionary = fs.existsSync("docs-current/data-dictionary-en.md") ? fs.readFileSync("docs-current/data-dictionary-en.md", "utf8") : "";
-const namingRulesZh = fs.existsSync("docs-current/it-handoff/zh-TW/00-naming-rules.md")
-  ? fs.readFileSync("docs-current/it-handoff/zh-TW/00-naming-rules.md", "utf8")
-  : "";
+const dataDictionary = readIfExists(path.join(repoRoot, "03-it-handoff/current-docs/data-dictionary-en.md"));
+const namingRulesZh = readIfExists(path.join(repoRoot, "03-it-handoff/current-docs/it-handoff/zh-TW/00-naming-rules.md"));
 const dockerfile = fs.existsSync("Dockerfile") ? fs.readFileSync("Dockerfile", "utf8") : "";
-const macMiniCompose = fs.existsSync("../deploy/mac-mini/docker-compose.yml")
-  ? fs.readFileSync("../deploy/mac-mini/docker-compose.yml", "utf8")
-  : "";
-const sapPoRawCommitScript = fs.existsSync("scripts/commit-sap-po-raw-import.js")
-  ? fs.readFileSync("scripts/commit-sap-po-raw-import.js", "utf8")
-  : "";
+const macMiniCompose = readIfExists(path.join(repoRoot, "06-deployment/mac-mini/docker-compose.yml"));
+const sapPoRawCommitScript = readIfExists("scripts/commit-sap-po-raw-import.js");
 
 function between(source, start, end) {
   const startIndex = source.indexOf(start);
@@ -358,18 +359,6 @@ test("Contacts are topbar popup only, not a top-level view", () => {
   assert.doesNotMatch(app, /setView\("contacts"\)/);
 });
 
-test("UAT feedback triage owners are limited to Admin and OM Leader in UI fallback", () => {
-  const patchOwner = between(app, "async function patchUatFeedbackOwner", "function omTabLabel");
-  assert.match(patchOwner, /uatFeedbackTriageOwners\(\)\.find/);
-  assert.match(patchOwner, /Feedback owner must be Admin or OM Leader/);
-  const ownerHelper = between(app, "function uatFeedbackTriageOwners", "function omTabLabel");
-  assert.match(ownerHelper, /\["admin", "omLeader"\]\.includes\(user\.role\)/);
-  assert.match(ownerHelper, /user\.role === "omLeader"/);
-  const ownerOptions = between(app, "function uatFeedbackOwnerOptions", "function renderUatFeedbackReview");
-  assert.match(ownerOptions, /uatFeedbackTriageOwners\(\)\.forEach/);
-  assert.doesNotMatch(ownerOptions, /omAssignees\.forEach/);
-  assert.match(server, /Feedback owner must be Admin or OM Leader/);
-});
 
 test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   const departmentView = between(html, '<section class="view active" data-view="department">', '<section class="view" data-view="manager" data-approval-review-role="manager">');
@@ -956,19 +945,27 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   const omView = between(html, '<section class="view" data-view="om">', '<section class="view" data-view="buyer">');
   assert.match(omView, /Submission Dashboard/);
   assert.match(omView, /PAS Demand No/);
-  assert.match(omView, /PAS Quote Result/);
+  assert.match(omView, /Quote Result \/ Monitor/);
   assert.match(omView, /Export Package/);
-  assert.match(omView, /OM UAT Feedback/);
-  assert.match(omView, /data-action="openPageFeedback"/);
   assert.doesNotMatch(omView, /data-om-tab="uatFeedback"/);
   assert.doesNotMatch(omView, /data-om-panel="uatFeedback"/);
-  assert.match(omView, /data-om-tab="quoteExpiry"/);
-  assert.match(omView, /data-om-panel="quoteExpiry"/);
-  assert.match(omView, /Quote Expiry Monitor/);
+  assert.doesNotMatch(omView, /data-om-tab="quoteExpiry"/);
+  assert.doesNotMatch(omView, /data-om-panel="quoteExpiry"/);
+  assert.match(omView, /data-om-tab="quoteConfirm"/);
+  assert.match(omView, /data-om-panel="quoteConfirm"/);
   assert.match(omView, /class="mini approve om-rate-save"/);
   assert.match(omView, /om-rate-utility/);
+  assert.match(omView, /Monthly locked and globally applied/);
   assert.match(styles, /\.om-rate-grid \.om-rate-save/);
   assert.match(styles, /min-width:\s*84px/);
+  assert.match(omView, /data-om-pivot-mode="project"/);
+  assert.match(omView, /data-om-pivot-mode="item"/);
+  assert.match(omView, /id="omSubmissionItemFilter"/);
+  assert.match(omView, /id="omSubmissionScopeLabel"/);
+  assert.match(app, /function omSubmissionPivotMode/);
+  assert.match(app, /function omSubmissionPivotKey/);
+  assert.match(app, /function omSubmissionScopeLabel/);
+  assert.match(app, /omSubmissionPivotMode\(\) === "item"/);
   assert.match(omView, /Submitted \/ Received Date/);
   assert.match(omView, /Pending Owner/);
   assert.match(omView, /Days Pending/);
@@ -1005,7 +1002,16 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /data-om-field="pasDemandNo"/);
   assert.match(app, /Enter PAS Demand No first/);
   assert.match(app, /updateOmField\(requestId, "pasDemandNo", typedDemandNo\)/);
-  const quoteTable = between(omView, 'data-om-panel="quoteConfirm"', 'data-om-panel="quoteExpiry"');
+  const quoteTable = between(omView, 'data-om-panel="quoteConfirm"', 'data-om-panel="finalExport"');
+  assert.match(quoteTable, /Quote Monitor Summary/);
+  [
+    "Waiting PAS Reply",
+    "Missing Valid Until",
+    "Expiring Soon",
+    "Expired / Requote",
+    "Waiting Requester",
+    "Ready to Export",
+  ].forEach((label) => assert.match(quoteTable, new RegExp(label.replace("/", "\\/"))));
   assert.match(quoteTable, /om-quote-result-table/);
   assert.match(quoteTable, /om-quote-col-project/);
   assert.match(quoteTable, /om-quote-col-material/);
@@ -1025,6 +1031,9 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
     "Valid Until",
     "Files",
     "Completion / Missing",
+    "Current Blocker",
+    "Days in Stage",
+    "Next Action",
     "Assigned To",
     "Actions",
     "Detail",
@@ -1043,14 +1052,6 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /omQuoteResultReadOnlyReason/);
   assert.doesNotMatch(app, /Upload PDF/);
   assert.doesNotMatch(app, /Quote PDF/);
-  const quoteExpiryTable = between(omView, 'data-om-panel="quoteExpiry"', 'data-om-panel="finalExport"');
-  assert.match(quoteExpiryTable, /<th>Quote Valid Until<\/th>/);
-  assert.match(quoteExpiryTable, /<th>Days Left<\/th>/);
-  assert.match(quoteExpiryTable, /<th>Expiry Status<\/th>/);
-  assert.match(quoteExpiryTable, /<th>Assigned To<\/th>/);
-  assert.match(quoteExpiryTable, /<th>Next Action<\/th>/);
-  assert.doesNotMatch(quoteExpiryTable, /data-om-field="quoteValidUntil"/);
-  assert.doesNotMatch(quoteExpiryTable, /data-om-row-button-action="exportPackage"/);
   assert.match(app, /currentOmTab = "submission"/);
   assert.match(app, /allowedTabs\.has\(tabName\) \? tabName : "submission"/);
   const exportPanel = between(html, 'data-om-panel="finalExport"', '<section class="view" data-view="buyer">');
@@ -1063,47 +1064,21 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /editableMaterialNo: false/);
 });
 
-test("UAT feedback is a utility page and row detail action, not an OM workflow tab", () => {
-  assert.match(html, /data-view="uatFeedbackReview" data-roles="omLeader omMember admin"/);
-  assert.match(html, /data-action="openUatFeedbackReview"/);
-  assert.match(html, /My Feedback/);
-  assert.match(html, /id="uatFeedbackReviewTitle"/);
-  assert.match(html, /id="uatFeedbackReviewHelper"/);
-  assert.match(html, /id="uatFeedbackModal"/);
-  assert.match(html, /id="uatFeedbackForm"/);
-  assert.match(html, /id="uatFeedbackScreenshot"/);
-  assert.match(app, /screenshotFileName/);
-  assert.match(app, /function createUatFeedback/);
-  assert.match(app, /POST", body: payload/);
-  assert.match(app, /\/api\/uat-feedback\/my/);
-  assert.match(app, /\/api\/uat-feedback"/);
-  assert.match(app, /function renderUatFeedbackReview/);
-  assert.match(app, /function uatRowFeedbackSection/);
-  assert.match(app, /data-uat-row-feedback/);
-  assert.match(app, /if \(name === "uatFeedbackReview"\)/);
-  assert.match(app, /refreshUatFeedback\(\{ review: isUatFeedbackReviewer\(\), silent: true \}\)/);
-  assert.match(app, /isUatFeedbackReviewer/);
-  assert.match(app, /My UAT Feedback Status/);
-  assert.match(app, /Read Only/);
-  const omView = between(html, '<section class="view" data-view="om">', '<section class="view" data-view="uatFeedbackReview">');
-  assert.doesNotMatch(omView, /<th>Feedback<\/th>/);
+test("OM monthly exchange-rate owner and deferred export contract are explicit", () => {
+  assert.match(roleGuards, /GIANG_EXCHANGE_RATE_USER_ID/);
+  assert.match(roleGuards, /function canMaintainExchangeRate\(role, currentUserId/);
+  assert.match(roleGuards, /currentUserId === GIANG_EXCHANGE_RATE_USER_ID/);
+  assert.match(app, /function canMaintainOmExchangeRate/);
+  assert.match(app, /currentOmUserId\(\) === "om-member-giang"/);
+  assert.match(app, /latestPreviousExchangeRateRecord/);
+  assert.match(app, /exchangeRateMonthForQuote/);
+  assert.match(app, /quoteDate/);
+  assert.match(app, /Quote date month; fallback to latest previous locked rate/);
+  assert.doesNotMatch(app, />Export Excel<\/button>/);
+  assert.doesNotMatch(app, />Export CSV<\/button>/);
 });
 
-test("Admin console surfaces live UAT feedback and screenshot downloads", () => {
-  const adminView = between(html, '<section class="view" data-view="adminSetup">', '<section class="view" data-view="buyer">');
-  assert.match(adminView, /Admin Console/);
-  assert.match(adminView, /id="adminConsoleSummary"/);
-  assert.match(adminView, /id="adminConsoleFeedbackRows"/);
-  assert.match(adminView, /data-action="refreshAdminConsole"/);
-  assert.match(adminView, /attached screenshots/);
-  assert.match(app, /function renderAdminConsole/);
-  assert.match(app, /admin-feedback-full/);
-  assert.match(app, /function refreshAdminConsole/);
-  assert.match(app, /screenshotAttachmentId/);
-  assert.match(app, /uatFeedbackEvidenceHtml\(row\)/);
-  assert.match(app, /refreshUatFeedback\(\{ review: true, silent: false \}\)/);
-  assert.match(server, /JSON\.parse\(metadata\)/);
-});
+
 
 test("Admin UI surfaces SAP PO Raw import preview and UAT commit controls", () => {
   const adminView = between(html, '<section class="view" data-view="adminSetup">', '<section class="view" data-view="buyer">');
@@ -1144,7 +1119,7 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(schema, /CREATE TABLE IF NOT EXISTS users/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS sessions/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS om_assignments/);
-  assert.match(schema, /CREATE TABLE IF NOT EXISTS uat_feedback/);
+  assert.doesNotMatch(schema, /CREATE TABLE IF NOT EXISTS uat_feedback/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS attachments/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS audit_events/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS item_master/);
@@ -1202,7 +1177,7 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-contract\.js/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-importer\.js/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /scripts\/commit-sap-po-raw-import\.js/);
-  assert.match(server, /\/api\/uat-feedback/);
+  assert.doesNotMatch(server, /\/api\/uat-feedback/);
   assert.match(server, /\/api\/attachments/);
   assert.match(server, /\/api\/admin\/sap-po-raw-import\/status/);
   assert.match(server, /\/api\/admin\/sap-po-raw-import\/preview/);
@@ -1210,13 +1185,9 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(server, /sapPoRawImporter\.commitSapPoRawImport/);
   assert.match(server, /attachment\.uploaded/);
   assert.match(server, /UPLOAD_ROOT/);
-  assert.match(server, /canTriageUatFeedback/);
-  assert.match(server, /uat_feedback\.created/);
-  assert.match(server, /uat_feedback\.status_updated/);
-  assert.match(server, /uat_feedback\.owner_updated/);
+  assert.doesNotMatch(server, /canTriageUatFeedback/);
   assert.match(app, /function assignOmRow/);
   assert.match(app, /function uploadAttachment/);
-  assert.match(app, /screenshotAttachmentId/);
   assert.match(app, /function canOperateOmRow/);
   assert.match(html, /app-modules\/role-guards\.js/);
   assert.match(app, /ProcurementApp\?\.roleGuards\?\.canOperateOmRow/);

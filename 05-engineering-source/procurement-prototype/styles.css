@@ -4360,106 +4360,6 @@ a {
   max-height: min(90vh, 940px);
 }
 
-.uat-feedback-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border: 1px solid #d8e4ea;
-  background: #f8fbfc;
-}
-
-.uat-feedback-toolbar div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.uat-feedback-toolbar .uat-feedback-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.uat-feedback-toolbar span {
-  color: var(--muted);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.uat-feedback-card {
-  width: min(720px, calc(100vw - 48px));
-}
-
-.uat-feedback-form {
-  display: grid;
-  gap: 12px;
-}
-
-.uat-feedback-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px;
-  color: var(--muted);
-  font-size: 12px;
-  background: #f6fafc;
-  border: 1px solid #d8e4ea;
-}
-
-.uat-row-feedback-section {
-  display: grid;
-  gap: 8px;
-}
-
-.detail-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.uat-feedback-table th:nth-child(1),
-.uat-feedback-table td:nth-child(1) {
-  width: 96px;
-}
-
-.uat-feedback-table th:nth-child(5),
-.uat-feedback-table td:nth-child(5),
-.uat-feedback-table th:nth-child(6),
-.uat-feedback-table td:nth-child(6),
-.uat-feedback-table th:nth-child(8),
-.uat-feedback-table td:nth-child(8) {
-  width: 140px;
-}
-
-.uat-feedback-table select {
-  width: 100%;
-  min-width: 0;
-}
-
-.admin-console-table th:nth-child(1),
-.admin-console-table td:nth-child(1) {
-  width: 128px;
-}
-
-.admin-console-table th:nth-child(5),
-.admin-console-table td:nth-child(5),
-.admin-console-table th:nth-child(6),
-.admin-console-table td:nth-child(6),
-.admin-console-table th:nth-child(7),
-.admin-console-table td:nth-child(7) {
-  width: 140px;
-}
-
-.admin-console-table th:nth-child(4),
-.admin-console-table td:nth-child(4) {
-  min-width: 360px;
-}
 
 .sap-po-raw-import-table th,
 .sap-po-raw-import-table td {
@@ -4476,13 +4376,6 @@ a {
 .sap-po-raw-import-table th:nth-child(7),
 .sap-po-raw-import-table td:nth-child(7) {
   min-width: 220px;
-}
-
-.admin-feedback-full {
-  white-space: pre-wrap;
-  overflow: visible;
-  overflow-wrap: anywhere;
-  line-height: 1.45;
 }
 
 .item-picker-card {
@@ -6906,6 +6799,8 @@ tr.approval-pipeline-current td {
 .om-quote-result-table col.om-quote-col-date { width: 118px; }
 .om-quote-result-table col.om-quote-col-files { width: 150px; }
 .om-quote-result-table col.om-quote-col-status { width: 210px; }
+.om-quote-result-table col.om-quote-col-days { width: 124px; }
+.om-quote-result-table col.om-quote-col-action { width: 190px; }
 .om-quote-result-table col.om-quote-col-assignee { width: 170px; }
 .om-quote-result-table col.om-quote-col-actions { width: 112px; }
 .om-quote-result-table col.om-quote-col-detail { width: 80px; }
@@ -9044,6 +8939,39 @@ tr.approval-pipeline-current td {
   min-height: 30px;
   padding: 4px 10px;
   white-space: nowrap;
+}
+
+.om-rate-utility .rate-helper,
+.scope-label {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.om-pivot-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #eef4f7;
+}
+
+.om-pivot-toggle .segment {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  min-height: 30px;
+  padding: 0 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.om-pivot-toggle .segment.active {
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(11, 36, 54, 0.12);
 }
 
 @media (max-width: 760px) {

@@ -21,7 +21,6 @@ Frontend 不可直接連 MySQL。
 - server-authoritative role/session
 - OM assignment API
 - audit_events
-- UAT feedback API
 
 ## MySQL 最低 tables
 
@@ -29,7 +28,6 @@ Frontend 不可直接連 MySQL。
 - `sessions`
 - `audit_events`
 - `om_assignments`
-- `uat_feedback`
 
 後續 workflow tables 再逐步拆：
 
@@ -89,12 +87,11 @@ Quote evidence 規則：
 - Budget Approver decision
 - export package
 - warehouse stock in / candidate / lock / reject
-- feedback submit / triage
 - admin setup changes
 
 ## Frontend API 化策略
 
-- 先新增 API client layer 包住 `/api/me`、login/logout、assignment、feedback。
+- 先新增 API client layer 包住 `/api/me`、login/logout、assignment。
 - 現有 in-memory workflow 可暫留，逐步搬到 API。
 - UI 不應發明 API response shape；若 API 不合用，回報 spec mismatch。
 

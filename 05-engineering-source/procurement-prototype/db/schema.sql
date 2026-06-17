@@ -39,29 +39,6 @@ CREATE TABLE IF NOT EXISTS om_assignments (
   CONSTRAINT fk_om_assign_by FOREIGN KEY (assigned_by_user_id) REFERENCES users(id)
 );
 
-CREATE TABLE IF NOT EXISTS uat_feedback (
-  id VARCHAR(96) PRIMARY KEY,
-  submitted_by_user_id VARCHAR(64) NOT NULL,
-  page_key VARCHAR(120) NOT NULL,
-  row_scope_type VARCHAR(80),
-  row_scope_id VARCHAR(120),
-  row_scope_label VARCHAR(240),
-  category VARCHAR(80) NOT NULL DEFAULT 'general',
-  severity VARCHAR(40) NOT NULL DEFAULT 'medium',
-  feedback_text TEXT NOT NULL,
-  status VARCHAR(40) NOT NULL DEFAULT 'open',
-  owner_user_id VARCHAR(64) NULL,
-  metadata_json JSON,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_uat_feedback_submitter (submitted_by_user_id),
-  INDEX idx_uat_feedback_status (status),
-  INDEX idx_uat_feedback_owner (owner_user_id),
-  INDEX idx_uat_feedback_page_row (page_key, row_scope_type, row_scope_id),
-  CONSTRAINT fk_uat_feedback_submitter FOREIGN KEY (submitted_by_user_id) REFERENCES users(id),
-  CONSTRAINT fk_uat_feedback_owner FOREIGN KEY (owner_user_id) REFERENCES users(id)
-);
-
 CREATE TABLE IF NOT EXISTS attachments (
   id VARCHAR(96) PRIMARY KEY,
   linked_entity_type VARCHAR(80) NOT NULL,

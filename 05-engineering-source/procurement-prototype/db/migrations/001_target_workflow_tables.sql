@@ -1,5 +1,5 @@
 -- MVA procurement workflow persistence target tables.
--- Apply after procurement-prototype/db/schema.sql.
+-- Apply after 05-engineering-source/procurement-prototype/db/schema.sql.
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version VARCHAR(80) PRIMARY KEY,

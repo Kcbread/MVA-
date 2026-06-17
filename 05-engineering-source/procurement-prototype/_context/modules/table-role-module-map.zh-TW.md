@@ -95,7 +95,7 @@
 - Requester 隱藏採購內部欄位。
 - Dept DRI scope-limited review。
 - Cost Manager scoped cost authorization。
-- OM Leader assignment / exchange rate / feedback。
+- OM Leader assignment / exchange rate。
 - OM Purchasing assigned row only。
 - Budget Approver price/budget final approval。
 - Admin setup only。
@@ -134,15 +134,23 @@
 
 ### OMWorkflowTable
 
-封裝 PAS Demand No、PAS Quote Result、Quote Expiry、Export Package 的 shared row layout。
+封裝 PAS Demand No、Quote Result / Monitor、Export Package 的 shared row layout。Quote validity / expiry 是 `Quote Result / Monitor` 內的 warning / status layer，不再是 standalone tab。
 
 ### AssignmentControl
 
 OM Leader 專用 assignment control；OM Purchasing 不可使用。
 
-### FeedbackReviewTable
+## 全局統整 Checklist
 
-Admin + Mai review UAT feedback；Giang/Linh 只能提交與看自己的。
+若任務要求「統整 module / 角色 / 權限」，不可只列 module。必須同步列出：
+
+1. Feature：業務能力與使用者價值。
+2. Function：可操作動作或系統行為。
+3. Module：程式與文件維護邊界。
+4. Role：責任角色。
+5. Permission：view / create / edit / approve / assign / export / maintain / override。
+6. Workflow Status：pending owner、stage、days pending、next action。
+
 
 ## 新增表格 Checklist
 

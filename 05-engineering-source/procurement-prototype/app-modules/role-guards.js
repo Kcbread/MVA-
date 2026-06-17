@@ -201,12 +201,10 @@
     return isOmLeaderRole(role);
   }
 
-  function canMaintainExchangeRate(role) {
-    return isOmLeaderRole(role);
-  }
+  const GIANG_EXCHANGE_RATE_USER_ID = "om-member-giang";
 
-  function canTriageFeedback(role) {
-    return isOmLeaderRole(role);
+  function canMaintainExchangeRate(role, currentUserId = "") {
+    return isOmLeaderRole(role) || currentUserId === GIANG_EXCHANGE_RATE_USER_ID;
   }
 
   function canAdminSetup(role) {
@@ -281,8 +279,8 @@
     canViewCostAnalytics,
     canCostManagerAuthorize,
     canAssignOm,
+    GIANG_EXCHANGE_RATE_USER_ID,
     canMaintainExchangeRate,
-    canTriageFeedback,
     canAdminSetup,
     canViewWorkflowStatus,
     canViewInternalProcurementFields,

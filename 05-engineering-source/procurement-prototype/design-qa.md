@@ -19,7 +19,7 @@
 - Add a small non-blocking helper text under Login role if testers need to understand that choosing a role will switch the server session account.
 
 source visual truth path: unavailable
-implementation screenshot path: `/Users/kai-chenyang/Desktop/Codex /資料庫建置/procurement-prototype/test-artifacts/design-qa/login-role-dropdown-server.png`
+implementation screenshot path: `/Users/kai-chenyang/Desktop/Codex /資料庫建置/07-review-and-artifacts/prototype-test-artifacts/design-qa/login-role-dropdown-server.png`
 viewport: 1440x920
 state: server-rendered login screen at `http://127.0.0.1:4173/`
 full-view comparison evidence: blocked because no source visual target was provided

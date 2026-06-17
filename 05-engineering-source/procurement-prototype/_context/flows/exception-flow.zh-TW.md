@@ -40,7 +40,7 @@
 - Quote Excel 仍必須保留。
 - Quote date 與 quote received date 視為同一天。
 - Quote expiry warning threshold = 10 days。
-- Quote Expiry tab 是 OM tracking tab，不是 workflow gate。
+- Quote validity / expiry monitor 屬於 OM `Quote Result / Monitor`，不是 standalone tab，也不是 workflow gate。
 
 ## UI 透明度
 

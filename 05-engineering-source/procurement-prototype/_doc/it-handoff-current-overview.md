@@ -11,7 +11,7 @@ Latest review: 2026-06-15.
 | Requester | Create demand, add item/spec rows, track own requests | Worksheet qty, Need Date, request action, temporary budget estimate, warehouse/carryover candidate | Safe workflow status, pending owner, high-level timeline |
 | Dept DRI | First scoped business review | Approve/reject requester submissions, unit-owned warehouse/carryover candidate, price exception first review, audited quantity direct edit | Submission context, quantity evidence, price exception summary |
 | Cost Manager | Final cost authorization after Dept DRI | Authorize/reject, audited quantity direct edit | Cost Review evidence, Demand Cost Dashboard, Station Matrix, review history |
-| OM Leader | OM work management | Assignment, reassignment, exchange rate, feedback triage | All OM rows and workload status |
+| OM Leader | OM work management | Assignment, reassignment, exchange rate, OM orchestration | All OM rows and workload status |
 | OM Purchasing | Assigned OM execution | PAS Demand No, PAS Quote Result, quote screenshot/image, quote Excel, quote validity, Export Package | Assigned row context, quote expiry, export readiness |
 | Budget Approver | Final price/budget exception approval | Final approve/reject after Dept DRI price review, audited quantity direct edit | Budget exception evidence and quantity review |
 | Admin | System setup and governance | Users, roles, requester mapping, thresholds, approval chains, OM setup, audit/feedback setup | Setup/audit state |
@@ -69,5 +69,5 @@ rounded(quoteUnitPriceUsd - historyUnitPriceUsd, 2) > 0.40
 ## Current Prototype Risks
 
 - Prototype workflow state is still partly frontend/in-memory; IT must implement production backend/API persistence, auth, tenant isolation, transactions, and audit history.
-- Current implemented backend covers auth/session, UAT feedback, OM assignment, attachment metadata/local retention, audit events, item/material/FTV/customs support tables, and SAP PO raw mirror tables.
+- Current implemented backend covers auth/session, OM assignment, attachment metadata/local retention, audit events, item/material/FTV/customs support tables, and SAP PO raw mirror tables.
 - Existing zip artifacts may be older than the 2026-06-15 live Markdown review. Rebuild packaged handoff artifacts before treating them as current.

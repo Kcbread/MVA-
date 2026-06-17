@@ -2,22 +2,20 @@
 
 ## 商業定位
 
-OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、派工、匯率維護、UAT feedback triage，以及必要時查看全部 OM rows。
+OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、派工、匯率 override / backup、UAT OM orchestration，以及必要時查看全部 OM rows。
 
 ## 可看資訊
 
 - 所有 OM rows 與 assignment。
-- Submission Dashboard / Quote Expiry / Export Package 的高階進度。
-- exchange rate 狀態。
-- UAT feedback review。
+- Submission Dashboard / Quote Result / Monitor / Export Package 的高階進度。
+- monthly locked exchange rate 狀態。
 - Giang / Linh 的 assigned workload。
 
 ## 可操作功能
 
 - Assign / reassign / clear OM row assignee。
-- 維護 USD/VND exchange rate。
+- Override / backup 維護 monthly locked USD/VND exchange rate；日常輸入 owner 是 Giang。
 - 查看全部 OM 進度與 risk。
-- Triage feedback，改 status/owner。
 
 ## 不可看 / 不可做
 
@@ -30,13 +28,12 @@ OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、�
 - OM Submission Dashboard
 - Assignment Control
 - Exchange Rate Utility
-- Quote Expiry Monitor
-- UAT Feedback Review
+- Quote Result / Monitor
 
 ## 資料輸入 / 輸出
 
-- 輸入：assignment、exchange rate、feedback triage status。
-- 輸出：OM assignee、audit events、active exchange rate、feedback owner/status。
+- 輸入：assignment、exchange rate override、OM orchestration status。
+- 輸出：OM assignee、audit events、monthly locked exchange rate。
 
 ## 常見風險
 
@@ -48,9 +45,9 @@ OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、�
 
 - Mai 可 assign / reassign / clear。
 - Giang / Linh 不可派工。
-- Exchange rate 只有 Mai / Admin 可改。
-- Mai 看到全部 OM rows 與 feedback；OM Purchasing 只看 assigned rows。
+- Monthly exchange rate 由 Giang 輸入並全局套用；Mai / Admin 可 override，Linh 預設不可維護。
+- Mai 看到全部 OM rows；OM Purchasing 只看 assigned rows。
 
 ## Compact Handoff
 
-OM Leader is Mai: assignment, exchange rate, tracking, feedback triage. It sees all OM work but should not become a hidden business approver or default quote operator.
+OM Leader is Mai: assignment, exchange rate, tracking, OM orchestration. It sees all OM work but should not become a hidden business approver or default quote operator.

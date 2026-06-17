@@ -53,7 +53,7 @@
     return [
       process.env.SAP_PO_RAW_WORKBOOK_PATH,
       path.join(path.dirname(root), DEFAULT_WORKBOOK_BASENAME),
-      path.join(path.dirname(root), "檔案範例", DEFAULT_WORKBOOK_BASENAME),
+      path.resolve(root, "..", "..", "04-business-reference", "sample-files", DEFAULT_WORKBOOK_BASENAME),
     ].filter(Boolean);
   }
 

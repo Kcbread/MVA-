@@ -2,7 +2,7 @@
 
 ## 商業定位
 
-Admin 是系統設定與治理角色。它管理 users、roles、mapping、threshold、approval chain、OM members、audit 與 feedback setup，但不做 business approval。
+Admin 是系統設定與治理角色。它管理 users、roles、mapping、threshold、approval chain、OM members 與 audit setup，但不做 business approval。
 
 ## 可看資訊
 
@@ -12,7 +12,7 @@ Admin 是系統設定與治理角色。它管理 users、roles、mapping、thres
 - Approval chain。
 - price threshold，例如 History Price Delta Threshold = 0.40 USD。
 - OM Leader / OM Purchasing 成員與 assignment 設定。
-- audit events、feedback review setup。
+- audit events。
 
 ## 可操作功能
 
@@ -20,7 +20,7 @@ Admin 是系統設定與治理角色。它管理 users、roles、mapping、thres
 - 設定 requester mapping 與 Dept DRI scope。
 - 設定 price threshold / approval chain。
 - 設定 OM assignment rule。
-- 查看 audit / feedback。
+- 查看 audit。
 
 ## 不可看 / 不可做
 
@@ -58,4 +58,4 @@ Admin 是系統設定與治理角色。它管理 users、roles、mapping、thres
 
 ## Compact Handoff
 
-Admin owns setup and governance only: users, roles, mappings, thresholds, approval chains, OM setup, audit/feedback. It must not silently perform business approvals.
+Admin owns setup and governance only: users, roles, mappings, thresholds, approval chains, OM setup, and audit. It must not silently perform business approvals.

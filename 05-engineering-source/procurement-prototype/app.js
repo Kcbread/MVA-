@@ -470,9 +470,9 @@ const roleCapabilityMatrix = [
   },
   {
     role: "OM Leader",
-    owns: "OM intake, assignment, exchange rate, feedback triage",
+    owns: "OM intake, assignment, exchange rate",
     canApprove: "No business approval",
-    canOperate: "Assign / monitor OM rows, maintain exchange rate, review OM feedback",
+    canOperate: "Assign / monitor OM rows and maintain exchange rate",
     visibility: "OM queue, assignee, quote progress, export readiness",
     nextAction: "Assign stuck rows and watch SLA / quote expiry",
   },
@@ -516,7 +516,6 @@ const pageTitles = {
   manager: "Demand Review",
   procurement: "MFG Demand Coordination",
   om: "OM Purchasing",
-  uatFeedbackReview: "UAT Feedback Review",
   priceReview: "Price Review",
   sourcing: "Sourcing RFQ",
   buyer: "Buyer PR / PO",
@@ -539,12 +538,11 @@ const roleWorkspaceConfigs = {
   omLeader: {
     mainViews: ["om", "projectStatus"],
     defaultOmTab: "submission",
-    omTabs: ["submission", "pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"],
+    omTabs: ["submission", "pasRequest", "quoteConfirm", "finalExport"],
     omTabLabels: {
-      submission: "Intake Monitor",
+      submission: "Submission Dashboard",
       pasRequest: "PAS Demand No",
-      quoteConfirm: "Quote Result",
-      quoteExpiry: "Quote Monitor",
+      quoteConfirm: "Quote Result / Monitor",
       finalExport: "Export Package",
     },
     showOmRateUtility: true,
@@ -555,14 +553,13 @@ const roleWorkspaceConfigs = {
   omMember: {
     mainViews: ["om", "projectStatus"],
     defaultOmTab: "pasRequest",
-    omTabs: ["pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"],
+    omTabs: ["pasRequest", "quoteConfirm", "finalExport"],
     omTabLabels: {
       pasRequest: "My Intake",
-      quoteConfirm: "My Quotes",
-      quoteExpiry: "Quote Monitor",
+      quoteConfirm: "My Quote Result / Monitor",
       finalExport: "My Exports",
     },
-    showOmRateUtility: false,
+    showOmRateUtility: true,
     showOmSubmissionSummary: false,
     showOmSubmissionTriage: false,
     showOmSubmissionExpiryMonitor: false,
@@ -674,7 +671,7 @@ function syncManagerWorkspaceUi(role = currentRole) {
 
 function syncOmWorkspaceUi(role = currentRole) {
   const config = workspaceConfigForRole(role);
-  const visibleTabs = new Set(config.omTabs || ["submission", "pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"]);
+  const visibleTabs = new Set(config.omTabs || ["submission", "pasRequest", "quoteConfirm", "finalExport"]);
   document.querySelectorAll("[data-om-tab]").forEach((tab) => {
     const label = config.omTabLabels?.[tab.dataset.omTab];
     if (label) tab.textContent = label;
@@ -1030,9 +1027,6 @@ let omAssignees = [
 ];
 let omAssignmentMap = new Map();
 let selectedOmOperatorId = "om-member-giang";
-let uatFeedbackRows = [];
-let localUatFeedbackRows = [];
-let activeUatFeedbackContext = null;
 let currentView = "department";
 let currentProject = "P26";
 let currentProjectCode = "";
@@ -1062,6 +1056,7 @@ const expandedManagerQuantityRows = new Set();
 const expandedDemandEditorCarryoverRows = new Set();
 let currentHandoffTab = "queue";
 let currentOmTab = "submission";
+let currentOmSubmissionPivotMode = "project";
 let currentPriceReviewTab = "pending";
 let currentPriceReviewQueue = "submission";
 let selectedProjectStatusScope = { requestId: "", unit: "", mode: "mfg" };
@@ -2308,266 +2303,14 @@ async function hydrateWorkflowReviewRows(role = currentRole, { silent = true } =
   }
 }
 
-function normalizeUatFeedbackRow(row = {}) {
-  return {
-    id: row.id || `local-feedback-${Date.now()}`,
-    submittedByUserId: row.submittedByUserId || row.submitted_by_user_id || "",
-    submittedByName: row.submittedByName || row.submitted_by_name || row.submittedByUserName || "",
-    pageKey: row.pageKey || row.page_key || "",
-    rowScopeType: row.rowScopeType || row.row_scope_type || "",
-    rowScopeId: row.rowScopeId || row.row_scope_id || "",
-    rowScopeLabel: row.rowScopeLabel || row.row_scope_label || "",
-    category: row.category || "general",
-    severity: row.severity || "medium",
-    feedbackText: row.feedbackText || row.feedback_text || "",
-    status: row.status || "open",
-    ownerUserId: row.ownerUserId || row.owner_user_id || "",
-    ownerName: row.ownerName || row.owner_name || "",
-    metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : {},
-    createdAt: row.createdAt || row.created_at || new Date().toISOString(),
-    updatedAt: row.updatedAt || row.updated_at || row.createdAt || row.created_at || new Date().toISOString(),
-  };
-}
-
-function currentFeedbackUser() {
-  return sessionUserFromRole(currentRole);
-}
-
-function isUatFeedbackReviewer(role = currentRole) {
-  return isOmLeaderRole(role);
-}
-
-function feedbackPayloadRows(payload = {}) {
-  return (payload.feedback || payload.feedbackRows || []).map(normalizeUatFeedbackRow);
-}
-
-async function fetchUatFeedbackRows({ review = false, silent = false } = {}) {
-  try {
-    if (apiModeEnabled()) {
-      const payload = await apiRequest(review ? "/api/uat-feedback" : "/api/uat-feedback/my");
-      uatFeedbackRows = feedbackPayloadRows(payload);
-    } else {
-      const user = currentFeedbackUser();
-      uatFeedbackRows = localUatFeedbackRows
-        .filter((row) => review || row.submittedByUserId === user.id)
-        .map(normalizeUatFeedbackRow)
-        .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
-    }
-  } catch (error) {
-    if (!silent) showToast(`UAT feedback unavailable: ${error.message}`, "error");
-  }
-  return uatFeedbackRows;
-}
-
-async function createUatFeedback(payload) {
-  if (apiModeEnabled()) {
-    const response = await apiRequest("/api/uat-feedback", { method: "POST", body: payload });
-    return normalizeUatFeedbackRow(response.feedback || response);
-  }
-  const user = currentFeedbackUser();
-  const feedback = normalizeUatFeedbackRow({
-    id: `UAT-FB-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
-    submittedByUserId: user.id,
-    submittedByName: user.name,
-    ...payload,
-    status: "open",
-  });
-  localUatFeedbackRows = [feedback, ...localUatFeedbackRows];
-  uatFeedbackRows = [feedback, ...uatFeedbackRows];
-  return feedback;
-}
-
-async function patchUatFeedbackStatus(feedbackId, status) {
-  if (apiModeEnabled()) {
-    const response = await apiRequest(`/api/uat-feedback/${encodeURIComponent(feedbackId)}/status`, { method: "PATCH", body: { status } });
-    return normalizeUatFeedbackRow(response.feedback || response);
-  }
-  const updatedAt = new Date().toISOString();
-  localUatFeedbackRows = localUatFeedbackRows.map((row) => row.id === feedbackId ? { ...row, status, updatedAt } : row);
-  uatFeedbackRows = uatFeedbackRows.map((row) => row.id === feedbackId ? { ...row, status, updatedAt } : row);
-  return uatFeedbackRows.find((row) => row.id === feedbackId);
-}
-
-async function patchUatFeedbackOwner(feedbackId, ownerUserId) {
-  const owner = uatFeedbackTriageOwners().find((user) => user.id === ownerUserId);
-  if (ownerUserId && !owner) {
-    throw new Error("Feedback owner must be Admin or OM Leader.");
-  }
-  if (apiModeEnabled()) {
-    const response = await apiRequest(`/api/uat-feedback/${encodeURIComponent(feedbackId)}/owner`, { method: "PATCH", body: { ownerUserId } });
-    return normalizeUatFeedbackRow(response.feedback || response);
-  }
-  const updatedAt = new Date().toISOString();
-  localUatFeedbackRows = localUatFeedbackRows.map((row) => row.id === feedbackId ? { ...row, ownerUserId, ownerName: owner?.name || "", updatedAt } : row);
-  uatFeedbackRows = uatFeedbackRows.map((row) => row.id === feedbackId ? { ...row, ownerUserId, ownerName: owner?.name || "", updatedAt } : row);
-  return uatFeedbackRows.find((row) => row.id === feedbackId);
-}
-
-function uatFeedbackTriageOwners() {
-  const owners = [
-    ...adminApprovalSetup.users.filter((user) => ["admin", "omLeader"].includes(user.role)),
-    ...omAssignees.filter((user) => user.role === "omLeader"),
-  ];
-  return Array.from(new Map(owners.map((user) => [user.id, user])).values());
-}
-
 function omTabLabel(tab = currentOmTab) {
   const labels = {
     submission: "Submission Dashboard",
     pasRequest: "PAS Demand No",
-    quoteConfirm: "PAS Quote Result",
-    quoteExpiry: "Quote Expiry",
+    quoteConfirm: "Quote Result / Monitor",
     finalExport: "Export Package",
   };
   return labels[tab] || tab || "OM";
-}
-
-function activeOmFilterMetadata() {
-  return {
-    omTab: currentOmTab,
-    omTabLabel: omTabLabel(),
-    projectFilter: document.getElementById("omSubmissionProjectFilter")?.value
-      || document.getElementById("omProjectFilter")?.value
-      || document.getElementById("omFinalExportProjectFilter")?.value
-      || "",
-    packageFilter: document.getElementById("omFinalExportProjectFilter")?.value || "",
-    role: currentRole,
-    roleName: roleProfiles[currentRole]?.name || currentRole,
-    currency: currencyDisplay,
-    capturedAt: new Date().toISOString(),
-  };
-}
-
-function feedbackReviewRows() {
-  return isUatFeedbackReviewer() ? uatFeedbackRows : uatFeedbackRows.filter((row) => row.submittedByUserId === currentFeedbackUser().id);
-}
-
-function feedbackRowsForRequest(requestId) {
-  return uatFeedbackRows.filter((row) => row.rowScopeId === requestId);
-}
-
-function uatFeedbackEvidenceHtml(row) {
-  const screenshotName = row.metadata?.screenshotFileName || "";
-  const screenshotLink = attachmentLinkHtml(
-    screenshotName,
-    row.metadata?.screenshotAttachmentId,
-    row.metadata?.screenshotDownloadUrl,
-    { allowDownload: true },
-  );
-  return screenshotLink || htmlText(row.metadata?.evidence || "No screenshot metadata");
-}
-
-function openUatFeedbackModal(context = {}) {
-  activeUatFeedbackContext = {
-    scope: context.scope || "page",
-    pageKey: context.pageKey || `om-${currentOmTab}`,
-    rowScopeType: context.rowScopeType || (context.requestId ? "request" : "page"),
-    rowScopeId: context.rowScopeId || context.requestId || currentOmTab,
-    rowScopeLabel: context.rowScopeLabel || (context.requestId ? `Request ${context.requestId}` : `OM / ${omTabLabel()}`),
-    metadata: {
-      ...activeOmFilterMetadata(),
-      ...(context.metadata || {}),
-    },
-  };
-  const modal = document.getElementById("uatFeedbackModal");
-  const subtitle = document.getElementById("uatFeedbackSubtitle");
-  const meta = document.getElementById("uatFeedbackMetadata");
-  const text = document.getElementById("uatFeedbackText");
-  const evidence = document.getElementById("uatFeedbackEvidence");
-  const screenshot = document.getElementById("uatFeedbackScreenshot");
-  if (subtitle) subtitle.textContent = `${activeUatFeedbackContext.scope === "row" ? "Row" : "Page"} feedback · ${activeUatFeedbackContext.rowScopeLabel}`;
-  if (meta) {
-    meta.innerHTML = `
-      <span>Role: ${htmlText(activeUatFeedbackContext.metadata.roleName)}</span>
-      <span>OM Tab: ${htmlText(activeUatFeedbackContext.metadata.omTabLabel)}</span>
-      <span>Scope: ${htmlText(activeUatFeedbackContext.rowScopeLabel)}</span>
-      <span>Timestamp: ${compactDateTime(activeUatFeedbackContext.metadata.capturedAt)}</span>`;
-  }
-  if (text) text.value = "";
-  if (evidence) evidence.value = "";
-  if (screenshot) screenshot.value = "";
-  if (modal) modal.hidden = false;
-}
-
-function closeUatFeedbackModal() {
-  const modal = document.getElementById("uatFeedbackModal");
-  if (modal) modal.hidden = true;
-  activeUatFeedbackContext = null;
-}
-
-async function submitUatFeedback(event) {
-  event.preventDefault();
-  if (!activeUatFeedbackContext) return;
-  const feedbackText = document.getElementById("uatFeedbackText")?.value.trim() || "";
-  if (!feedbackText) {
-    showToast("Write feedback before submit.", "error");
-    return;
-  }
-  const evidence = document.getElementById("uatFeedbackEvidence")?.value.trim() || "";
-  const screenshotFile = document.getElementById("uatFeedbackScreenshot")?.files?.[0] || null;
-  const screenshotMetadata = screenshotFile ? {
-    screenshotFileName: screenshotFile.name,
-    screenshotFileType: screenshotFile.type || "image/*",
-    screenshotFileSize: screenshotFile.size || 0,
-    screenshotCapturedAt: new Date().toISOString(),
-  } : {};
-  const payload = {
-    pageKey: activeUatFeedbackContext.pageKey,
-    rowScopeType: activeUatFeedbackContext.rowScopeType,
-    rowScopeId: activeUatFeedbackContext.rowScopeId,
-    rowScopeLabel: activeUatFeedbackContext.rowScopeLabel,
-    category: document.getElementById("uatFeedbackCategory")?.value || "general",
-    severity: document.getElementById("uatFeedbackSeverity")?.value || "medium",
-    feedbackText,
-    metadata: {
-      ...activeUatFeedbackContext.metadata,
-      evidence,
-      ...screenshotMetadata,
-    },
-  };
-  try {
-    if (screenshotFile && apiModeEnabled()) {
-      const attachment = await uploadAttachment(screenshotFile, {
-        linkedEntityType: "uat_feedback",
-        linkedEntityId: activeUatFeedbackContext.rowScopeId || activeUatFeedbackContext.pageKey,
-        attachmentKind: "uat_screenshot",
-        visibilityScope: "uat_feedback",
-        metadata: {
-          pageKey: payload.pageKey,
-          rowScopeType: payload.rowScopeType,
-          rowScopeId: payload.rowScopeId,
-          category: payload.category,
-          severity: payload.severity,
-        },
-      });
-      payload.metadata = {
-        ...payload.metadata,
-        screenshotAttachmentId: attachment?.id || "",
-        screenshotDownloadUrl: attachment?.downloadUrl || "",
-        screenshotStoredAt: attachment?.createdAt || new Date().toISOString(),
-      };
-    }
-    const feedback = await createUatFeedback(payload);
-    closeUatFeedbackModal();
-    await fetchUatFeedbackRows({ review: isUatFeedbackReviewer(), silent: true });
-    renderUatFeedbackReview();
-    renderOmFeedbackUtility();
-    showToast(`Feedback submitted: ${feedback.id.slice(0, 8)}`, "success");
-  } catch (error) {
-    showToast(`Feedback submit failed: ${error.message}`, "error");
-  }
-}
-
-function renderOmFeedbackUtility() {
-  const scope = document.getElementById("omFeedbackScope");
-  if (!scope) return;
-  const openCount = uatFeedbackRows.filter((row) => row.status !== "resolved" && row.status !== "dismissed").length;
-  const ownerText = currentRole === "omMember"
-    ? "Assigned execution workspace; submit page feedback when flow blocks your work"
-    : isUatFeedbackReviewer()
-      ? "Review all UAT feedback"
-      : "Submit feedback and track your own status";
-  scope.textContent = `${omTabLabel()} · ${ownerText}${openCount ? ` · ${openCount} open` : ""}`;
 }
 
 function renderOmWorkspaceBanner() {
@@ -2619,135 +2362,6 @@ function renderOmWorkspaceBanner() {
     </section>`;
 }
 
-function renderUatFeedbackSummary(rows = feedbackReviewRows()) {
-  const target = document.getElementById("uatFeedbackSummary");
-  if (!target) return;
-  const cards = [
-    ["Open", rows.filter((row) => row.status === "open").length],
-    ["In Review", rows.filter((row) => row.status === "in_review").length],
-    ["Resolved", rows.filter((row) => row.status === "resolved").length],
-    ["High / Critical", rows.filter((row) => ["high", "critical"].includes(row.severity)).length],
-  ];
-  target.innerHTML = cards.map(([label, value]) => `
-    <article class="summary-card">
-      <span>${label}</span>
-      <strong>${value}</strong>
-    </article>`).join("");
-}
-
-function renderAdminConsole() {
-  const summary = document.getElementById("adminConsoleSummary");
-  const body = document.getElementById("adminConsoleFeedbackRows");
-  if (!summary && !body) return;
-  const rows = [...uatFeedbackRows].sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
-  if (summary) {
-    const cards = [
-      ["Total Feedback", rows.length],
-      ["Open", rows.filter((row) => row.status === "open").length],
-      ["In Review", rows.filter((row) => row.status === "in_review").length],
-      ["With Screenshot", rows.filter((row) => row.metadata?.screenshotAttachmentId || row.metadata?.screenshotDownloadUrl).length],
-    ];
-    summary.innerHTML = cards.map(([label, value]) => `
-      <article class="summary-card">
-        <span>${label}</span>
-        <strong>${value}</strong>
-      </article>`).join("");
-  }
-  if (!body) return;
-  body.innerHTML = rows.length ? rows.map((row) => `
-    <tr>
-      <td>${compactDateTime(row.createdAt)}<div class="reason-text">${htmlText(row.id.slice(0, 8))}</div></td>
-      <td><strong>${htmlText(row.submittedByName || row.submittedByUserId)}</strong><div class="reason-text">${htmlText(row.submittedByUserId)}</div></td>
-      <td>${htmlText(row.pageKey)}<div class="reason-text">${htmlText(row.rowScopeLabel || row.rowScopeId || row.rowScopeType || "Page")}</div></td>
-      <td class="admin-console-feedback-cell"><div class="admin-feedback-full">${htmlText(row.feedbackText)}</div><div class="reason-text">${htmlText(row.category)} · ${htmlText(row.severity)}</div></td>
-      <td>${uatFeedbackEvidenceHtml(row)}</td>
-      <td><span class="status-pill ${statusClass(row.status)}">${htmlText(row.status.replace("_", " "))}</span></td>
-      <td>${htmlText(row.ownerName || "Unassigned")}</td>
-    </tr>`).join("") : `<tr><td colspan="7" class="empty-cell">No UAT feedback yet. Ask OM Leader or OM Purchasing to submit feedback from the OM page.</td></tr>`;
-}
-
-function uatFeedbackOwnerOptions(selected = "") {
-  const options = [`<option value="">Unassigned</option>`];
-  uatFeedbackTriageOwners().forEach((user) => {
-    const label = user.role === "admin" ? "Admin" : "OM Leader";
-    options.push(`<option value="${htmlAttr(user.id)}" ${user.id === selected ? "selected" : ""}>${htmlText(user.name)} · ${label}</option>`);
-  });
-  return options.join("");
-}
-
-function renderUatFeedbackReview() {
-  if (currentView !== "uatFeedbackReview" && !document.getElementById("uatFeedbackRows")) return;
-  const reviewer = isUatFeedbackReviewer();
-  const rows = feedbackReviewRows();
-  const title = document.getElementById("uatFeedbackReviewTitle");
-  const helper = document.getElementById("uatFeedbackReviewHelper");
-  if (title) title.textContent = reviewer ? "UAT Feedback Review" : "My UAT Feedback Status";
-  if (helper) {
-    helper.textContent = reviewer
-      ? "Admin and OM Leader triage page and row feedback from OM internal testing. This is a utility page, not an OM workflow tab."
-      : "Track feedback you submitted during OM internal testing. Mai/Admin triage owner and status updates are read-only here.";
-  }
-  renderUatFeedbackSummary(rows);
-  const target = document.getElementById("uatFeedbackRows");
-  if (!target) return;
-  target.innerHTML = rows.length ? rows.map((row) => `
-    <tr>
-      <td><strong>${htmlText(row.id.slice(0, 8))}</strong><div class="reason-text">${htmlText(row.category)} · ${htmlText(row.severity)}</div></td>
-      <td>${htmlText(row.pageKey)}<div class="reason-text">${htmlText(row.rowScopeLabel || row.rowScopeId || row.rowScopeType || "Page")}</div></td>
-      <td>${htmlText(row.submittedByName || row.submittedByUserId)}<div class="reason-text">${htmlText(row.submittedByUserId)}</div></td>
-      <td>
-        <div class="cell-note-summary" title="${htmlAttr(row.feedbackText)}">${htmlText(row.feedbackText)}</div>
-        <div class="reason-text">${uatFeedbackEvidenceHtml(row)}</div>
-      </td>
-      <td>
-        ${reviewer
-          ? `<select data-uat-feedback-status="${htmlAttr(row.id)}">
-              ${["open", "in_review", "resolved", "dismissed"].map((status) => `<option value="${status}" ${row.status === status ? "selected" : ""}>${status.replace("_", " ")}</option>`).join("")}
-            </select>`
-          : `<span class="status-pill ${statusClass(row.status)}">${htmlText(row.status.replace("_", " "))}</span>`}
-      </td>
-      <td>${reviewer
-        ? `<select data-uat-feedback-owner="${htmlAttr(row.id)}">${uatFeedbackOwnerOptions(row.ownerUserId)}</select>`
-        : `<strong>${htmlText(row.ownerName || "Unassigned")}</strong>`}</td>
-      <td>${compactDateTime(row.createdAt)}<div class="reason-text">Updated ${compactDateTime(row.updatedAt)}</div></td>
-      <td>${reviewer ? `<button class="mini approve" type="button" data-uat-feedback-save="${htmlAttr(row.id)}">Save</button>` : `<span class="status-pill info">Read Only</span>`}</td>
-    </tr>`).join("") : `<tr><td colspan="8" class="empty-cell">No UAT feedback yet.</td></tr>`;
-  renderAdminConsole();
-}
-
-async function refreshUatFeedback({ review = isUatFeedbackReviewer(), silent = false } = {}) {
-  await fetchUatFeedbackRows({ review, silent });
-  renderUatFeedbackReview();
-  renderAdminConsole();
-  renderOmFeedbackUtility();
-}
-
-async function refreshAdminConsole() {
-  if (currentRole !== "admin") {
-    showToast("Admin console is available to Admin only.", "error");
-    return;
-  }
-  await refreshUatFeedback({ review: true, silent: false });
-  showToast("Admin console refreshed.", "success");
-}
-
-async function saveUatFeedbackReview(feedbackId) {
-  if (!isUatFeedbackReviewer()) {
-    showToast("Only OM Leader or Admin can triage feedback.", "error");
-    return;
-  }
-  const status = document.querySelector(`[data-uat-feedback-status="${CSS.escape(feedbackId)}"]`)?.value || "open";
-  const ownerUserId = document.querySelector(`[data-uat-feedback-owner="${CSS.escape(feedbackId)}"]`)?.value || "";
-  try {
-    await patchUatFeedbackStatus(feedbackId, status);
-    await patchUatFeedbackOwner(feedbackId, ownerUserId);
-    await refreshUatFeedback({ review: true, silent: true });
-    showToast("Feedback triage updated.", "success");
-  } catch (error) {
-    showToast(`Feedback update failed: ${error.message}`, "error");
-  }
-}
-
 function testLoginAccountForRole(role) {
   return testLoginRoleAccounts[role] || "";
 }
@@ -2784,7 +2398,6 @@ async function loginWithApi(identifier, password, role = "") {
   apiSessionReady = true;
   await hydrateOmAssignmentState(payload.user?.role || role);
   await hydrateWorkflowReviewRows(payload.user?.role || role);
-  await refreshUatFeedback({ review: ["omLeader", "admin"].includes(payload.user?.role), silent: true });
   return payload.user;
 }
 
@@ -2812,7 +2425,6 @@ async function restoreApiSession() {
     apiSessionReady = true;
     await hydrateOmAssignmentState(payload.user?.role);
     await hydrateWorkflowReviewRows(payload.user?.role);
-    await refreshUatFeedback({ review: ["omLeader", "admin"].includes(payload.user?.role), silent: true });
     setScreen("workspace");
     if (roleSelect && payload.user?.role) roleSelect.value = payload.user.role;
     if (payload.user?.role === "omMember" && payload.user?.id) selectedOmOperatorId = payload.user.id;
@@ -2831,8 +2443,16 @@ function activeExchangeRateMonth() {
 
 function exchangeRateRecord(month = activeExchangeRateMonth()) {
   return monthlyExchangeRates.find((row) => row.exchangeRateMonth === month)
-    || monthlyExchangeRates.find((row) => row.exchangeRateMonth === DEFAULT_EXCHANGE_RATE_MONTH)
+    || latestPreviousExchangeRateRecord(month)
     || { exchangeRateMonth: month, usdToVndRate: OM_EXCHANGE_RATE_VND_USD, isFallback: true };
+}
+
+function latestPreviousExchangeRateRecord(month = activeExchangeRateMonth()) {
+  return [...monthlyExchangeRates]
+    .filter((row) => row.exchangeRateMonth && row.exchangeRateMonth <= month)
+    .sort((left, right) => right.exchangeRateMonth.localeCompare(left.exchangeRateMonth))[0]
+    || monthlyExchangeRates.find((row) => row.exchangeRateMonth === DEFAULT_EXCHANGE_RATE_MONTH)
+    || null;
 }
 
 function currentUsdToVndRate() {
@@ -2851,8 +2471,14 @@ function budgetApprovedExchangeRateMonth(row = {}) {
     || activeExchangeRateMonth();
 }
 
+function exchangeRateMonthForQuote(row = {}) {
+  // Quote date month; fallback to latest previous locked rate.
+  return monthKeyFromDate(row.quoteDate || row.quoteReceivedAt || row.quoteCompletionReadyAt)
+    || budgetApprovedExchangeRateMonth(row);
+}
+
 function usdToVndRateForRow(row = {}) {
-  return Number(exchangeRateRecord(budgetApprovedExchangeRateMonth(row)).usdToVndRate || OM_EXCHANGE_RATE_VND_USD);
+  return Number(exchangeRateRecord(exchangeRateMonthForQuote(row)).usdToVndRate || OM_EXCHANGE_RATE_VND_USD);
 }
 
 function sharedFormatters() {
@@ -8932,10 +8558,6 @@ function setView(name) {
   if (name === "manager") renderManager();
   if (name === "procurement") renderProcurement();
   if (name === "om") renderOmPurchasing();
-  if (name === "uatFeedbackReview") {
-    renderUatFeedbackReview();
-    refreshUatFeedback({ review: isUatFeedbackReviewer(), silent: true });
-  }
   if (name === "priceReview") renderPriceReview();
   if (name === "sourcing") renderSourcing();
   if (name === "buyer") renderBuyer();
@@ -15308,10 +14930,39 @@ function managerDeliveryStatusCell(group) {
   return `<div class="pivot-status-stack">${pills.join("")}<small>${summary}</small></div>`;
 }
 
+function omSubmissionPivotMode() {
+  return currentOmSubmissionPivotMode === "item" ? "item" : "project";
+}
+
+function omSubmissionItemKey(row = {}) {
+  return row.name || row.item || omItemBucket(row) || "-";
+}
+
+function omSubmissionPivotKey(row, filters = {}) {
+  const pivotPrefix = omSubmissionPivotMode() === "item" ? "item" : "project";
+  return [
+    pivotPrefix,
+    managerProgressYearProject(row),
+    managerProgressProject(row),
+    omSubmissionItemKey(row),
+    managerProgressStage(row),
+    row.department || "-",
+    filters.requestType || "all",
+  ].join("::");
+}
+
+function omSubmissionScopeLabel(filters = omSubmissionFilterState()) {
+  if (omSubmissionPivotMode() === "item") {
+    return `Item View · ${filters.item || "All items"} · ${filters.project || "All projects"}`;
+  }
+  return `Project View · ${filters.project || "All projects"} · ${filters.item || "All items"} pending`;
+}
+
 function omSubmissionFilterState() {
   return {
     yearProject: document.getElementById("omSubmissionYearFilter")?.value || "",
     project: document.getElementById("omSubmissionProjectFilter")?.value || "",
+    item: document.getElementById("omSubmissionItemFilter")?.value || "",
     process: document.getElementById("omSubmissionProcessFilter")?.value || "",
     stage: document.getElementById("omSubmissionStageFilter")?.value || "",
     department: document.getElementById("omSubmissionDepartmentFilter")?.value || "",
@@ -15325,6 +14976,7 @@ function omSubmissionFilterState() {
 function omSubmissionMatchesFilters(row, filters) {
   if (filters.yearProject && managerProgressYearProject(row) !== filters.yearProject) return false;
   if (filters.project && managerProgressProject(row) !== filters.project) return false;
+  if (filters.item && omSubmissionItemKey(row) !== filters.item) return false;
   if (filters.process && row.process !== filters.process) return false;
   if (filters.stage && managerProgressStage(row) !== filters.stage) return false;
   if (filters.department && row.department !== filters.department) return false;
@@ -15347,6 +14999,7 @@ function syncOmSubmissionFilters() {
   const controls = [
     ["omSubmissionYearFilter", "All year projects", (row) => managerProgressYearProject(row)],
     ["omSubmissionProjectFilter", "All projects", (row) => managerProgressProject(row)],
+    ["omSubmissionItemFilter", "All items", (row) => omSubmissionItemKey(row)],
     ["omSubmissionProcessFilter", "All process", (row) => row.process],
     ["omSubmissionStageFilter", "All stage", (row) => managerProgressStage(row)],
     ["omSubmissionDepartmentFilter", "All departments", (row) => row.department],
@@ -15365,6 +15018,7 @@ function clearOmSubmissionFilters() {
   [
     "omSubmissionYearFilter",
     "omSubmissionProjectFilter",
+    "omSubmissionItemFilter",
     "omSubmissionProcessFilter",
     "omSubmissionStageFilter",
     "omSubmissionDepartmentFilter",
@@ -15386,14 +15040,14 @@ function omSubmissionRows() {
   const groups = new Map();
   managerProgressRawRows().forEach((row) => {
     if (!omSubmissionMatchesFilters(row, filters)) return;
-    const key = managerProgressKey(row);
+    const key = omSubmissionPivotKey(row, filters);
     if (!groups.has(key)) {
       groups.set(key, {
         key,
         keyId: stableHash(`OM::${key}`),
         yearProject: managerProgressYearProject(row),
         project: managerProgressProject(row),
-        item: row.name || "-",
+        item: omSubmissionItemKey(row),
         department: row.department || "-",
         quantity: 0,
         budgetDone: 0,
@@ -15656,11 +15310,12 @@ function renderOmExchangeRatePanel() {
   const saveButton = document.querySelector("[data-action='saveOmExchangeRate']");
   if (!monthInput || !rateInput) return;
   const record = exchangeRateRecord();
+  const canMaintainRate = canMaintainOmExchangeRate();
   monthInput.value = record.exchangeRateMonth || activeExchangeRateMonth();
   rateInput.value = record.usdToVndRate || OM_EXCHANGE_RATE_VND_USD;
-  rateInput.disabled = !isOmLeaderRole();
-  monthInput.disabled = !isOmLeaderRole();
-  if (saveButton) saveButton.disabled = !isOmLeaderRole();
+  rateInput.disabled = !canMaintainRate;
+  monthInput.disabled = !canMaintainRate;
+  if (saveButton) saveButton.disabled = !canMaintainRate;
   if (status) {
     status.textContent = record.isFallback ? "Fallback Rate" : "Active Rate";
     status.title = record.isFallback
@@ -15670,9 +15325,15 @@ function renderOmExchangeRatePanel() {
   }
 }
 
+function canMaintainOmExchangeRate() {
+  return adminRoleGuards()?.canMaintainExchangeRate?.(currentRole, currentOmUserId())
+    || isOmLeaderRole()
+    || currentOmUserId() === "om-member-giang";
+}
+
 function saveOmExchangeRate() {
-  if (!isOmLeaderRole()) {
-    showToast("Only OM Leader can update exchange rate.", "error");
+  if (!canMaintainOmExchangeRate()) {
+    showToast("Only Giang, OM Leader, or Admin can update monthly exchange rate.", "error");
     return;
   }
   const month = document.getElementById("omExchangeRateMonth")?.value || activeExchangeRateMonth();
@@ -15684,7 +15345,7 @@ function saveOmExchangeRate() {
   const patch = {
     exchangeRateMonth: month,
     usdToVndRate: rate,
-    rateUpdatedBy: roleProfiles[currentRole]?.name || "OM Leader",
+    rateUpdatedBy: currentRole === "omMember" ? selectedOmOperator()?.name || "OM Purchasing" : roleProfiles[currentRole]?.name || "OM",
     rateUpdatedAt: new Date().toISOString(),
     isFallback: false,
   };
@@ -15732,6 +15393,12 @@ function renderOmSubmissionTriage(rows = []) {
 function renderOmSubmission() {
   syncOmSubmissionFilters();
   renderOmExchangeRatePanel();
+  const filters = omSubmissionFilterState();
+  document.querySelectorAll("[data-om-pivot-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.omPivotMode === omSubmissionPivotMode());
+  });
+  const scopeLabel = document.getElementById("omSubmissionScopeLabel");
+  if (scopeLabel) scopeLabel.textContent = omSubmissionScopeLabel(filters);
   const rows = omSubmissionRows();
   const totalQty = rows.reduce((sum, row) => sum + row.quantity, 0);
   const summary = document.getElementById("omSubmissionSummary");
@@ -16169,21 +15836,6 @@ function phaseUsageTable() {
   return "";
 }
 
-function uatRowFeedbackSection(row) {
-  if (!isOmRole()) return "";
-  const related = feedbackRowsForRequest(row.id);
-  const openCount = related.filter((item) => item.status !== "resolved" && item.status !== "dismissed").length;
-  return `
-    <section class="detail-card-section uat-row-feedback-section">
-      <div class="detail-section-head">
-        <h4>UAT Feedback</h4>
-        <span class="status-pill ${openCount ? "warning" : "info"}">${openCount ? `${openCount} open` : "No open feedback"}</span>
-      </div>
-      <p class="modal-helper">Submit row-level feedback for OM internal test. Evidence is metadata only.</p>
-      <button class="mini return" type="button" data-uat-row-feedback="${htmlAttr(row.id)}" title="Submit row-level UAT feedback">Feedback</button>
-    </section>`;
-}
-
 function renderItemDetail(row, sourceType) {
   const enrichedRow = applyOmResponsibility(row);
   const type = itemType(row, sourceType);
@@ -16387,7 +16039,6 @@ function renderItemDetail(row, sourceType) {
       <p>Prototype placeholder. IT can connect the real product image source later.</p>
     </aside>
     <div class="${useGroupedDetail ? "item-detail-grouped" : "item-detail-grid-wrap"}">${groupedDetailHtml}</div>
-    ${isRequest ? uatRowFeedbackSection(row) : ""}
     ${isRequest ? omPackageHistoryHtml(row) : ""}
     ${isRequest ? externalProgressTimelineHtml(row) : ""}`;
 }
@@ -19315,7 +18966,6 @@ function renderOmDemandCollection() {
 function renderOmPurchasing() {
   syncOmWorkspaceUi();
   syncProjectControls();
-  renderOmFeedbackUtility();
   renderOmWorkspaceBanner();
   const quoteConfirmRows = omQuoteConfirmRows();
   const rowCount = document.getElementById("omWorkbenchCount");
@@ -19384,7 +19034,7 @@ function omQuoteExpiryMatchesFilters(row, filters) {
 
 function omQuoteExpiryAction(row) {
   const status = omQuoteExpiryStatusLabel(row);
-  if (!omQuoteValidUntil(row)) return "Fill Quote Valid Until in PAS Quote Result.";
+  if (!omQuoteValidUntil(row)) return "Fill Quote Valid Until in Quote Result / Monitor.";
   if (status === "Expired / Requote Required") return "Requote required before next purchasing step.";
   if (status === "Expiring Soon") return "Follow PAS / supplier before quote expires.";
   return "No immediate expiry action.";
@@ -19392,23 +19042,25 @@ function omQuoteExpiryAction(row) {
 
 function renderOmQuoteExpiry() {
   const target = document.getElementById("omQuoteExpiryRows");
-  if (!target) return;
   const filters = omQuoteExpiryFilterState();
   const rows = omQuoteExpiryRows().filter((row) => omQuoteExpiryMatchesFilters(row, filters));
   const rowCount = document.getElementById("omQuoteExpiryCount");
   if (rowCount) rowCount.textContent = `${rows.length} row${rows.length === 1 ? "" : "s"}`;
   const hint = document.getElementById("omQuoteExpiryHint");
-  if (hint) hint.textContent = `Tracking only. Edit Quote Valid Until from PAS Quote Result. Expiring Soon means <= ${QUOTE_EXPIRING_SOON_DAYS} days.`;
+  if (hint) hint.textContent = `Tracking only. Edit Quote Valid Until from Quote Result / Monitor. Expiring Soon means <= ${QUOTE_EXPIRING_SOON_DAYS} days.`;
   const summary = document.getElementById("omQuoteExpirySummary");
   if (summary) {
     const allRows = omQuoteExpiryRows();
     summary.innerHTML = summaryCardsHtml([
-      { label: "Quote Rows", value: rows.length, helper: filters.project || "All projects", variant: "hero" },
-      ["Expiring Soon", allRows.filter((row) => omQuoteExpiryStatusLabel(row) === "Expiring Soon").length],
-      ["Expired", allRows.filter((row) => omQuoteExpiryStatusLabel(row) === "Expired / Requote Required").length],
+      { label: "Waiting PAS Reply", value: allRows.filter((row) => omPendingOwnerForRow(row) === "PAS / Bidding").length, helper: "Follow bidding return", variant: "hero" },
       ["Missing Valid Until", allRows.filter((row) => omQuoteExpiryStatusLabel(row) === "Missing Valid Until").length],
+      ["Expiring Soon", allRows.filter((row) => omQuoteExpiryStatusLabel(row) === "Expiring Soon").length],
+      ["Expired / Requote", allRows.filter((row) => omQuoteExpiryStatusLabel(row) === "Expired / Requote Required").length],
+      ["Waiting Requester", allRows.filter((row) => omCurrentStageForRow(row) === "Waiting Requester").length],
+      ["Ready to Export", allRows.filter((row) => row.userAQuoteDecisionStatus === OM_USER_CONFIRMED && !row.finalExportedAt).length],
     ]);
   }
+  if (!target) return;
   target.innerHTML = rows.length
     ? rows.map((row) => {
       const days = omQuoteExpiryDaysLeft(row);
@@ -19511,14 +19163,14 @@ function renderOmQuoteConfirmRows(rows) {
   const target = document.getElementById("omWorkbenchRows");
   if (!target) return;
   if (!rows.length) {
-    target.innerHTML = `<tr><td colspan="17" class="empty-cell">No quote or user confirmation rows are available for this project package.</td></tr>`;
+    target.innerHTML = `<tr><td colspan="20" class="empty-cell">No quote or user confirmation rows are available for this project package.</td></tr>`;
     return;
   }
   const waitingRows = rows.filter((row) => isOmWaitingUserConfirm(row) || row.amendmentStatus === AMENDMENT_WAITING_USER_CONFIRM);
   const editingRows = rows.filter((row) => !waitingRows.includes(row));
   const sectionRow = (label, helper) => `
     <tr class="om-quote-section-row">
-      <td colspan="17"><strong>${label}</strong><span>${helper}</span></td>
+      <td colspan="20"><strong>${label}</strong><span>${helper}</span></td>
     </tr>`;
   const quoteRowHtml = (row) => {
       const amendmentAwaitingOm = row.amendmentStatus === AMENDMENT_WAITING_OM || row.amendmentStatus === AMENDMENT_REWORK_REQUIRED;
@@ -19565,6 +19217,12 @@ function renderOmQuoteConfirmRows(rows) {
       const priceField = omQuotePriceFieldForCurrency(quoteCurrency);
       const priceValue = omQuotePriceInputValue(row, quoteCurrency);
       const validUntil = omQuoteValidUntil(row);
+      const workflow = workflowStatusForRow(row, "om");
+      const currentBlocker = workflow.pendingOwner || omPendingOwnerForRow(row);
+      const currentStage = workflow.currentStage || omCurrentStageForRow(row);
+      const daysInStage = workflow.daysPending;
+      const stageStartAt = workflow.stageStartAt || omStageStartAt(row, currentStage);
+      const nextAction = workflow.nextAction || omQuoteExpiryAction(row);
       return `
       <tr class="${rowClasses}">
         <td class="cell-code">${row.project}</td>
@@ -19585,6 +19243,9 @@ function renderOmQuoteConfirmRows(rows) {
         <td>${omQuoteResultInput(row, "quoteValidUntil", validUntil, { type: "date", readOnly })}</td>
         <td>${omQuoteResultFileCell(row, readOnly)}</td>
         <td>${omQuoteResultCompletionCell(row, amendmentAwaitingOm ? OM_QUOTE_REVIEW_REQUIRED : status, readOnlyReason)}</td>
+        <td><span class="status-pill ${statusClass(currentBlocker)}">${currentBlocker}</span><div class="reason-text">${currentStage}</div></td>
+        <td><span class="status-pill ${omAgingStatusClass(daysInStage)}">${daysInStage === null ? "Done" : `${daysInStage}d`}</span><div class="reason-text">${stageStartAt ? `Since ${compactDateTime(stageStartAt)}` : "Missing stage start"}</div></td>
+        <td><div class="reason-text">${htmlText(nextAction)}</div><span class="status-pill ${statusClass(omQuoteExpiryStatusLabel(row))}">${omQuoteExpiryStatusLabel(row)}</span></td>
         <td class="om-quote-assignee-cell">${omAssignmentCell(row)}</td>
         <td>
           <div class="row-action-stack om-quote-action-stack">
@@ -21867,7 +21528,6 @@ function renderAdminSetup() {
   if (delta) delta.value = Number(adminApprovalSetup.thresholds.historyPriceDeltaUsd || 0.4).toFixed(2);
   if (chain) chain.value = adminApprovalSetup.approvalChain.join(" -> ");
   if (updated) updated.textContent = adminApprovalSetup.updatedAt ? `Updated ${compactDateTime(adminApprovalSetup.updatedAt)} by ${adminApprovalSetup.updatedBy}` : "Prototype state";
-  renderAdminConsole();
   if (newUserRole) newUserRole.innerHTML = roleOptionsHtml(newUserRole.value || "requester", { useRoleKey: true });
   if (newRuleAssignee) newRuleAssignee.innerHTML = omAssignmentRuleAssigneeOptions(newRuleAssignee.value || "");
   const userRows = document.getElementById("adminUserRows");
@@ -23304,7 +22964,6 @@ document.getElementById("omOperatorSelect")?.addEventListener("change", (event) 
 });
 
 document.getElementById("omExternalResultForm").addEventListener("submit", submitOmExternalResult);
-document.getElementById("uatFeedbackForm")?.addEventListener("submit", submitUatFeedback);
 document.getElementById("materialEntryForm").addEventListener("submit", submitMaterialEntry);
 document.getElementById("materialBatchForm").addEventListener("submit", (event) => event.preventDefault());
 
@@ -23322,7 +22981,6 @@ function closeModalById(modalId) {
     omExternalResultModal: closeOmExternalResultModal,
     rfqEmailDraftModal: closeRfqEmailDraft,
     contactPopupModal: () => window.closeContactPopup?.(),
-    uatFeedbackModal: closeUatFeedbackModal,
     requestItemPickerModal: closeRequestItemPicker,
   }[modalId];
   if (closeById) closeById();
@@ -23433,6 +23091,7 @@ document.addEventListener("click", (event) => {
   const managerQuantityExpandButton = event.target.closest("[data-manager-quantity-expand]");
   const contactDriButton = event.target.closest("[data-contact-dri]");
   const omSubmissionDetailButton = event.target.closest("[data-om-submission-detail]");
+  const omSubmissionPivotButton = event.target.closest("[data-om-pivot-mode]");
   const projectAccessButton = event.target.closest("[data-project-config-access]");
   const omRowButton = event.target.closest("[data-om-row-button]");
   const rfqGroupButton = event.target.closest("[data-rfq-group-action]");
@@ -23446,8 +23105,6 @@ document.addEventListener("click", (event) => {
   const userAAmendConfirmButton = event.target.closest("[data-usera-amend-confirm]");
   const userAAmendRejectButton = event.target.closest("[data-usera-amend-reject]");
   const itemQuantityAcceptProposalButton = event.target.closest("[data-item-quantity-accept-proposal]");
-  const uatRowFeedbackButton = event.target.closest("[data-uat-row-feedback]");
-  const uatFeedbackSaveButton = event.target.closest("[data-uat-feedback-save]");
   const carryoverSuggestionButton = event.target.closest("[data-create-carryover-candidate]");
   const warehouseCandidateLockButton = event.target.closest("[data-warehouse-candidate-lock]");
   const warehouseCandidateRejectButton = event.target.closest("[data-warehouse-candidate-reject]");
@@ -23506,17 +23163,16 @@ document.addEventListener("click", (event) => {
   }
   if (handoffTab) setHandoffTab(handoffTab.dataset.handoffTab);
   if (omTab) setOmTab(omTab.dataset.omTab);
+  if (omSubmissionPivotButton) {
+    currentOmSubmissionPivotMode = omSubmissionPivotButton.dataset.omPivotMode === "item" ? "item" : "project";
+    renderOmSubmission();
+  }
   if (action === "logout") {
     logoutWithApi().finally(() => setScreen("login"));
   }
   if (action === "openContactPopup") window.openContactPopup?.();
   if (action === "closeContactPopup") window.closeContactPopup?.();
   if (action === "copyContactPopup") window.copyContactPopupText?.();
-  if (action === "openPageFeedback") openUatFeedbackModal({ scope: "page" });
-  if (action === "openUatFeedbackReview") setView("uatFeedbackReview");
-  if (action === "closeUatFeedbackModal") closeUatFeedbackModal();
-  if (action === "refreshUatFeedback") refreshUatFeedback({ review: isUatFeedbackReviewer() });
-  if (action === "refreshAdminConsole") refreshAdminConsole();
   if (action === "openItemPicker") openItemPicker();
   if (action === "closeItemPicker") closeItemPicker();
   if (action === "openRequestItemPicker") openRequestItemPicker();
@@ -23816,19 +23472,6 @@ document.addEventListener("click", (event) => {
   if (userAAmendButton) createUserAAmendmentDraft(userAAmendButton.dataset.useraAmend);
   if (userAAmendConfirmButton) confirmUserAAmendment(userAAmendConfirmButton.dataset.useraAmendConfirm);
   if (userAAmendRejectButton) rejectUserAAmendment(userAAmendRejectButton.dataset.useraAmendReject);
-  if (uatRowFeedbackButton) {
-    const requestId = uatRowFeedbackButton.dataset.uatRowFeedback;
-    const row = requests.find((item) => item.id === requestId);
-    openUatFeedbackModal({
-      scope: "row",
-      pageKey: `om-${currentOmTab}`,
-      rowScopeType: "request",
-      rowScopeId: requestId,
-      rowScopeLabel: row ? `${row.project} / ${row.name}` : `Request ${requestId}`,
-      metadata: row ? { project: row.project, item: row.name, needDate: needDateForRow(row) || "" } : {},
-    });
-  }
-  if (uatFeedbackSaveButton) saveUatFeedbackReview(uatFeedbackSaveButton.dataset.uatFeedbackSave);
   if (batchMaterialButton) {
     activeBatchMaterialId = batchMaterialButton.dataset.batchMaterialId;
     renderMaterialBatch();
@@ -23945,9 +23588,12 @@ document.addEventListener("change", async (event) => {
   if ([
     "omSubmissionYearFilter",
     "omSubmissionProjectFilter",
+    "omSubmissionItemFilter",
     "omSubmissionProcessFilter",
     "omSubmissionStageFilter",
     "omSubmissionDepartmentFilter",
+    "omSubmissionRequestTypeFilter",
+    "omSubmissionQuoteValidityFilter",
     "omSubmissionLateOnly",
     "omSubmissionPendingOnly",
   ].includes(event.target.id)) renderOmSubmission();

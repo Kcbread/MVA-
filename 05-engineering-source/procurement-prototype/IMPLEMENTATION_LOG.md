@@ -75,7 +75,6 @@
   - `POST /api/attachments`
   - `GET /api/attachments/:id`
 - Wired real uploads for:
-  - UAT feedback screenshot
   - OM quote screenshot
   - OM quote Excel
   - sourcing/procurement quote screenshot fields that share the existing quote attachment surface

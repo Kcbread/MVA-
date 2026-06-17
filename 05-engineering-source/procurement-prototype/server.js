@@ -244,7 +244,6 @@ const memoryStore = {
   sessions: new Map(),
   assignments: new Map(),
   omAssignmentRules: defaultOmAssignmentRules.map((rule) => ({ ...rule })),
-  uatFeedback: new Map(),
   attachments: new Map(),
   auditEvents: [],
   roles: adminRoleCatalog.map((role) => ({ ...role })),
@@ -932,9 +931,6 @@ function canViewOm(user) {
   return ["omLeader", "omMember", "om", "admin"].includes(user?.role);
 }
 
-function canTriageUatFeedback(user) {
-  return ["omLeader", "admin"].includes(user?.role);
-}
 
 function canViewWorkflowReviewRows(user) {
   return ["dri", "manager", "projectDri", "admin"].includes(user?.role);
@@ -1169,14 +1165,13 @@ function attachmentFromRow(row) {
 
 function canUploadAttachment(user, attachment) {
   if (!user) return false;
-  if (attachment.attachmentKind === "uat_screenshot" || attachment.linkedEntityType === "uat_feedback") return true;
   if (attachment.linkedEntityType === "om_quote" || attachment.attachmentKind.startsWith("om_") || attachment.attachmentKind.startsWith("sourcing_")) {
     return canViewOm(user);
   }
   if (attachment.linkedEntityType === "procurement_quote" || attachment.attachmentKind.startsWith("procurement_")) {
     return user.role !== "requester";
   }
-  return canTriageUatFeedback(user);
+  return ["admin", "omLeader"].includes(user.role);
 }
 
 function canDownloadAttachment(user, attachment) {
@@ -1185,7 +1180,6 @@ function canDownloadAttachment(user, attachment) {
   if (attachment.uploadedByUserId === user.id) return true;
   if (attachment.linkedEntityType === "procurement_quote") return user.role !== "requester";
   if (attachment.visibilityScope === "om_internal" || attachment.linkedEntityType === "om_quote") return canViewOm(user);
-  if (attachment.visibilityScope === "uat_feedback" || attachment.linkedEntityType === "uat_feedback") return canTriageUatFeedback(user);
   return false;
 }
 
@@ -1324,36 +1318,6 @@ async function sendAttachmentDownload(req, res, actor, attachmentId) {
     "Content-Disposition": `attachment; filename="${headerFileName}"`,
   });
   fs.createReadStream(attachment.storagePath).pipe(res);
-}
-
-function feedbackFromRow(row) {
-  if (!row) return null;
-  let metadata = row.metadata || row.metadata_json || {};
-  if (typeof metadata === "string") {
-    try {
-      metadata = JSON.parse(metadata);
-    } catch {
-      metadata = {};
-    }
-  }
-  return {
-    id: row.id,
-    submittedByUserId: row.submittedByUserId || row.submitted_by_user_id,
-    submittedByName: row.submittedByName || row.submitted_by_name || row.submittedByUserName || "",
-    pageKey: row.pageKey || row.page_key,
-    rowScopeType: row.rowScopeType || row.row_scope_type || "",
-    rowScopeId: row.rowScopeId || row.row_scope_id || "",
-    rowScopeLabel: row.rowScopeLabel || row.row_scope_label || "",
-    category: row.category || "general",
-    severity: row.severity || "medium",
-    feedbackText: row.feedbackText || row.feedback_text || "",
-    status: row.status || "open",
-    ownerUserId: row.ownerUserId || row.owner_user_id || null,
-    ownerName: row.ownerName || row.owner_name || "",
-    metadata,
-    createdAt: row.createdAt || row.created_at,
-    updatedAt: row.updatedAt || row.updated_at,
-  };
 }
 
 async function omAssignees() {
@@ -1525,210 +1489,6 @@ async function setOmAssignment(req, actor, requestId, assignedToUserId, note) {
     metadata: assignment,
   });
   return assignment;
-}
-
-async function createUatFeedback(req, actor, body) {
-  const pageKey = textValue(body.pageKey || body.page || body.page_key, 120);
-  const feedbackText = textValue(body.feedbackText || body.message || body.comment || body.note, 2000);
-  if (!pageKey || !feedbackText) {
-    const error = new Error("pageKey and feedbackText are required");
-    error.status = 400;
-    throw error;
-  }
-  const metadata = {
-    ...(body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? body.metadata : {}),
-  };
-  const feedback = {
-    id: crypto.randomUUID(),
-    submittedByUserId: actor.id,
-    submittedByName: actor.name,
-    pageKey,
-    rowScopeType: textValue(body.rowScopeType || body.rowType || body.row_scope_type, 80),
-    rowScopeId: textValue(body.rowScopeId || body.rowId || body.row_scope_id, 120),
-    rowScopeLabel: textValue(body.rowScopeLabel || body.rowLabel || body.row_scope_label, 240),
-    category: textValue(body.category, 80) || "general",
-    severity: textValue(body.severity, 40) || "medium",
-    feedbackText,
-    status: "open",
-    ownerUserId: null,
-    ownerName: "",
-    metadata,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  if (pool) {
-    await pool.execute(
-      `INSERT INTO uat_feedback
-       (id, submitted_by_user_id, page_key, row_scope_type, row_scope_id, row_scope_label, category, severity, feedback_text, status, owner_user_id, metadata_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        feedback.id,
-        feedback.submittedByUserId,
-        feedback.pageKey,
-        feedback.rowScopeType,
-        feedback.rowScopeId,
-        feedback.rowScopeLabel,
-        feedback.category,
-        feedback.severity,
-        feedback.feedbackText,
-        feedback.status,
-        feedback.ownerUserId,
-        JSON.stringify(feedback.metadata),
-      ],
-    );
-  } else {
-    memoryStore.uatFeedback.set(feedback.id, feedback);
-  }
-  await audit("uat_feedback.created", req, {
-    actor,
-    entityType: "uat_feedback",
-    entityId: feedback.id,
-    metadata: { pageKey: feedback.pageKey, rowScopeType: feedback.rowScopeType, rowScopeId: feedback.rowScopeId },
-  });
-  return feedback;
-}
-
-async function getOwnUatFeedback(actor) {
-  if (pool) {
-    const [rows] = await pool.execute(
-      `SELECT f.*, submitter.name AS submitted_by_name, owner.name AS owner_name
-       FROM uat_feedback f
-       LEFT JOIN users submitter ON submitter.id = f.submitted_by_user_id
-       LEFT JOIN users owner ON owner.id = f.owner_user_id
-       WHERE f.submitted_by_user_id = ?
-       ORDER BY f.created_at DESC`,
-      [actor.id],
-    );
-    return rows.map(feedbackFromRow);
-  }
-  return [...memoryStore.uatFeedback.values()]
-    .filter((feedback) => feedback.submittedByUserId === actor.id)
-    .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
-}
-
-async function getAllUatFeedback() {
-  if (pool) {
-    const [rows] = await pool.execute(
-      `SELECT f.*, submitter.name AS submitted_by_name, owner.name AS owner_name
-       FROM uat_feedback f
-       LEFT JOIN users submitter ON submitter.id = f.submitted_by_user_id
-       LEFT JOIN users owner ON owner.id = f.owner_user_id
-       ORDER BY f.created_at DESC`,
-    );
-    return rows.map(feedbackFromRow);
-  }
-  return [...memoryStore.uatFeedback.values()]
-    .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
-}
-
-async function updateUatFeedbackStatus(req, actor, feedbackId, status) {
-  const normalizedStatus = textValue(status, 40);
-  const allowedStatuses = new Set(["open", "in_review", "resolved", "dismissed"]);
-  if (!allowedStatuses.has(normalizedStatus)) {
-    const error = new Error("Invalid feedback status");
-    error.status = 400;
-    throw error;
-  }
-  let feedback;
-  if (pool) {
-    const [result] = await pool.execute("UPDATE uat_feedback SET status = ?, updated_at = NOW() WHERE id = ?", [normalizedStatus, feedbackId]);
-    if (!result.affectedRows) {
-      const error = new Error("Feedback not found");
-      error.status = 404;
-      throw error;
-    }
-    const [rows] = await pool.execute(
-      `SELECT f.*, submitter.name AS submitted_by_name, owner.name AS owner_name
-       FROM uat_feedback f
-       LEFT JOIN users submitter ON submitter.id = f.submitted_by_user_id
-       LEFT JOIN users owner ON owner.id = f.owner_user_id
-       WHERE f.id = ? LIMIT 1`,
-      [feedbackId],
-    );
-    feedback = feedbackFromRow(rows[0]);
-  } else {
-    feedback = memoryStore.uatFeedback.get(feedbackId);
-    if (!feedback) {
-      const error = new Error("Feedback not found");
-      error.status = 404;
-      throw error;
-    }
-    feedback.status = normalizedStatus;
-    feedback.updatedAt = new Date().toISOString();
-    memoryStore.uatFeedback.set(feedbackId, feedback);
-  }
-  const auditEvent = {
-    eventType: "uat_feedback.status_updated",
-    actorUserId: actor.id,
-    entityType: "uat_feedback",
-    entityId: feedbackId,
-    metadata: { status: normalizedStatus },
-  };
-  await audit(auditEvent.eventType, req, {
-    actor,
-    entityType: auditEvent.entityType,
-    entityId: auditEvent.entityId,
-    metadata: auditEvent.metadata,
-  });
-  return { feedback, audit: auditEvent };
-}
-
-async function updateUatFeedbackOwner(req, actor, feedbackId, ownerUserId) {
-  const normalizedOwnerUserId = textValue(ownerUserId, 64) || null;
-  const owner = normalizedOwnerUserId ? await findUserById(normalizedOwnerUserId) : null;
-  if (normalizedOwnerUserId && !owner) {
-    const error = new Error("Owner not found");
-    error.status = 404;
-    throw error;
-  }
-  if (owner && !["admin", "omLeader"].includes(owner.role)) {
-    const error = new Error("Feedback owner must be Admin or OM Leader");
-    error.status = 400;
-    throw error;
-  }
-  let feedback;
-  if (pool) {
-    const [result] = await pool.execute("UPDATE uat_feedback SET owner_user_id = ?, updated_at = NOW() WHERE id = ?", [normalizedOwnerUserId, feedbackId]);
-    if (!result.affectedRows) {
-      const error = new Error("Feedback not found");
-      error.status = 404;
-      throw error;
-    }
-    const [rows] = await pool.execute(
-      `SELECT f.*, submitter.name AS submitted_by_name, owner.name AS owner_name
-       FROM uat_feedback f
-       LEFT JOIN users submitter ON submitter.id = f.submitted_by_user_id
-       LEFT JOIN users owner ON owner.id = f.owner_user_id
-       WHERE f.id = ? LIMIT 1`,
-      [feedbackId],
-    );
-    feedback = feedbackFromRow(rows[0]);
-  } else {
-    feedback = memoryStore.uatFeedback.get(feedbackId);
-    if (!feedback) {
-      const error = new Error("Feedback not found");
-      error.status = 404;
-      throw error;
-    }
-    feedback.ownerUserId = normalizedOwnerUserId;
-    feedback.ownerName = owner?.name || "";
-    feedback.updatedAt = new Date().toISOString();
-    memoryStore.uatFeedback.set(feedbackId, feedback);
-  }
-  const auditEvent = {
-    eventType: "uat_feedback.owner_updated",
-    actorUserId: actor.id,
-    entityType: "uat_feedback",
-    entityId: feedbackId,
-    metadata: { ownerUserId: normalizedOwnerUserId },
-  };
-  await audit(auditEvent.eventType, req, {
-    actor,
-    entityType: auditEvent.entityType,
-    entityId: auditEvent.entityId,
-    metadata: auditEvent.metadata,
-  });
-  return { feedback, audit: auditEvent };
 }
 
 async function requireAuth(req, res) {
@@ -2024,57 +1784,6 @@ async function handleApi(req, res, url) {
       const user = await requireAuth(req, res);
       if (!user) return;
       await sendAttachmentDownload(req, res, user, decodeURIComponent(attachmentMatch[1]));
-      return;
-    }
-    if (req.method === "POST" && url.pathname === "/api/uat-feedback") {
-      const user = await requireAuth(req, res);
-      if (!user) return;
-      const feedback = await createUatFeedback(req, user, await readBody(req));
-      sendJson(res, 201, { feedback });
-      return;
-    }
-    if (req.method === "GET" && url.pathname === "/api/uat-feedback/my") {
-      const user = await requireAuth(req, res);
-      if (!user) return;
-      sendJson(res, 200, { feedback: await getOwnUatFeedback(user) });
-      return;
-    }
-    if (req.method === "GET" && url.pathname === "/api/uat-feedback") {
-      const user = await requireAuth(req, res);
-      if (!user) return;
-      if (!canTriageUatFeedback(user)) {
-        await audit("uat_feedback.list_blocked", req, { actor: user, entityType: "uat_feedback" });
-        sendJson(res, 403, { error: "Only OM Leader or Admin can view all UAT feedback" });
-        return;
-      }
-      sendJson(res, 200, { feedback: await getAllUatFeedback() });
-      return;
-    }
-    const feedbackStatusMatch = url.pathname.match(/^\/api\/uat-feedback\/([^/]+)\/status$/);
-    if (req.method === "PATCH" && feedbackStatusMatch) {
-      const user = await requireAuth(req, res);
-      if (!user) return;
-      if (!canTriageUatFeedback(user)) {
-        await audit("uat_feedback.status_blocked", req, { actor: user, entityType: "uat_feedback", entityId: feedbackStatusMatch[1] });
-        sendJson(res, 403, { error: "Only OM Leader or Admin can update UAT feedback status" });
-        return;
-      }
-      const result = await updateUatFeedbackStatus(req, user, decodeURIComponent(feedbackStatusMatch[1]), (await readBody(req)).status);
-      sendJson(res, 200, result);
-      return;
-    }
-    const feedbackOwnerMatch = url.pathname.match(/^\/api\/uat-feedback\/([^/]+)\/owner$/);
-    if (req.method === "PATCH" && feedbackOwnerMatch) {
-      const user = await requireAuth(req, res);
-      if (!user) return;
-      if (!canTriageUatFeedback(user)) {
-        await audit("uat_feedback.owner_blocked", req, { actor: user, entityType: "uat_feedback", entityId: feedbackOwnerMatch[1] });
-        sendJson(res, 403, { error: "Only OM Leader or Admin can update UAT feedback owner" });
-        return;
-      }
-      const body = await readBody(req);
-      const result = await updateUatFeedbackOwner(req, user, decodeURIComponent(feedbackOwnerMatch[1]), body.ownerUserId || body.owner_user_id || "");
-      sendJson(res, 200, result);
       return;
     }
     if (req.method === "GET" && url.pathname === "/api/om/assignees") {

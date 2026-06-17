@@ -2,18 +2,18 @@
 
 ## IT Handoff Documentation
 
-- `docs-current/it-handoff/` is the current source of truth for near-term IT implementation handoff.
+- `03-it-handoff/current-docs/it-handoff/` is the current source of truth for near-term IT implementation handoff.
 - The handoff package is bilingual:
-  - Traditional Chinese: `docs-current/it-handoff/zh-TW/`
-  - English: `docs-current/it-handoff/en/`
+  - Traditional Chinese: `03-it-handoff/current-docs/it-handoff/zh-TW/`
+  - English: `03-it-handoff/current-docs/it-handoff/en/`
 - The handoff scope is limited to:
   - `Requester`
   - `Dept DRI`
   - `Cost Manager`
   - `OM Purchasing`
 - The handoff package defines modules, not only pages. Future integration should reference module IDs such as `requester.requestWorkspace`, `costManager.demandAnalysis`, and `om.quoteCompletion`.
-- If older documents in `docs-current/` use obsolete names such as `Demand Tracking`, `PAS Review`, `Quotation`, or `Package Submission`, the IT handoff naming wins.
-- Kuso AI visualization should use `docs-current/it-handoff/*/07-kuso-ai-visualization-brief.md` as the primary prompt source.
+- If older documents use obsolete names such as `Demand Tracking`, `PAS Review`, `Quotation`, or `Package Submission`, the IT handoff naming wins.
+- Kuso AI visualization should use `03-it-handoff/current-docs/it-handoff/*/07-kuso-ai-visualization-brief.md` as the primary prompt source when that brief exists.
 
 ## Stable Sources Of Truth
 
@@ -43,10 +43,11 @@
 - Cost Manager reviews demand, cost, carryover impact, station reasonableness, and progress, and owns final authorization after Dept DRI approval.
 - Cost Manager does not create requests, add reusable history rows, lock warehouse/carryover evidence, operate OM quote/export, or submit requester-side demand.
 - OM Purchasing owns PAS request, quote completeness, User A confirmation routing, and final CFA/ECS export for OM buy scope.
-- OM leader needs a `Submission Dashboard` focused on OM stage tracking, pending status, quote expiry, and internal processing days.
-- OM Leader owns monthly USD to VND exchange-rate maintenance; OM Member can use but not edit the active rate.
+- OM leader needs a `Submission Dashboard` focused on OM stage tracking, pending status, quote validity, and internal processing days.
+- Monthly USD to VND exchange-rate maintenance is Giang-owned and globally applied; Mai / Admin can override. Linh and other OM Purchasing users cannot maintain the rate unless explicitly assigned later.
+- Quote conversion uses the quote date's month rate. If that month has no locked rate, it falls back to the latest previous locked monthly rate; the 28th-to-next-month-4th reminder window does not change conversion policy.
 - OM exchange-rate UI should stay a compact inline editor, not a full-width primary workflow action.
-- UAT Feedback is an OM internal-test utility, not an OM workflow tab. OM Leader/Admin can triage all feedback; OM Member can submit page/row feedback and view only their own feedback status.
+- UAT Feedback in-app utility has been removed. QA / discussion feedback will be handled outside the prototype.
 - OM Purchasing does not connect directly to PAS in this prototype, but PAS tracking fields must be retained in-system for follow-up.
 - `OM Buy .xlsx` sheet `VietNam Detailed - Chi tiết VN` is the OM classification source of truth for Level 1 / Level 2 / Level 3 / CPD-IEP Owner.
 - User-facing classification language is English first. Chinese names and CPD-IEP owner remain internal traceability, not User A request-entry copy.
@@ -106,7 +107,7 @@
 - User A submit requires at least one non-zero inline `Station Breakdown` row for each selected request item.
 - Manager request detail shows `需求單位 x Station x Phase` breakdown so approval can review whether station demand is reasonable.
 - User A and Manager timeline rows use compact key milestones with timestamp labels where available.
-- OM `PAS Quote Result` rows sent to User A remain visible as readonly `Waiting User A Confirmation` rows.
+- OM `Quote Result / Monitor` rows sent to User A remain visible as readonly `Waiting User A Confirmation` rows.
 - User A confirms or cancels OM quote need from the dedicated `Action Required` task tab; confirmed rows move to OM `Export Package`.
 - User A is the only role that can initiate actual demand amendments after quote.
 - Post-quote amendment flow is:
@@ -127,22 +128,21 @@
 - OM tabs are fixed as:
   - `Submission Dashboard`
   - `PAS Demand No`
-  - `PAS Quote Result`
-  - `Quote Expiry`
+  - `Quote Result / Monitor`
   - `Export Package`
 - OM `Submission Dashboard` tracks who is blocking the current OM flow:
   - `OM Purchasing` for missing PAS Demand No, quote input, or export preparation
   - `PAS / Bidding` when PAS Demand No exists but bidding / quote result is not returned
   - `User A` when quote result is waiting for requester confirmation
   - `Buyer` only as downstream PR / PO ownership after export
-- OM `Submission Dashboard` primary columns are `Submitted / Received Date`, `Pending Owner`, `Current Stage`, and `Days Pending`; quote validity belongs in `Quote Expiry`, ETA / buyer handoff detail belongs in row Detail, and Budget / PR / PO / Arrived are not OM primary columns.
+- OM `Submission Dashboard` primary columns are `Submitted / Received Date`, `Pending Owner`, `Current Stage`, and `Days Pending`; quote validity belongs in `Quote Result / Monitor`, ETA / buyer handoff detail belongs in row Detail, and Budget / PR / PO / Arrived are not OM primary columns.
 - Quote status uses `Reusable Quote`, `Waiting PAS Reply`, `Expiring Soon`, and `Expired / Requote Required`.
 - OM execution tabs use row-level actions, not checkbox selection as the primary workflow.
 - `PAS Demand No` row actions are:
   - `Move to Quote`
   - `Reject to DRI`
   - `Detail`
-- `PAS Quote Result` row actions are:
+- `Quote Result / Monitor` row actions are:
   - `Save Quote Info`
   - `Send to User A`
   - `Reject to DRI`
@@ -155,17 +155,17 @@
   - `Reject to DRI`
   - `Detail`
 - `PAS Demand No` exists only to record PAS Demand No after PAS/Bidding returns it. It does not upload quote attachments and does not export PAS files in the system.
-- `PAS Quote Result` exists to record PAS Material No, vendor/price/date, quote received date, quote valid until, quote PDF, and quote Excel before sending the result to User A confirmation.
-- Quote validity input belongs inside the `PAS Quote Result` card, not in a separate column/table.
-- `Quote Expiry` is a tracking tab only. It does not input PAS quote data, export packages, or change workflow state.
+- `Quote Result / Monitor` exists to record PAS Material No, vendor/price/date, quote received date, quote valid until, quote screenshot/image, and quote Excel before sending the result to User A confirmation, while also showing blocker/stage/aging/next-action chips.
+- Quote validity input belongs inside `Quote Result / Monitor`, not in a standalone expiry tab or separate workflow.
+- `Quote Result / Monitor` combines quote input and tracking. It does not export packages or change downstream Buyer workflow state.
 - `Quote Valid Until` is required before `Send to User A`; quote expiry status uses a 10-day warning threshold (`Valid`, `Expiring Soon`, `Expired / Requote Required`).
-- PAS Demand No and PAS Material No must carry from `PAS Quote Result` to `Action Required`, `Export Package`, Buyer, Detail, and History.
+- PAS Demand No and PAS Material No must carry from `Quote Result / Monitor` to `Action Required`, `Export Package`, Buyer, Detail, and History.
 - OM `Export Package` is the system stage for sending rows to `CFA` or `ECS`; both platforms are PR entry points.
 - Buyer starts after OM export and owns PO/progress/evidence only.
 - OM final export package codes are system-generated as `{Process}-{Stage}-{ProjectCode}-MVA{YYMM}-{Seq}OM`, for example `FATP-MP-CGY4-MVA2604-21OM`.
 - `Payment methods` is locked to `MVA` in OM data and exported workbooks.
 - OM `Submission Dashboard` focuses on received date, current OM stage, days in current stage, quote expiry monitor, and over-SLA rows.
-- OM internal days are measured by current stage: received date for PAS Demand No, PAS Demand No recorded date for PAS Quote Result, sent-to-User-A date for Waiting User A, and User A confirmation date for Export Package.
+- OM internal days are measured by current stage: received date for PAS Demand No, PAS Demand No recorded date for Quote Result / Monitor, sent-to-User-A date for Waiting User A, and User A confirmation date for Export Package.
 - Quote expiry is a warning layer, not a separate Sourcing module in v1:
   - quotes expiring within 10 days show `Quote Expiring Soon`
   - expired quotes show re-quote/update risk
@@ -211,7 +211,7 @@
 - User A `New Request` is the single input workbench: `Add Item`, `Draft Items`, and `Edit Demand`. Quantity is entered in an item-level demand editor, not duplicated in the draft table.
 - User A `Project` dropdown must come from real Excel-derived seed data, not from the old demo-only fallback list. When a dedicated `REAL_PROJECT_CONFIGS` seed is absent, the app derives visible projects from `REAL_MVA_PURCHASE_RECORDS`.
 - Demand rows are long-form and have exactly one phase, station, demand unit, qty, and remark per row. One item can own many demand rows across phases, stations, and demand units.
-- `PAS Material No` is external PAS/PUR tracking data entered by OM/PUR and carried through PAS Quote Result, Export Package, Buyer, Detail, and History.
+- `PAS Material No` is external PAS/PUR tracking data entered by OM/PUR and carried through Quote Result / Monitor, Export Package, Buyer, Detail, and History.
 - `Factory Material No` is not generated during draft or approval. It is only filled after PO by Buyer/PUR, then used as the factory-side tracking key for reusable price history.
 - In `Source DB regularize_0608_renumbered.xlsx` / SAP PO `Raw Data`, column A `料號` is the official `Factory Material No` (`factory_material_no`). Column H `料號` is a separate `SAP Material No` (`sap_material_no`). They must not be merged or displayed as the same field.
 - PO/SAP export templates may include `Factory Material No`, `SAP Material No`, PO number, acceptance, settlement, and other PO-only columns before PO integration is live; those fields remain blank until PO/Buyer/SAP evidence exists and must not block quote or approval flow.
@@ -235,7 +235,7 @@
 - `Contact` is a topbar popup utility for `Requester`, `Cost Manager`, `OM Purchasing`, `Dept DRI`, `Budget Approver`, and `Admin`; it is not a top-level navigation tab.
 - `Contact DRI` remains a row-level lookup modal for Manager approval support.
 - `Temporary Budget Request` input panel is scoped only to Requester `Request Workspace`. Cost Manager, OM Purchasing, Contact popup, and Admin-only views must not receive this input panel through MutationObserver or DOM injection.
-- Quote validity must be rendered directly inside OM `PAS Quote Result`, not through global MutationObserver / table annotation.
+- Quote validity must be rendered directly inside OM `Quote Result / Monitor`, not through global MutationObserver / table annotation.
 - Manager/OM can see temporary budget tracking only as summaries tied to actual temporary-budget request rows or detail panels.
 
 ## OPM Request Workspace
@@ -271,9 +271,9 @@
 ## OM Export Package
 
 - OM Export Package has one primary export action: `Export Package`.
-- The single action prepares the final export Excel package and the quote PDF package reference together.
+- The single action prepares the final export Excel package and carries the quote screenshot/image + quote Excel evidence metadata together.
 - OM chooses financial cost type first: `Expense -> ECS` or `Capex -> CFA`.
-- PAS Demand No, PAS Material No, quote PDF, quote Excel, and quote validity are readonly in Export Package; they are owned by `PAS Quote Result`.
+- PAS Demand No, PAS Material No, quote screenshot/image, quote Excel, and quote validity are readonly in Export Package; they are owned by `Quote Result / Monitor`.
 - If a post-bidding amendment revises an item to zero quantity, Manager approval records `Removed by Amendment` and prevents downstream Export / Buyer routing.
 
 ## UI Quality Review Standard
@@ -308,11 +308,12 @@
   - `Non-MFG` demand rolls up by `需求單位`.
   - It supports Qty / Amount view through the global VND/USD display.
 - OM role split is explicit:
-  - `OM Leader` can maintain monthly USD→VND exchange rate and operate OM documents.
-  - `OM Member` can use the rate and operate workflow rows, but cannot modify exchange rate.
-- UAT Feedback visibility is role-based: OM Leader/Admin see the triage review board; OM Member sees a read-only `My UAT Feedback Status` board for feedback they submitted.
+  - `Giang` can maintain monthly USD→VND exchange rate and operate assigned workflow rows.
+  - `OM Leader` / `Admin` can override monthly USD→VND exchange rate and monitor/assign OM work.
+  - `Linh` and other `OM Member` users can use the rate and operate assigned workflow rows, but cannot modify exchange rate unless explicitly assigned later.
+- UAT Feedback UI/API is removed; no role has in-app feedback submit, personal status, or triage boards.
 - Currency display is global. Canonical stored amount remains VND; USD display uses the current monthly exchange rate or a visible fallback rate.
-- OM `Submission Dashboard` must show `Received Date`, `Current Stage`, and `Days in Stage`; quote expiry appears as a lightweight monitor there and as a dedicated tracking-only `Quote Expiry` tab.
+- OM `Submission Dashboard` must show `Received Date`, `Current Stage`, and `Days in Stage`; quote validity appears as a lightweight monitor there and in the merged `Quote Result / Monitor` tab.
 - OPM/new-item budget estimates are allowed at request creation as `Estimated Unit Price`, `Estimated Amount`, and `Budget Remark`. These are planning estimates only; OM quote and Buyer actuals remain the official downstream values.
 - New item budget is a run-ahead planning field. Manager can compare OPM estimated amount against later OM quote / Buyer actual amount, but the estimate is never treated as official purchase price.
 - Quote expiry warning uses the existing `quoteExpiry` / `quoteValidUntil` field. Quotes within 10 days are `Quote Expiring Soon`; expired quotes are treated as needing re-quote/update.

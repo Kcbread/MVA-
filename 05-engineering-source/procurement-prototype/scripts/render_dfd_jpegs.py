@@ -5,8 +5,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 
-ROOT = Path(__file__).resolve().parents[1]
-DFD_DIR = ROOT / "docs-current" / "IT_MEETING_PACKAGE_20260604" / "04-dfd"
+ROOT = Path(__file__).resolve().parents[3]
+DFD_DIR = ROOT / "03-it-handoff" / "current-docs" / "IT_MEETING_PACKAGE_20260604" / "04-dfd"
 
 FONT_CANDIDATES = [
     "/System/Library/Fonts/STHeiti Medium.ttc",

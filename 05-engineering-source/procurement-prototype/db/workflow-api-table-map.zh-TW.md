@@ -35,7 +35,6 @@
 | `POST /api/logout` | `sessions`, `audit_events` | Server |
 | `GET /api/me` | `sessions`, `users` | Server |
 | OM assignment API | `om_assignments`, `audit_events` | OM Leader |
-| UAT feedback API | `uat_feedback`, `attachments`, `audit_events` | All users submit, Admin / Mai triage |
 | Attachment upload/download | `attachments`, filesystem storage, `audit_events` | Server |
 
 ### Phase 2：Requester Demand Persistence
@@ -212,7 +211,6 @@ The backend should write `audit_events` for:
 - warehouse stock in / candidate / lock / reject
 - carryover candidate / apply / reject
 - admin mapping / threshold / role changes
-- feedback submit / triage
 
 ## Verification Checklist
 
