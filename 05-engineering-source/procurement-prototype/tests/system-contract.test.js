@@ -1214,6 +1214,9 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(app, /let LV_TAXONOMY/);
   assert.match(app, /function hydrateLvTaxonomy/);
   assert.match(app, /apiRequest\("\/api\/taxonomy\/lv123"\)/);
+  assert.match(app, /function hydrateRequestCatalogItems/);
+  assert.match(app, /apiRequest\(`\/api\/catalog\/items\?\$\{params\.toString\(\)\}`\)/);
+  assert.match(app, /requestCatalogApiRows/);
   assert.match(app, /syncRequestItemPickerFilters\(\)/);
   assert.match(html, /app-modules\/role-guards\.js/);
   assert.match(app, /ProcurementApp\?\.roleGuards\?\.canOperateOmRow/);
