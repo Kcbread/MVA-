@@ -22,18 +22,18 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: procurement-prototype/package-lock.json
+          cache-dependency-path: 05-engineering-source/procurement-prototype/package-lock.json
 
       - name: Install dependencies
-        working-directory: procurement-prototype
+        working-directory: 05-engineering-source/procurement-prototype
         run: npm ci
 
       - name: Install Playwright browser
-        working-directory: procurement-prototype
+        working-directory: 05-engineering-source/procurement-prototype
         run: npx playwright install --with-deps chromium
 
       - name: Run tests
-        working-directory: procurement-prototype
+        working-directory: 05-engineering-source/procurement-prototype
         run: ./test.sh
 
   deploy:
@@ -55,4 +55,4 @@ jobs:
         env:
           EXPECTED_BRANCH: main
           EXPECTED_SHA: ${{ github.sha }}
-        run: deploy/mac-mini/deploy.sh
+        run: 06-deployment/mac-mini/deploy.sh

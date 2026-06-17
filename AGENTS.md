@@ -7,14 +7,14 @@ This workspace is the source for the MVA procurement system prototype, database 
 When starting work in this workspace, read only what is needed, in this order:
 
 1. `README.md` for workspace entry points.
-2. `project-progress/MASTER_PM_LEDGER.md` when the task touches cross-thread PM memory, handoff, dirty worktree cleanup, branch/commit hygiene, or thread coordination.
-3. `project-progress/WORKTREE_TRIAGE_20260613.md` when the worktree is dirty, unmerged, or the task touches existing staged/unstaged changes.
-4. `procurement-prototype/_context/README.zh-TW.md` for current role, flow, module, and API context.
-5. The specific role file under `procurement-prototype/_context/roles/` for the role being changed.
-6. `procurement-prototype/PROJECT_DECISIONS.md` only when `_context/` is missing a required locked decision.
-7. `procurement-prototype/IMPLEMENTATION_LOG.md` and `project-progress/PROJECT_PROGRESS.md` for recent progress, if the task depends on history.
-8. `procurement-prototype/_doc/testing-standard-op.zh-TW.md` before changing tests or verification flow.
-9. `procurement-prototype/_doc/ui-quality-review.zh-TW.md` before UI changes.
+2. `01-pm-owner/project-progress/MASTER_PM_LEDGER.md` when the task touches cross-thread PM memory, handoff, dirty worktree cleanup, branch/commit hygiene, or thread coordination.
+3. `01-pm-owner/project-progress/WORKTREE_TRIAGE_20260613.md` when the worktree is dirty, unmerged, or the task touches existing staged/unstaged changes.
+4. `05-engineering-source/procurement-prototype/_context/README.zh-TW.md` for current role, flow, module, and API context.
+5. The specific role file under `05-engineering-source/procurement-prototype/_context/roles/` for the role being changed.
+6. `05-engineering-source/procurement-prototype/PROJECT_DECISIONS.md` only when `_context/` is missing a required locked decision.
+7. `05-engineering-source/procurement-prototype/IMPLEMENTATION_LOG.md` and `01-pm-owner/project-progress/PROJECT_PROGRESS.md` for recent progress, if the task depends on history.
+8. `05-engineering-source/procurement-prototype/_doc/testing-standard-op.zh-TW.md` before changing tests or verification flow.
+9. `05-engineering-source/procurement-prototype/_doc/ui-quality-review.zh-TW.md` before UI changes.
 
 Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old Kuso files, or `_doc/v*.md` unless the user asks for handoff documentation or the current docs are missing a required decision.
 
@@ -22,18 +22,18 @@ Do not bulk-read archived handoff packages, `docs-archive/legacy-context/`, old 
 
 Every material task must pass this gate before giving a substantive plan, review, implementation, commit, deployment, or product judgment:
 
-1. Read `README.md` and `procurement-prototype/_context/README.zh-TW.md`.
+1. Read `README.md` and `05-engineering-source/procurement-prototype/_context/README.zh-TW.md`.
 2. Identify affected roles from the user request, files, screen, feature, API, or data flow. If role ownership is unclear, read every plausibly affected role file before asking.
-3. For any role, screen, permission, workflow, UI, API, DB, test, deployment, or handoff work, read the relevant files under `procurement-prototype/_context/roles/` before changing behavior.
-4. For cross-role work, read the relevant flow file under `procurement-prototype/_context/flows/`.
-5. For table, module, API, or persistence work, read the relevant file under `procurement-prototype/_context/modules/`.
-6. Read `procurement-prototype/PROJECT_DECISIONS.md` only when `_context/` does not contain the required locked decision.
+3. For any role, screen, permission, workflow, UI, API, DB, test, deployment, or handoff work, read the relevant files under `05-engineering-source/procurement-prototype/_context/roles/` before changing behavior.
+4. For cross-role work, read the relevant flow file under `05-engineering-source/procurement-prototype/_context/flows/`.
+5. For table, module, API, or persistence work, read the relevant file under `05-engineering-source/procurement-prototype/_context/modules/`.
+6. Read `05-engineering-source/procurement-prototype/PROJECT_DECISIONS.md` only when `_context/` does not contain the required locked decision.
 
 Before implementation or any key product judgment, include a short receipt:
 
 ```text
 Startup Context Receipt
-Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
+Read: README.md; 05-engineering-source/procurement-prototype/_context/README.zh-TW.md; ...
 Roles: Requester; Dept DRI; Cost Manager; ...
 Decisions: locked decisions used, or none
 Gaps: unresolved ambiguity, or none
@@ -47,7 +47,7 @@ commit, deployment, or product judgment:
 
 ```text
 Startup Context Receipt
-Read: README.md; procurement-prototype/_context/README.zh-TW.md; ...
+Read: README.md; 05-engineering-source/procurement-prototype/_context/README.zh-TW.md; ...
 Roles: affected roles read, or none
 Flows/Modules: flow/module docs read, or none
 Worktree: git status summary, or not inspected yet with reason
@@ -77,23 +77,23 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
 - Keep the main thread focused on decisions, tradeoffs, implementation summary, and verification results.
 - Default to Traditional Chinese for user-facing responses unless the user requests another language.
 - Use compact handoffs when context gets long: `Findings / Decision / Risk / Next`.
-- Treat `procurement-prototype/_context/` as the first onboarding source for role, flow, module, and API context.
-- Treat `procurement-prototype/PROJECT_DECISIONS.md` as the full locked-decision source when `_context/` is insufficient.
+- Treat `05-engineering-source/procurement-prototype/_context/` as the first onboarding source for role, flow, module, and API context.
+- Treat `05-engineering-source/procurement-prototype/PROJECT_DECISIONS.md` as the full locked-decision source when `_context/` is insufficient.
 - Do not let UI changes redefine business ownership. Lock who creates, approves, views, and edits before implementation.
 - Do not update IT handoff packages unless business flow, canonical data, role ownership, or external handoff requirements changed.
 - Prefer existing prototype patterns over adding new architecture.
 - At the start of a material implementation thread, inspect `git status --short`. If the worktree is dirty, unmerged, or on `main`, identify ownership before editing. Do not mix unrelated workstream changes in one commit.
-- If `deploy/mac-mini/deploy.sh` remains `AA` or any path is unmerged, resolve that index conflict before staging or committing unrelated changes.
-- Treat large archive, handoff package, review-output, screenshot, and generated-artifact deletions as high-risk until explicitly confirmed. Do not commit those deletions with feature work.
+- If `06-deployment/mac-mini/deploy.sh` remains `AA` or any path is unmerged, resolve that index conflict before staging or committing unrelated changes.
+- Treat large archive, handoff package, 07-review-and-artifacts/review-output, screenshot, and generated-artifact deletions as high-risk until explicitly confirmed. Do not commit those deletions with feature work.
 
 ## Source And Runtime Discipline
 
 - Treat Git working copies as the only editable source of truth. Do not make product, code, UI, test, API, DB schema, or deploy-script changes directly in a Mac mini runtime directory or running container.
 - On the Mac mini, use `/Users/kai-chenyang/Services/mva-procurement-latest` as the Git source working copy for source edits. Treat `/Users/kai-chenyang/Services/mva-procurement` as deploy/runtime state unless it is explicitly confirmed to be the active clean Git working copy.
-- Runtime-only paths such as `deploy/mac-mini/.env`, Docker volumes, uploads, logs, backups, and generated runtime folders are not source and must not be used to infer committed product behavior.
+- Runtime-only paths such as `06-deployment/mac-mini/.env`, Docker volumes, uploads, logs, backups, and generated runtime folders are not source and must not be used to infer committed product behavior.
 - Before changing source on Mac mini, run `git status --short --branch`, `git fetch origin`, and `git pull --ff-only` for the target branch. If the tree is dirty, classify ownership before editing.
 - After Mac mini source edits, validate in the Git working copy, commit intentionally, push to GitHub, then deploy from that commit. Do not leave untracked runtime patches as the only copy of a fix.
-- For manual Mac mini source-to-runtime deployment, use `deploy/mac-mini/sync-runtime-from-source.sh` from the Git source checkout. Do not manually `rsync` source into runtime except during explicit recovery or when the script itself is broken.
+- For manual Mac mini source-to-runtime deployment, use `06-deployment/mac-mini/sync-runtime-from-source.sh` from the Git source checkout. Do not manually `rsync` source into runtime except during explicit recovery or when the script itself is broken.
 - When recovering a broken runtime, it is acceptable to replace runtime files from a verified Git clone, but the recovery must end with GitHub SHA, deployed SHA/source markers, health check, and worktree status evidence.
 - If a future task says "改程式碼", default to editing source in the current repo or the Mac mini Git clone, not the deployed runtime copy.
 
@@ -105,8 +105,8 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
   - `procurement-testing-standard-op` before running or changing the standard test flow.
   - `procurement-ui-quality-review` for procurement UI review or UI changes.
   - `frontend-layout-stability` for modal, table, dashboard, and responsive layout work.
-- General internal-system collaboration rules come from `internal-system-delivery-workflow`; this repo's procurement-specific truth still comes from `procurement-prototype/PROJECT_DECISIONS.md` and the procurement skills.
-- For new thread or subagent startup, read `procurement-prototype/_context/README.zh-TW.md` plus the relevant role file before reading long history or changing product behavior.
+- General internal-system collaboration rules come from `internal-system-delivery-workflow`; this repo's procurement-specific truth still comes from `05-engineering-source/procurement-prototype/PROJECT_DECISIONS.md` and the procurement skills.
+- For new thread or subagent startup, read `05-engineering-source/procurement-prototype/_context/README.zh-TW.md` plus the relevant role file before reading long history or changing product behavior.
 - Use MCP/thread tools for PM memory only when the user asks to coordinate threads, create automations, or inspect another Codex thread.
 - Use Notion as the cross-thread PM coordination layer for this project:
   - Hub: `MVA Procurement Cross-Thread PM Hub`
@@ -117,6 +117,8 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
 - Use subagents for bounded work only: read-only research, spec/story shaping, implementation slices, verification, or validation.
 - Do not delegate product decisions to subagents. Bring unresolved ownership or policy questions back to the main thread.
 - If subagent capacity is unavailable, continue in the main thread and state that the agent limit was hit.
+- For material non-trivial work that can be split into independent scopes, Codex may proactively start subagents after the startup gate. Follow `01-pm-owner/project-progress/MULTI_AGENT_WORK_SPEC.md` for auto-start criteria, prompt shape, write-scope boundaries, permission labels, integration rules, and the required multi-agent receipt.
+- Do not auto-start subagents for tiny tasks, single blocking decisions, tightly coupled bugs, overlapping file edits, destructive cleanup, external writes, deployments, purchases, customer contact, or production-data changes unless Kai explicitly authorizes the specific action.
 
 ## Procurement Prototype Heuristics
 
@@ -130,7 +132,7 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
 
 ## Verification Expectations
 
-- Run `./test.sh` from `procurement-prototype` for material prototype changes.
+- Run `./test.sh` from `05-engineering-source/procurement-prototype` for material prototype changes.
 - For narrow syntax-only changes, at least run the relevant syntax or unit check and explain why the full suite was not needed.
 - UI work should include rendered verification when feasible, especially for modals, tables, overflow, and role-specific screens.
 - If a test fails because expectations are stale, update the test only after confirming the new business rule is intentional.
@@ -138,10 +140,10 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
 ## PM Memory And Context Compression
 
 - Use `MVA Procurement Cross-Thread PM Hub` in Notion as the stable PM coordination baseline when available.
-- Keep `project-progress/MASTER_PM_LEDGER.md` as the repo-local index for the Notion PM Hub and its operating rules.
+- Keep `01-pm-owner/project-progress/MASTER_PM_LEDGER.md` as the repo-local index for the Notion PM Hub and its operating rules.
 - Repo truth remains authoritative:
-  - `procurement-prototype/_context/` is the first onboarding source.
-  - `procurement-prototype/PROJECT_DECISIONS.md` is the full locked-decision source when `_context/` is insufficient.
+  - `05-engineering-source/procurement-prototype/_context/` is the first onboarding source.
+  - `05-engineering-source/procurement-prototype/PROJECT_DECISIONS.md` is the full locked-decision source when `_context/` is insufficient.
   - Notion is for cross-thread retrieval, PM alignment, risk/action tracking, and handoff summaries.
 - Daily summaries should be delta-based: yesterday's changes, newly locked decisions, current status, risks, and next actions.
 - A handoff is useful only if a future thread can continue from it without rereading the old conversation.
