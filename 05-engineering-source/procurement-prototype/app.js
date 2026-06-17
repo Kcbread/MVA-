@@ -765,6 +765,8 @@ const OM_USER_CONFIRMED = "Requester Confirmed";
 const USER_CONFIRMATION_NOT_REQUIRED = "User Confirmation Not Required";
 const PRICE_AUTO_CLEARED = "Auto Cleared";
 const PRICE_ESCALATION_REQUIRED = "Price Escalation Required";
+const PRICE_HIGH_HISTORY_REVIEW = "High History Quote Review";
+const PRICE_REQUESTER_QUOTE_CONFIRMATION_REQUIRED = "Requester Quote Confirmation Required";
 const PRICE_ESCALATION_PENDING_DRI = "Pending Dept DRI Review";
 const PRICE_ESCALATION_PENDING_PROJECT_DRI = "Pending Budget Approver Review";
 const PRICE_ESCALATION_APPROVED = "Price Escalation Approved";
@@ -18685,6 +18687,7 @@ function priceDecisionForRow(row) {
     historyUnitPriceUsd: historyUnitPriceUsdForDecision(row),
     thresholds: adminApprovalSetup.thresholds,
     isTemporaryBudget: isTemporaryBudgetRequest(row),
+    isNewItemRequest: row.requestType === "New Item Request" || isMaterialNoPending(row),
   }) || {
     status: PRICE_ESCALATION_REQUIRED,
     category,
@@ -18697,7 +18700,11 @@ function priceDecisionForRow(row) {
   };
   return {
     ...comparison,
-    status: comparison.status === "Auto Cleared" ? PRICE_AUTO_CLEARED : PRICE_ESCALATION_REQUIRED,
+    status: [
+      PRICE_AUTO_CLEARED,
+      PRICE_HIGH_HISTORY_REVIEW,
+      PRICE_REQUESTER_QUOTE_CONFIRMATION_REQUIRED,
+    ].includes(comparison.status) ? comparison.status : PRICE_ESCALATION_REQUIRED,
   };
 }
 
@@ -18767,6 +18774,52 @@ function priceDecisionPatch(row, now = new Date().toISOString(), { deferRouting 
     priceDecisionBy: roleProfiles[currentRole]?.name || "OM Purchasing",
     priceApprovalChain: adminApprovalSetup.approvalChain.join(" -> "),
   };
+  if (decision.status === PRICE_HIGH_HISTORY_REVIEW) {
+    return {
+      ...basePatch,
+      priceDecisionStatus: PRICE_HIGH_HISTORY_REVIEW,
+      priceApprovalStatus: PRICE_HIGH_HISTORY_REVIEW,
+      priceDecisionReason: decision.reason,
+      priceThresholdUsd: decision.thresholdUsd,
+      priceThresholdUnitPriceUsd: decision.thresholdUnitPriceUsd,
+      priceMultiplierThreshold: decision.multiplierThreshold,
+      priceDeltaUsd: decision.deltaUsd,
+      quoteUnitPriceSnapshotUsd: decision.quoteUnitPrice,
+      historyUnitPriceSnapshotUsd: decision.historyUnitPrice,
+      quoteChoiceRequired: true,
+      quoteChoiceStatus: "Pending OM Decision",
+      quoteChoiceRequestedAt: now,
+      omStatus: PRICE_HIGH_HISTORY_REVIEW,
+      omStage: "pasResult",
+      userAQuoteDecisionStatus: "",
+      userAQuoteDecisionAt: "",
+      userAQuoteDecisionBy: "",
+    };
+  }
+  if (decision.status === PRICE_REQUESTER_QUOTE_CONFIRMATION_REQUIRED) {
+    return {
+      ...basePatch,
+      priceDecisionStatus: PRICE_REQUESTER_QUOTE_CONFIRMATION_REQUIRED,
+      priceApprovalStatus: PRICE_REQUESTER_QUOTE_CONFIRMATION_REQUIRED,
+      priceDecisionReason: decision.reason,
+      priceThresholdUsd: 0,
+      priceThresholdUnitPriceUsd: null,
+      priceMultiplierThreshold: decision.multiplierThreshold,
+      priceDeltaUsd: decision.deltaUsd,
+      quoteUnitPriceSnapshotUsd: decision.quoteUnitPrice,
+      historyUnitPriceSnapshotUsd: decision.historyUnitPrice,
+      quoteBeforeApprovalRequired: true,
+      quoteReadyAt: row.quoteReadyAt || now,
+      quoteCompletionReadyAt: row.quoteCompletionReadyAt || now,
+      sentToUserAAt: now,
+      omStatus: OM_WAITING_USER_CONFIRM,
+      omStage: "userConfirm",
+      userAQuoteDecisionStatus: OM_WAITING_USER_CONFIRM,
+      userAQuoteDecisionAt: "",
+      userAQuoteDecisionBy: "",
+      userAQuoteCancelReason: "",
+    };
+  }
   if (deferRouting) {
     return {
       ...basePatch,
@@ -19701,6 +19754,14 @@ function saveOmQuoteInfoRows(rows, { requireComplete = false } = {}) {
     if (latest.priceDecisionStatus === PRICE_ESCALATION_REQUIRED) {
       addOmHistory(latest, "Price escalation required", latest.priceDecisionReason || "DRI review required.");
       addHandoffHistory(latest, "Price escalation required", latest.priceDecisionReason || "Dept DRI review required; Temporary Budget continues to Budget Approver.");
+    }
+    if (latest.priceDecisionStatus === PRICE_HIGH_HISTORY_REVIEW) {
+      addOmHistory(latest, "High history quote decision required", latest.priceDecisionReason || "Quote is higher than 110% of history price.");
+      addHandoffHistory(latest, "High history quote decision required", latest.priceDecisionReason || "OM must choose confirm send out or ask Requester confirmation.");
+    }
+    if (latest.priceDecisionStatus === PRICE_REQUESTER_QUOTE_CONFIRMATION_REQUIRED) {
+      addOmHistory(latest, "Requester quote confirmation required", latest.priceDecisionReason || "No reusable history price.");
+      addHandoffHistory(latest, "Requester quote confirmation required", latest.priceDecisionReason || "Requester must confirm quote before Dept DRI submission.");
     }
     addHandoffHistory(latest, "Quote compared with history", `History ${money(latest.historyUnitPrice || 0)} / Quote ${money(latest.quoteUnitPrice || 0)} / Delta ${Number(latest.priceDeltaUsd || 0).toFixed(2)} USD / Threshold ${Number(latest.priceThresholdUsd || 0.4).toFixed(2)} USD`);
     addHandoffHistory(latest, "Quote compared with requester estimate", `Estimate ${money(latest.estimateUnitPriceSnapshotUsd || 0)} / Quote ${money(latest.quoteUnitPriceSnapshotUsd || 0)} / Delta ${Number(latest.estimateDeltaUsd || 0).toFixed(2)} USD / ${latest.estimateVarianceStatus || "Within Estimate Range"}`);

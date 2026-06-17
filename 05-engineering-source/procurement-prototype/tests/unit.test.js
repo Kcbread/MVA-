@@ -61,6 +61,64 @@ test("workflow status maps core ownership stages across roles", () => {
   assert.equal(buyer.nextAction, "Buyer owns PR / PO after OM export");
 });
 
+test("workflow status exposes OM high-history quote decision owner", () => {
+  const status = workflowStatus.buildWorkflowStatus({
+    priceDecisionStatus: "High History Quote Review",
+    omStage: "pasResult",
+    quoteChoiceRequired: true,
+    quoteUnitPriceSnapshotUsd: 110.01,
+    historyUnitPriceSnapshotUsd: 100,
+  }, { role: "omMember", today: new Date("2026-06-17T00:00:00Z") });
+  assert.equal(status.pendingOwner, "OM Purchasing");
+  assert.equal(status.currentStage, "OM High Quote Decision");
+  assert.equal(status.nextAction, "Choose confirm send out or ask Requester confirmation");
+});
+
+test("workflow status exposes requester quote confirmation before Dept DRI submission", () => {
+  const status = workflowStatus.buildWorkflowStatus({
+    priceDecisionStatus: "Requester Quote Confirmation Required",
+    omStage: "userConfirm",
+    userAQuoteDecisionStatus: "Waiting User A Confirmation",
+  }, { role: "requester", today: new Date("2026-06-17T00:00:00Z") });
+  assert.equal(status.pendingOwner, "Requester");
+  assert.equal(status.currentStage, "Requester Quote Confirmation");
+  assert.equal(status.nextAction, "Requester confirm quote, then submit to Dept DRI");
+});
+
+test("workflow status exposes quote-confirmed requester submit before Dept DRI", () => {
+  const status = workflowStatus.buildWorkflowStatus({
+    quoteConfirmedBeforeApproval: true,
+    quoteConfirmedBeforeApprovalAt: "2026-06-15T00:00:00Z",
+  }, { role: "requester", today: new Date("2026-06-17T00:00:00Z") });
+  assert.equal(status.pendingOwner, "Requester");
+  assert.equal(status.currentStage, "Requester Submit");
+  assert.equal(status.stageStartAt, "2026-06-15T00:00:00Z");
+  assert.equal(status.daysPending, 2);
+  assert.equal(status.nextAction, "Submit quote-confirmed request to Dept DRI");
+});
+
+test("workflow group status prioritizes quote routing stages", () => {
+  const group = workflowStatus.buildWorkflowGroupStatus({
+    rows: [
+      {
+        status: "Approved",
+        sentToOmAt: "2026-06-10T00:00:00Z",
+      },
+      {
+        priceDecisionStatus: "High History Quote Review",
+        quoteChoiceRequired: true,
+        quoteChoiceRequestedAt: "2026-06-16T00:00:00Z",
+        omStage: "pasResult",
+      },
+    ],
+  }, { role: "omMember", today: new Date("2026-06-17T00:00:00Z") });
+
+  assert.equal(group.pendingOwner, "OM Purchasing");
+  assert.equal(group.currentStage, "OM High Quote Decision");
+  assert.equal(group.stageStartAt, "2026-06-16T00:00:00Z");
+  assert.equal(group.daysPending, 1);
+});
+
 test("workflow status role visibility hides internal OM fields from requester", () => {
   const requester = workflowStatus.buildWorkflowStatus({}, { role: "requester" }).visibilityFlags;
   assert.equal(requester.showVendor, false);

@@ -12,16 +12,30 @@
 
   const STAGE_PRIORITY = {
     "Dept DRI Review": 0,
+    "Requester Submit": 0,
     "Demand Review": 1,
     "Budget Approval": 2,
     "PAS Demand No": 3,
     "PAS Quote Result": 4,
+    "OM High Quote Decision": 4,
+    "Requester Quote Confirmation": 4,
     "Waiting Requester": 4,
     "Price Review": 5,
     "Export Package": 6,
     "Buyer PR / PO": 7,
     Completed: 9,
   };
+
+  const QUOTE_ROUTING_STAGES = new Set([
+    "OM High Quote Decision",
+    "Requester Quote Confirmation",
+    "Requester Submit",
+  ]);
+
+  function stagePriority(stage) {
+    const priority = STAGE_PRIORITY[stage] ?? 10;
+    return QUOTE_ROUTING_STAGES.has(stage) ? priority - 2 : priority;
+  }
 
   function normalize(value) {
     return String(value || "").trim().toLowerCase();
@@ -91,6 +105,9 @@
     if (row.demandReviewStatus === "Denied" || row.costManagerAuthorizationStatus === "Cost Manager Denied") return "OM Complete";
     if (row.demandReviewStatus === "Revise Required" || row.costManagerAuthorizationReworkRequired) return "Requester";
     if (row.finalExportedAt || row.finalExportStatus || row.buyerStatus || row.buyerReceivedAt) return "Buyer Handoff";
+    if (row.priceDecisionStatus === "High History Quote Review" || row.quoteChoiceRequired === true) return "OM Purchasing";
+    if (row.priceDecisionStatus === "Requester Quote Confirmation Required" && !row.userAQuoteDecisionAt) return "Requester";
+    if (row.quoteConfirmedBeforeApproval && !row.submittedAt) return "Requester";
     if (row.priceDecisionStatus === "Price Escalation Required" && !row.driApprovedAt) return "Dept DRI";
     if (row.priceDecisionStatus === "Price Escalation Required" && row.driApprovedAt && !row.projectDriApprovedAt) return "Budget Approver";
     if (row.costManagerAuthorizationStatus === "Pending Cost Manager Authorization") return "Cost Manager";
@@ -111,6 +128,9 @@
 
   function currentStage(row = {}) {
     if (row.demandReviewStatus === "Denied" || row.costManagerAuthorizationStatus === "Cost Manager Denied") return "Completed";
+    if (row.priceDecisionStatus === "High History Quote Review" || row.quoteChoiceRequired === true) return "OM High Quote Decision";
+    if (row.priceDecisionStatus === "Requester Quote Confirmation Required" && !row.userAQuoteDecisionAt) return "Requester Quote Confirmation";
+    if (row.quoteConfirmedBeforeApproval && !row.submittedAt) return "Requester Submit";
     const owner = pendingOwner(row);
     if (owner === "Dept DRI") return "Dept DRI Review";
     if (owner === "Cost Manager") return "Demand Review";
@@ -146,6 +166,9 @@
     if (stage === "Dept DRI Review") return row.submittedAt || row.requestSubmittedAt || submittedAt(row);
     if (stage === "Demand Review") return row.costManagerAuthorizationSubmittedAt || row.deptDriSubmissionApprovedAt || submittedAt(row);
     if (stage === "Budget Approval") return row.driApprovedAt || row.approvedAt || submittedAt(row);
+    if (stage === "OM High Quote Decision") return row.quoteChoiceRequestedAt || row.quoteCompletionReadyAt || row.quoteReadyAt || row.pasDemandNoRecordedAt || receivedAt(row);
+    if (stage === "Requester Quote Confirmation") return row.sentToUserAAt || row.quoteCompletionReadyAt || row.quoteReadyAt || receivedAt(row);
+    if (stage === "Requester Submit") return row.quoteConfirmedBeforeApprovalAt || row.userAQuoteDecisionAt || row.sentToUserAAt || submittedAt(row);
     if (stage === "PAS Quote Result") return row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt || receivedAt(row);
     if (stage === "Waiting Requester") return row.sentToUserAAt || row.quoteCompletionReadyAt || receivedAt(row);
     if (stage === "Export Package") return row.userAQuoteDecisionAt || row.finalExportPreparedAt || row.sentToUserAAt || receivedAt(row);
@@ -154,6 +177,9 @@
   }
 
   function nextAction(row = {}) {
+    if (row.priceDecisionStatus === "High History Quote Review" || row.quoteChoiceRequired === true) return "Choose confirm send out or ask Requester confirmation";
+    if (row.priceDecisionStatus === "Requester Quote Confirmation Required" && !row.userAQuoteDecisionAt) return "Requester confirm quote, then submit to Dept DRI";
+    if (row.quoteConfirmedBeforeApproval && !row.submittedAt) return "Submit quote-confirmed request to Dept DRI";
     const owner = pendingOwner(row);
     if (owner === "Dept DRI") return "Dept DRI approve / reject";
     if (owner === "Cost Manager") return "Demand Review approve / deny / revise";
@@ -236,7 +262,7 @@
     const owner = [...new Set(statuses.map((status) => status.pendingOwner))]
       .sort((left, right) => (OWNER_PRIORITY[left] ?? 9) - (OWNER_PRIORITY[right] ?? 9))[0];
     const stage = [...new Set(statuses.filter((status) => status.pendingOwner === owner).map((status) => status.currentStage))]
-      .sort((left, right) => (STAGE_PRIORITY[left] ?? 10) - (STAGE_PRIORITY[right] ?? 10))[0]
+      .sort((left, right) => stagePriority(left) - stagePriority(right))[0]
       || statuses[0].currentStage;
     const start = firstDate(statuses.filter((status) => status.currentStage === stage).map((status) => status.stageStartAt))
       || firstDate(statuses.map((status) => status.stageStartAt));
