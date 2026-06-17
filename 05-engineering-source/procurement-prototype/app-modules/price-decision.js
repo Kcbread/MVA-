@@ -109,8 +109,9 @@
     }
 
     const variancePercent = ((quoteUnitPrice - historyUnitPrice) / historyUnitPrice) * 100;
-    const thresholdUnitPriceUsd = roundUsdDelta(historyUnitPrice * HISTORY_PRICE_MULTIPLIER_THRESHOLD);
-    const status = quoteUnitPrice > thresholdUnitPriceUsd ? STATUS_HIGH_HISTORY_QUOTE_REVIEW : STATUS_AUTO_CLEARED;
+    const rawThresholdUnitPriceUsd = historyUnitPrice * HISTORY_PRICE_MULTIPLIER_THRESHOLD;
+    const thresholdUnitPriceUsd = roundUsdDelta(rawThresholdUnitPriceUsd);
+    const status = quoteUnitPrice > rawThresholdUnitPriceUsd ? STATUS_HIGH_HISTORY_QUOTE_REVIEW : STATUS_AUTO_CLEARED;
     return {
       status,
       category,

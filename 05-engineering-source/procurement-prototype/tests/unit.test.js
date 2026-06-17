@@ -456,14 +456,17 @@ test("demand cost dashboard filters carryover rows by exact project scope", () =
 });
 
 test("price decision uses rounded 110 percent history threshold", () => {
+  const exactThreshold = priceDecision.compareQuoteToHistory({
+    category: "Computer",
+    quoteUnitPriceUsd: 10.406,
+    historyUnitPriceUsd: 9.46,
+  });
+  assert.equal(exactThreshold.status, priceDecision.STATUS_AUTO_CLEARED);
+  assert.equal(exactThreshold.thresholdUnitPriceUsd, 10.41);
+
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "Computer",
     quoteUnitPriceUsd: 10.41,
-    historyUnitPriceUsd: 9.46,
-  }).status, priceDecision.STATUS_AUTO_CLEARED);
-  assert.equal(priceDecision.compareQuoteToHistory({
-    category: "Computer",
-    quoteUnitPriceUsd: 10.42,
     historyUnitPriceUsd: 9.46,
   }).status, priceDecision.STATUS_HIGH_HISTORY_QUOTE_REVIEW);
   assert.equal(priceDecision.compareQuoteToHistory({
