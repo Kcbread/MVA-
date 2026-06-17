@@ -4,6 +4,7 @@ const http = require("node:http");
 const path = require("node:path");
 const { URL } = require("node:url");
 const sapPoRawImporter = require("./app-modules/sap-po-raw-importer");
+const materialCoding = require("./app-modules/material-coding");
 
 let mysql;
 try {
@@ -252,6 +253,8 @@ const memoryStore = {
   importJobs: [],
   sapPoRawImportPreviews: new Map(),
   sapPoRawImportJobs: [],
+  lvTaxonomy: [],
+  catalogItems: [],
 };
 
 function hashToken(token) {
@@ -588,6 +591,119 @@ function sapPoRawImportStatusPayload() {
     previews: Array.from(memoryStore.sapPoRawImportPreviews.values()).slice(0, 5).map((preview) => sapPoRawImporter.compactPreview(preview)),
     jobs: memoryStore.sapPoRawImportJobs.slice(0, 10),
   };
+}
+
+let materialContextPromise = null;
+
+async function excelMaterialContext() {
+  if (!materialContextPromise) {
+    materialContextPromise = sapPoRawImporter.previewSapPoRawImport({
+      sheetName: sapPoRawImporter.DEFAULT_SHEET_NAME,
+      scopeMode: sapPoRawImporter.SCOPE_MODE_ALL,
+      root: ROOT,
+      pool,
+      includeRows: true,
+    }).then((preview) => ({
+      preview,
+      taxonomy: materialCoding.taxonomyRowsFromPreview(preview),
+      tree: materialCoding.taxonomyTree(materialCoding.taxonomyRowsFromPreview(preview)),
+      catalogItems: materialCoding.catalogRowsFromPreview(preview),
+      codingRules: materialCoding.codingRulesFromPreview(preview),
+      summary: materialCoding.importSummaryFromPreview(preview),
+    }));
+  }
+  return materialContextPromise;
+}
+
+async function lvTaxonomyPayload() {
+  if (pool) {
+    try {
+      const [rows] = await pool.execute(
+        `SELECT lv1, lv2, lv3, source_file_name AS source, status, sort_order AS sortOrder
+         FROM lv_taxonomy
+         WHERE status = 'active'
+         ORDER BY sort_order ASC, lv1 ASC, lv2 ASC, lv3 ASC`,
+      );
+      if (rows.length) {
+        return { taxonomy: rows, tree: materialCoding.taxonomyTree(rows), source: "mysql" };
+      }
+    } catch {
+      // Fallback to the repo workbook when the local clone has not applied the migration yet.
+    }
+  }
+  if (memoryStore.lvTaxonomy.length) {
+    return {
+      taxonomy: memoryStore.lvTaxonomy,
+      tree: materialCoding.taxonomyTree(memoryStore.lvTaxonomy),
+      source: "memory",
+    };
+  }
+  const context = await excelMaterialContext();
+  memoryStore.lvTaxonomy = context.taxonomy;
+  memoryStore.catalogItems = context.catalogItems;
+  return { taxonomy: context.taxonomy, tree: context.tree, source: "workbook" };
+}
+
+function filterCatalogItems(items = [], params = new URLSearchParams()) {
+  const query = textValue(params.get("q"), 120).toLowerCase();
+  const lv1 = textValue(params.get("lv1"), 120);
+  const lv2 = textValue(params.get("lv2"), 120);
+  const lv3 = textValue(params.get("lv3"), 120);
+  const limit = Math.min(Math.max(Number(params.get("limit") || 100), 1), 500);
+  return items
+    .filter((item) => !lv1 || item.lv1 === lv1)
+    .filter((item) => !lv2 || item.lv2 === lv2)
+    .filter((item) => !lv3 || item.lv3 === lv3)
+    .filter((item) => !query || [item.name, item.spec, item.detail, item.lv1, item.lv2, item.lv3]
+      .some((value) => String(value || "").toLowerCase().includes(query)))
+    .slice(0, limit);
+}
+
+async function catalogItemsForRequest(params, actor) {
+  let rows = [];
+  if (pool) {
+    try {
+      const [dbRows] = await pool.execute(
+        `SELECT i.id AS itemId, i.eng_name AS name, i.spec, i.category, i.lv1, i.lv2, i.lv3,
+                mi.material_no AS factoryMaterialNo,
+                mi.material_coding_review_status AS materialCodingReviewStatus
+         FROM item_master i
+         LEFT JOIN material_identity mi
+           ON mi.item_id = i.id
+          AND mi.material_no_type = 'factory_material_no'
+          AND mi.status = 'active'
+         WHERE i.status = 'active'
+         ORDER BY i.updated_at DESC
+         LIMIT 2000`,
+      );
+      rows = dbRows.map((row) => ({
+        id: row.itemId,
+        itemId: row.itemId,
+        name: row.name || "",
+        spec: row.spec || "",
+        detail: "",
+        category: row.category || [row.lv1, row.lv2, row.lv3].filter(Boolean).join(" / "),
+        lv1: row.lv1 || "",
+        lv2: row.lv2 || "",
+        lv3: row.lv3 || "",
+        factoryMaterialNo: row.factoryMaterialNo || "",
+        materialCodingReviewStatus: row.materialCodingReviewStatus || "Approved mapping",
+      }));
+    } catch {
+      rows = [];
+    }
+  }
+  if (!rows.length) {
+    if (!memoryStore.catalogItems.length) {
+      const context = await excelMaterialContext();
+      memoryStore.lvTaxonomy = context.taxonomy;
+      memoryStore.catalogItems = context.catalogItems;
+    }
+    rows = memoryStore.catalogItems;
+  }
+  const visibleRows = filterCatalogItems(rows, params);
+  const canSeeInternal = ["admin", "omLeader", "omMember", "buyer"].includes(actor?.role);
+  return visibleRows.map((row) => canSeeInternal ? materialCoding.adminCatalogItem(row) : materialCoding.requesterCatalogItem(row));
 }
 
 async function createSapPoRawImportPreview(req, actor, body = {}) {
@@ -1540,6 +1656,16 @@ async function handleApi(req, res, url) {
       const user = await requireAuth(req, res);
       if (!user) return;
       sendJson(res, 200, { user: publicUser(user) });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/taxonomy/lv123") {
+      sendJson(res, 200, await lvTaxonomyPayload());
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/api/catalog/items") {
+      const user = await requireAuth(req, res);
+      if (!user) return;
+      sendJson(res, 200, { items: await catalogItemsForRequest(url.searchParams, user) });
       return;
     }
     if (req.method === "GET" && url.pathname === "/api/workflow/review-rows") {

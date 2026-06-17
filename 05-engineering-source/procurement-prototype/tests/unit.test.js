@@ -11,6 +11,7 @@ const ftvCode = require("../app-modules/ftv-code.js");
 const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
 const sapPoRawImporter = require("../app-modules/sap-po-raw-importer.js");
+const materialCoding = require("../app-modules/material-coding.js");
 
 test("quote validity uses 10-day warning threshold", () => {
   const today = new Date("2026-06-01T00:00:00");
@@ -747,4 +748,118 @@ test("SAP PO Raw importer rolls back when raw line insert fails", async () => {
   );
   assert.equal(connection.commitCalled, false);
   assert.equal(connection.rollbackCalled, true);
+});
+
+test("material coding derives canonical Lv123 taxonomy and generation status from SAP PO Raw preview", () => {
+  const preview = {
+    rows: [
+      {
+        source_row_number: 2,
+        fields: {
+          factory_material_no: "PEJIG-00001",
+          normalized_item_name: "Fixture",
+          normalized_spec: "Fixture spec",
+          lv1: "生產設備與工具",
+          lv2: "治具與夾具",
+          lv3: "治具與夾具",
+        },
+        expected_factory_prefix: "PEJIG",
+      },
+      {
+        source_row_number: 3,
+        fields: {
+          factory_material_no: "AHMED-00001",
+          normalized_item_name: "Medical supply",
+          lv1: "行政與人資",
+          lv2: "醫藥耗材",
+          lv3: "醫藥耗材",
+        },
+        expected_factory_prefix: "",
+      },
+    ],
+  };
+
+  const taxonomy = materialCoding.taxonomyRowsFromPreview(preview);
+  assert.deepEqual(taxonomy.map((row) => `${row.lv1}/${row.lv2}/${row.lv3}`), [
+    "生產設備與工具/治具與夾具/治具與夾具",
+    "行政與人資/醫藥耗材/醫藥耗材",
+  ]);
+
+  const catalog = materialCoding.catalogRowsFromPreview(preview);
+  assert.equal(catalog[0].materialCodingReviewStatus, "Approved mapping");
+  assert.equal(catalog[1].materialCodingReviewStatus, "Need material coding review");
+  assert.equal(catalog[1].factoryMaterialNo, "AHMED-00001");
+});
+
+test("factory material generator only generates for active coding rules", () => {
+  const generated = materialCoding.generateFactoryMaterialNo({
+    lv1: "生產設備與工具",
+    lv2: "治具與夾具",
+    rules: [{ lv1: "生產設備與工具", lv2: "治具與夾具", prefix: "PEJIG", status: "active" }],
+    sequences: { PEJIG: 7 },
+  });
+  assert.deepEqual(generated, {
+    ok: true,
+    factoryMaterialNo: "PEJIG-00008",
+    prefix: "PEJIG",
+    nextSequence: 8,
+    materialCodingReviewStatus: "Approved mapping",
+  });
+
+  const missing = materialCoding.generateFactoryMaterialNo({
+    lv1: "行政與人資",
+    lv2: "醫藥耗材",
+    rules: [{ lv1: "生產設備與工具", lv2: "治具與夾具", prefix: "PEJIG", status: "active" }],
+    sequences: {},
+  });
+  assert.equal(missing.ok, false);
+  assert.equal(missing.factoryMaterialNo, "");
+  assert.equal(missing.materialCodingReviewStatus, "Need material coding review");
+});
+
+test("SAP PO Raw importer receipt reports retained factory material numbers and coding review rows", async () => {
+  const connection = {
+    async beginTransaction() {},
+    async commit() {},
+    async rollback() {},
+    release() {},
+    async execute(sql) {
+      if (/SELECT id FROM item_master/.test(sql)) return [[{ id: "item-existing" }]];
+      if (/SELECT id, material_no_type FROM material_identity/.test(sql)) return [[]];
+      return [{}];
+    },
+  };
+  const pool = {
+    async execute() { return [[]]; },
+    async getConnection() { return connection; },
+  };
+  const receipt = await sapPoRawImporter.commitSapPoRawImport({
+    pool,
+    preview: {
+      source_file_name: "fixture.xlsx",
+      source_sheet_name: "Raw Data",
+      source_checksum: "sha",
+      scope_counts: { om_scope: 0, mfg_buy: 2 },
+      errors: [],
+      warnings: [{ row: 3, code: "lv_rule_missing" }],
+      rows: [
+        {
+          source_row_number: 2,
+          fields: { factory_material_no: "PEJIG-00001", normalized_item_name: "Fixture", lv1: "生產設備與工具", lv2: "治具與夾具", lv3: "治具與夾具" },
+          expected_factory_prefix: "PEJIG",
+          raw_payload_json: {},
+        },
+        {
+          source_row_number: 3,
+          fields: { factory_material_no: "AHMED-00001", normalized_item_name: "Medical", lv1: "行政與人資", lv2: "醫藥耗材", lv3: "醫藥耗材" },
+          expected_factory_prefix: "",
+          raw_payload_json: {},
+        },
+      ],
+    },
+    actorUserId: "admin-default",
+  });
+  assert.equal(receipt.retained_factory_material_no_count, 2);
+  assert.equal(receipt.generated_factory_material_no_count, 0);
+  assert.equal(receipt.need_material_coding_review_count, 1);
 });

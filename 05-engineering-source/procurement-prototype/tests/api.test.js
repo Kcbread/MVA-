@@ -140,6 +140,44 @@ test("workflow review rows require review role and return a stable rows payload"
   }
 });
 
+test("Lv123 taxonomy API returns the canonical Excel-derived taxonomy", async () => {
+  const server = createServer();
+  const baseUrl = await listen(server);
+  try {
+    const result = await request(baseUrl, "/api/taxonomy/lv123");
+    assert.equal(result.response.status, 200);
+    assert.equal(result.json.taxonomy.length, 102);
+    assert.ok(result.json.taxonomy.some((row) =>
+      row.lv1 === "生產設備與工具"
+      && row.lv2 === "設備配件"
+      && row.lv3 === "設備零組件"));
+    assert.ok(result.json.tree["生產設備與工具"]["設備配件"].includes("設備零組件"));
+  } finally {
+    server.close();
+  }
+});
+
+test("Requester catalog API exposes Lv123 but hides internal material identity", async () => {
+  const server = createServer();
+  const baseUrl = await listen(server);
+  try {
+    const requester = await login(baseUrl, "V1524505");
+    const result = await request(baseUrl, "/api/catalog/items?limit=5", { cookie: requester.cookie });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.json.items.length > 0, true);
+    const item = result.json.items[0];
+    assert.ok(item.lv1);
+    assert.ok(item.lv2);
+    assert.ok(item.lv3);
+    assert.equal(Object.hasOwn(item, "factoryMaterialNo"), false);
+    assert.equal(Object.hasOwn(item, "pkMaterialNo"), false);
+    assert.equal(Object.hasOwn(item, "sapMaterialNo"), false);
+    assert.equal(Object.hasOwn(item, "ftvCode"), false);
+  } finally {
+    server.close();
+  }
+});
+
 test("static server only exposes browser runtime assets", async () => {
   const server = createServer();
   const baseUrl = await listen(server);

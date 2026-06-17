@@ -6,6 +6,9 @@
   const sapPoRawContract = typeof require !== "undefined"
     ? require("./sap-po-raw-contract")
     : globalThis.ProcurementApp?.modules?.sapPoRawContract;
+  const materialCoding = typeof require !== "undefined"
+    ? require("./material-coding")
+    : globalThis.ProcurementApp?.modules?.materialCoding;
 
   const DEFAULT_WORKBOOK_BASENAME = "Source DB regularize_0608_renumbered.xlsx";
   const DEFAULT_SHEET_NAME = "Raw Data";
@@ -65,7 +68,15 @@
   }
 
   function resolvePythonExecutable() {
-    return process.env.SAP_PO_RAW_PYTHON || process.env.PYTHON || "python3";
+    const candidates = [
+      process.env.SAP_PO_RAW_PYTHON,
+      process.env.PYTHON,
+      process.env.HOME && path
+        ? path.join(process.env.HOME, ".cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3")
+        : "",
+      "python3",
+    ].filter(Boolean);
+    return candidates.find((candidate) => candidate === "python3" || (fs && fs.existsSync(candidate))) || "python3";
   }
 
   function extractorScriptPath(root = projectRootFromModule()) {
@@ -220,15 +231,23 @@
     const itemName = fields.normalized_item_name || fields.part_name || fields.factory_material_no || normalizedItemKey;
     const category = [fields.lv1, fields.lv2, fields.lv3].filter(Boolean).join(" / ");
     await connection.execute(
-      `INSERT INTO item_master (id, normalized_item_key, eng_name, cn_eng_name, spec, category, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'active')
-       ON DUPLICATE KEY UPDATE updated_at = updated_at`,
+      `INSERT INTO item_master (id, normalized_item_key, eng_name, cn_eng_name, spec, lv1, lv2, lv3, category, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+       ON DUPLICATE KEY UPDATE
+         lv1 = COALESCE(NULLIF(lv1, ''), VALUES(lv1)),
+         lv2 = COALESCE(NULLIF(lv2, ''), VALUES(lv2)),
+         lv3 = COALESCE(NULLIF(lv3, ''), VALUES(lv3)),
+         category = COALESCE(NULLIF(category, ''), VALUES(category)),
+         updated_at = updated_at`,
       [
         itemId,
         normalizedItemKey,
         itemName.slice(0, 240),
         (fields.normalized_chinese_part_name || fields.chinese_translation || "").slice(0, 240),
         fields.normalized_spec || fields.spec || "",
+        fields.lv1 || "",
+        fields.lv2 || "",
+        fields.lv3 || "",
         category.slice(0, 120),
       ],
     );
@@ -236,7 +255,7 @@
     return rows[0]?.id || itemId;
   }
 
-  async function ensureMaterialIdentity(connection, itemId, materialNo, materialNoType) {
+  async function ensureMaterialIdentity(connection, itemId, materialNo, materialNoType, metadata = {}) {
     const normalizedMaterialNo = normalizeText(materialNo);
     if (!normalizedMaterialNo) return null;
     const identityId = createImportId(`mat-${stableHash(`${materialNoType}:${normalizedMaterialNo}`)}`);
@@ -250,9 +269,19 @@
       return existing[0].id;
     }
     await connection.execute(
-      `INSERT INTO material_identity (id, item_id, material_no, material_no_type, created_from, status)
-       VALUES (?, ?, ?, ?, 'sap_po_raw_import', 'active')`,
-      [identityId, itemId, normalizedMaterialNo, materialNoType],
+      `INSERT INTO material_identity
+       (id, item_id, material_no, material_no_type, created_from, status, material_coding_review_status, generated_by_rule_id, source_row_number, source_type)
+       VALUES (?, ?, ?, ?, 'sap_po_raw_import', 'active', ?, ?, ?, ?)`,
+      [
+        identityId,
+        itemId,
+        normalizedMaterialNo,
+        materialNoType,
+        metadata.materialCodingReviewStatus || "Approved mapping",
+        metadata.generatedByRuleId || null,
+        metadata.sourceRowNumber || null,
+        metadata.sourceType || "sap_po_raw_import",
+      ],
     );
     return identityId;
   }
@@ -281,6 +310,68 @@
     ];
   }
 
+  async function upsertTaxonomyRows(connection, preview) {
+    const taxonomyRows = materialCoding.taxonomyRowsFromPreview(preview);
+    for (const row of taxonomyRows) {
+      await connection.execute(
+        `INSERT INTO lv_taxonomy (lv1, lv2, lv3, source_file_name, source_sheet_name, sort_order, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'active')
+         ON DUPLICATE KEY UPDATE
+           source_file_name = VALUES(source_file_name),
+           source_sheet_name = VALUES(source_sheet_name),
+           sort_order = VALUES(sort_order),
+           status = 'active'`,
+        [
+          row.lv1,
+          row.lv2,
+          row.lv3,
+          preview.source_file_name || "",
+          preview.source_sheet_name || DEFAULT_SHEET_NAME,
+          row.sortOrder || 0,
+        ],
+      );
+    }
+    return taxonomyRows.length;
+  }
+
+  async function upsertCodingRules(connection, preview) {
+    const rules = materialCoding.codingRulesFromPreview(preview);
+    for (const rule of rules) {
+      await connection.execute(
+        `INSERT INTO material_coding_rules
+         (id, lv1, lv2, lv3, lv1_code, lv2_code, prefix, rule_type, source_file_name, source_sheet_name, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           lv1_code = VALUES(lv1_code),
+           lv2_code = VALUES(lv2_code),
+           rule_type = VALUES(rule_type),
+           source_file_name = VALUES(source_file_name),
+           source_sheet_name = VALUES(source_sheet_name),
+           status = VALUES(status)`,
+        [
+          rule.id,
+          rule.lv1,
+          rule.lv2,
+          rule.lv3 || "",
+          rule.lv1Code || "",
+          rule.lv2Code || "",
+          rule.prefix,
+          rule.ruleType,
+          preview.source_file_name || "",
+          preview.source_sheet_name || DEFAULT_SHEET_NAME,
+          rule.status || "active",
+        ],
+      );
+      await connection.execute(
+        `INSERT INTO factory_material_sequences (prefix, current_sequence)
+         VALUES (?, 0)
+         ON DUPLICATE KEY UPDATE current_sequence = current_sequence`,
+        [rule.prefix],
+      );
+    }
+    return rules.length;
+  }
+
   async function commitSapPoRawImport({ pool, preview, actorUserId = "", scopeMode = SCOPE_MODE_YELLOW_ONLY } = {}) {
     if (!pool) {
       const error = new Error("UAT MySQL config is required before SAP PO Raw commit.");
@@ -306,6 +397,9 @@
     let insertedLines = 0;
     let insertedFactoryIdentities = 0;
     let insertedSapIdentities = 0;
+    const importSummary = materialCoding.importSummaryFromPreview(preview);
+    let upsertedTaxonomyRows = 0;
+    let upsertedCodingRules = 0;
     try {
       await connection.beginTransaction();
       await connection.execute(
@@ -328,14 +422,23 @@
           }),
         ],
       );
+      upsertedTaxonomyRows = await upsertTaxonomyRows(connection, preview);
+      upsertedCodingRules = await upsertCodingRules(connection, preview);
       for (const row of preview.rows) {
         const fields = row.fields || {};
         const itemId = await ensureItemMaster(connection, row);
+        const materialCodingReviewStatus = materialCoding.materialCodingReviewStatus?.(row)
+          || (row.expected_factory_prefix ? "Approved mapping" : "Need material coding review");
         const factoryIdentityId = await ensureMaterialIdentity(
           connection,
           itemId,
           fields.factory_material_no,
           sapPoRawContract.MATERIAL_NO_TYPE_FACTORY,
+          {
+            materialCodingReviewStatus,
+            sourceRowNumber: row.source_row_number || null,
+            sourceType: "sap_po_raw_import",
+          },
         );
         if (factoryIdentityId) insertedFactoryIdentities += 1;
         const sapIdentityId = await ensureMaterialIdentity(
@@ -343,6 +446,11 @@
           itemId,
           fields.sap_material_no,
           sapPoRawContract.MATERIAL_NO_TYPE_SAP,
+          {
+            materialCodingReviewStatus,
+            sourceRowNumber: row.source_row_number || null,
+            sourceType: "sap_po_raw_import",
+          },
         );
         if (sapIdentityId) insertedSapIdentities += 1;
         await connection.execute(
@@ -359,6 +467,14 @@
         inserted_lines: insertedLines,
         inserted_factory_identities: insertedFactoryIdentities,
         inserted_sap_identities: insertedSapIdentities,
+        upserted_taxonomy_rows: upsertedTaxonomyRows,
+        upserted_material_coding_rules: upsertedCodingRules,
+        taxonomy_count: importSummary.taxonomy_count,
+        catalog_candidate_count: importSummary.catalog_candidate_count,
+        retained_factory_material_no_count: importSummary.retained_factory_material_no_count,
+        generated_factory_material_no_count: importSummary.generated_factory_material_no_count,
+        need_material_coding_review_count: importSummary.need_material_coding_review_count,
+        missing_factory_material_no_or_lv123_count: importSummary.missing_factory_material_no_or_lv123_count,
         scope_counts: preview.scope_counts || {},
         warning_count: (preview.warnings || []).length,
       };

@@ -393,7 +393,8 @@ function buildTaxonomyFromOmMaster(masterRows) {
   }, {});
 }
 
-const LV_TAXONOMY = buildTaxonomyFromOmMaster(REAL_OM_MASTER_SOURCE);
+const LV_TAXONOMY_FALLBACK = buildTaxonomyFromOmMaster(REAL_OM_MASTER_SOURCE);
+let LV_TAXONOMY = Object.keys(LV_TAXONOMY_FALLBACK).length ? LV_TAXONOMY_FALLBACK : buildTaxonomy(LV_TAXONOMY_SOURCE);
 
 const PROJECT_TYPES = ["G", "Non-G"];
 
@@ -2003,6 +2004,40 @@ async function apiRequest(path, options = {}) {
     throw error;
   }
   return payload;
+}
+
+function lvTaxonomyTreeFromApiRows(rows = []) {
+  return rows.reduce((tree, row) => {
+    const level1 = String(row.lv1 || "").trim();
+    const level2 = String(row.lv2 || "").trim();
+    const level3 = String(row.lv3 || "").trim();
+    if (!level1 || !level2 || !level3) return tree;
+    tree[level1] ??= {};
+    tree[level1][level2] ??= [];
+    if (!tree[level1][level2].includes(level3)) tree[level1][level2].push(level3);
+    return tree;
+  }, {});
+}
+
+function refreshLvTaxonomyConsumers() {
+  syncCascade("natural");
+  syncCascade("history");
+  syncRequestItemPickerFilters();
+  const pickerModal = document.getElementById("requestItemPickerModal");
+  if (pickerModal && !pickerModal.hidden) renderRequestItemPicker();
+}
+
+async function hydrateLvTaxonomy() {
+  if (!apiModeEnabled()) return;
+  try {
+    const payload = await apiRequest("/api/taxonomy/lv123");
+    const apiTree = payload.tree && Object.keys(payload.tree).length ? payload.tree : lvTaxonomyTreeFromApiRows(payload.taxonomy || []);
+    if (!Object.keys(apiTree).length) return;
+    LV_TAXONOMY = apiTree;
+    refreshLvTaxonomyConsumers();
+  } catch (error) {
+    console.warn("Lv123 taxonomy API unavailable; using local fallback.", error);
+  }
 }
 
 async function uploadAttachment(file, fields = {}) {
@@ -24120,6 +24155,7 @@ document.getElementById("historyQuery")?.addEventListener("input", () => {
 
 renderRequesterPersonaOptions();
 syncProjectControls();
+hydrateLvTaxonomy();
 renderProjectSetup();
 seedCoordinatorComputerData();
 seedOmDemoData();

@@ -83,10 +83,57 @@ CREATE TABLE IF NOT EXISTS item_master (
   cn_eng_name VARCHAR(240),
   vn_name VARCHAR(240),
   spec TEXT,
+  lv1 VARCHAR(120),
+  lv2 VARCHAR(120),
+  lv3 VARCHAR(120),
   category VARCHAR(120),
   status VARCHAR(40) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_item_master_lv123 (lv1, lv2, lv3)
+);
+
+CREATE TABLE IF NOT EXISTS lv_taxonomy (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  lv1 VARCHAR(120) NOT NULL,
+  lv2 VARCHAR(120) NOT NULL,
+  lv3 VARCHAR(120) NOT NULL,
+  source_file_name VARCHAR(255),
+  source_sheet_name VARCHAR(120),
+  sort_order INT NOT NULL DEFAULT 0,
+  status VARCHAR(40) NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_lv_taxonomy_path (lv1, lv2, lv3),
+  INDEX idx_lv_taxonomy_lv1_lv2 (lv1, lv2),
+  INDEX idx_lv_taxonomy_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS material_coding_rules (
+  id VARCHAR(96) PRIMARY KEY,
+  lv1 VARCHAR(120) NOT NULL,
+  lv2 VARCHAR(120) NOT NULL,
+  lv3 VARCHAR(120),
+  lv1_code VARCHAR(40),
+  lv2_code VARCHAR(40),
+  prefix VARCHAR(40) NOT NULL,
+  rule_type VARCHAR(40) NOT NULL DEFAULT 'lv2_prefix',
+  source_file_name VARCHAR(255),
+  source_sheet_name VARCHAR(120),
+  status VARCHAR(40) NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_material_coding_rule_scope (lv1, lv2, lv3, prefix),
+  INDEX idx_material_coding_prefix (prefix),
+  INDEX idx_material_coding_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS factory_material_sequences (
+  prefix VARCHAR(40) PRIMARY KEY,
+  current_sequence INT NOT NULL DEFAULT 0,
+  updated_by_user_id VARCHAR(64),
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_factory_seq_user FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS material_identity (
@@ -96,11 +143,17 @@ CREATE TABLE IF NOT EXISTS material_identity (
   material_no_type VARCHAR(40) NOT NULL,
   created_from VARCHAR(80),
   status VARCHAR(40) NOT NULL DEFAULT 'active',
+  material_coding_review_status VARCHAR(80) NOT NULL DEFAULT 'Approved mapping',
+  generated_by_rule_id VARCHAR(96),
+  source_row_number INT,
+  source_type VARCHAR(80),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_material_no (material_no),
   INDEX idx_material_identity_item (item_id),
-  CONSTRAINT fk_material_identity_item FOREIGN KEY (item_id) REFERENCES item_master(id)
+  INDEX idx_material_identity_coding_status (material_coding_review_status),
+  CONSTRAINT fk_material_identity_item FOREIGN KEY (item_id) REFERENCES item_master(id),
+  CONSTRAINT fk_material_identity_rule FOREIGN KEY (generated_by_rule_id) REFERENCES material_coding_rules(id)
 );
 
 CREATE TABLE IF NOT EXISTS sap_po_import_batches (
@@ -171,7 +224,7 @@ CREATE TABLE IF NOT EXISTS sap_po_raw_lines (
   is_overdue VARCHAR(20),
   buyer_account VARCHAR(120),
   buyer_name VARCHAR(200),
-  pre_settlement_no VARCHAR(120),
+  pre_settlement_no TEXT,
   project_code VARCHAR(160),
   project_name VARCHAR(160),
   mva_or_reb VARCHAR(40),
@@ -190,7 +243,7 @@ CREATE TABLE IF NOT EXISTS sap_po_raw_lines (
   expense_account_code VARCHAR(120),
   purchase_requisition_release_time VARCHAR(80),
   expense_type VARCHAR(160),
-  settlement_no VARCHAR(120),
+  settlement_no TEXT,
   review_status VARCHAR(160),
   lv1 VARCHAR(120),
   lv2 VARCHAR(120),

@@ -16,6 +16,7 @@ const roleGuards = fs.readFileSync("app-modules/role-guards.js", "utf8");
 const workflowStatusModule = fs.readFileSync("app-modules/workflow-status.js", "utf8");
 const approvalReviewSurfaceModule = fs.readFileSync("app-modules/approval-review-surface.js", "utf8");
 const sapPoRawContractModule = fs.readFileSync("app-modules/sap-po-raw-contract.js", "utf8");
+const materialCodingModule = fs.readFileSync("app-modules/material-coding.js", "utf8");
 const styles = fs.readFileSync("styles.css", "utf8");
 const server = fs.existsSync("server.js") ? fs.readFileSync("server.js", "utf8") : "";
 const schema = fs.existsSync("db/schema.sql") ? fs.readFileSync("db/schema.sql", "utf8") : "";
@@ -27,6 +28,9 @@ const sapPoRawMigration = fs.existsSync("db/migrations/002_sap_po_raw_mirror.sql
   : "";
 const sapPoRawScopeMigration = fs.existsSync("db/migrations/003_sap_po_raw_scope.sql")
   ? fs.readFileSync("db/migrations/003_sap_po_raw_scope.sql", "utf8")
+  : "";
+const sapPoRawSettlementWidthMigration = fs.existsSync("db/migrations/005_widen_sap_po_settlement_fields.sql")
+  ? fs.readFileSync("db/migrations/005_widen_sap_po_settlement_fields.sql", "utf8")
   : "";
 const projectDecisions = fs.existsSync("PROJECT_DECISIONS.md") ? fs.readFileSync("PROJECT_DECISIONS.md", "utf8") : "";
 const dataDictionary = readIfExists(path.join(repoRoot, "03-it-handoff/current-docs/data-dictionary-en.md"));
@@ -1124,6 +1128,13 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(schema, /CREATE TABLE IF NOT EXISTS audit_events/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS item_master/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS material_identity/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS lv_taxonomy/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS material_coding_rules/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS factory_material_sequences/);
+  assert.match(schema, /lv1 VARCHAR\(120\)/);
+  assert.match(schema, /lv2 VARCHAR\(120\)/);
+  assert.match(schema, /lv3 VARCHAR\(120\)/);
+  assert.match(schema, /material_coding_review_status VARCHAR\(80\)/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS purchase_route_decisions/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS ftv_code_master/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS ftv_mapping_staging/);
@@ -1141,11 +1152,14 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(schema, /INDEX idx_sap_po_raw_factory_material \(factory_material_no\)/);
   assert.match(schema, /INDEX idx_sap_po_raw_sap_material \(sap_material_no\)/);
   assert.match(schema, /INDEX idx_sap_po_raw_scope \(buy_scope, scope_source\)/);
+  assert.match(schema, /pre_settlement_no TEXT/);
   assert.match(sapPoRawMigration, /CREATE TABLE IF NOT EXISTS sap_po_import_batches/);
   assert.match(sapPoRawMigration, /CREATE TABLE IF NOT EXISTS sap_po_raw_lines/);
   assert.match(sapPoRawScopeMigration, /003_sap_po_raw_scope/);
   assert.match(sapPoRawScopeMigration, /information_schema\.columns/);
   assert.match(sapPoRawScopeMigration, /idx_sap_po_raw_scope/);
+  assert.match(sapPoRawSettlementWidthMigration, /005_widen_sap_po_settlement_fields/);
+  assert.match(sapPoRawSettlementWidthMigration, /MODIFY COLUMN pre_settlement_no TEXT/);
   assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /資訊類::電腦週邊::鍵盤/);
   assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /資訊類::條碼設備::條碼打印機/);
   assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /SUPPLEMENTAL_LV3_PREFIX_BY_PATH/);
@@ -1159,7 +1173,11 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(fs.readFileSync("app-modules/ftv-code.js", "utf8"), /ROUTE_LOCAL_BUY/);
   assert.match(fs.readFileSync("app-modules/ftv-code.js", "utf8"), /ROUTE_EXTERNAL_IMPORT/);
   assert.match(html, /app-modules\/sap-po-raw-contract\.js/);
+  assert.match(html, /app-modules\/material-coding\.js/);
   assert.match(sapPoRawContractModule, /MATERIAL_NO_TYPE_FACTORY = "factory_material_no"/);
+  assert.match(materialCodingModule, /function taxonomyRowsFromPreview/);
+  assert.match(materialCodingModule, /function generateFactoryMaterialNo/);
+  assert.match(materialCodingModule, /MATERIAL_CODING_NEEDS_REVIEW = "Need material coding review"/);
   assert.match(sapPoRawContractModule, /BUY_SCOPE_OM = "om_scope"/);
   assert.match(sapPoRawContractModule, /SCOPE_SOURCE_EXCEL_YELLOW_FILL = "excel_yellow_fill"/);
   assert.match(sapPoRawContractModule, /\["A", "料號", "factory_material_no"\]/);
@@ -1174,6 +1192,7 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(namingRulesZh, /Factory Material No.*A 欄 `料號`/);
   assert.match(namingRulesZh, /SAP Material No.*H 欄 `料號`/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/ftv-code\.js/);
+  assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/material-coding\.js/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-contract\.js/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /app-modules\/sap-po-raw-importer\.js/);
   assert.match(fs.readFileSync("test.sh", "utf8"), /scripts\/commit-sap-po-raw-import\.js/);
@@ -1182,6 +1201,9 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(server, /\/api\/admin\/sap-po-raw-import\/status/);
   assert.match(server, /\/api\/admin\/sap-po-raw-import\/preview/);
   assert.match(server, /\/api\/admin\/sap-po-raw-import\/commit/);
+  assert.match(server, /\/api\/taxonomy\/lv123/);
+  assert.match(server, /\/api\/catalog\/items/);
+  assert.match(server, /materialCoding\.requesterCatalogItem/);
   assert.match(server, /sapPoRawImporter\.commitSapPoRawImport/);
   assert.match(server, /attachment\.uploaded/);
   assert.match(server, /UPLOAD_ROOT/);
@@ -1189,6 +1211,10 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(app, /function assignOmRow/);
   assert.match(app, /function uploadAttachment/);
   assert.match(app, /function canOperateOmRow/);
+  assert.match(app, /let LV_TAXONOMY/);
+  assert.match(app, /function hydrateLvTaxonomy/);
+  assert.match(app, /apiRequest\("\/api\/taxonomy\/lv123"\)/);
+  assert.match(app, /syncRequestItemPickerFilters\(\)/);
   assert.match(html, /app-modules\/role-guards\.js/);
   assert.match(app, /ProcurementApp\?\.roleGuards\?\.canOperateOmRow/);
   assert.match(fs.readFileSync("app-modules/role-guards.js", "utf8"), /function canOperateOmRow/);
