@@ -1,58 +1,40 @@
-# Procurement Prototype Workspace
+# MVA Procurement Workspace
 
-This folder keeps the procurement system prototype and supporting materials for
-internal testing.
+This workspace is organized by audience so PM, OA internal testers, IT, and
+engineering can find the right entry point quickly.
 
-## Development And Deployment Baseline
+## Start Here
 
-- MacBook Pro is the primary feature-development and review machine. Larger
-  source changes, test updates, commits, and GitHub pushes normally happen here.
-- GitHub `origin/main` is the deployable source of truth.
-- Mac mini is the host / UAT deployment machine and the allowed hotfix machine
-  for UAT-blocking fixes. Hotfixes must still be made in the Git working copy,
-  validated, committed, and pushed back to GitHub; do not patch running
-  containers or untracked deployed files by hand.
-- Docker / Compose deployment assets live in `deploy/mac-mini/`.
-- The detailed sync runbook is `MACBOOK_PRO_SYNC_GUIDE.md`.
+| Need | Go to |
+| --- | --- |
+| PM status, decisions, thread handoff, dirty worktree notes | `01-pm-owner/` |
+| OA / internal UAT test entry, test cases, screen guide | `02-oa-internal-test/` |
+| IT no-source handoff, data dictionary, API / DB docs, handoff packages | `03-it-handoff/` |
+| PPTs, flow diagrams, sample Excel/PDF/DOC files, source data | `04-business-reference/` |
+| Runnable prototype source code | `05-engineering-source/procurement-prototype/` |
+| Mac mini Docker / deployment scripts | `06-deployment/mac-mini/` |
+| Screenshots, review outputs, generated artifacts, test logs | `07-review-and-artifacts/` |
+| Old Axure, DFD source, legacy docs, archived reference material | `99-archive/` |
 
-## Thread Startup And PM Memory
+## Fast Links
 
-- Project-level rules live in `AGENTS.md`.
-- Every material Codex thread must pass the `Mandatory Startup Context Gate`
-  in `AGENTS.md` before giving a substantive plan, review, implementation,
-  commit, deployment, or product judgment.
-- Role-affecting work must read `procurement-prototype/_context/README.zh-TW.md`
-  and the relevant files under `procurement-prototype/_context/roles/` before
-  changing behavior.
-- Cross-thread PM coordination lives in Notion:
-  - Hub: `MVA Procurement Cross-Thread PM Hub`
-  - URL: `https://app.notion.com/p/37e51fb7c1518144b408e200fcd68d36`
-- Repo-local PM memory index:
-  - `project-progress/MASTER_PM_LEDGER.md`
-- Current dirty worktree triage:
-  - `project-progress/WORKTREE_TRIAGE_20260613.md`
+- PPT index: `04-business-reference/PRESENTATIONS_INDEX.md`
+- Current OA internal test guide: `02-oa-internal-test/README.md`
+- Current IT handoff entry: `03-it-handoff/README.md`
+- PM memory ledger: `01-pm-owner/project-progress/MASTER_PM_LEDGER.md`
+- Prototype context entry: `05-engineering-source/procurement-prototype/_context/README.zh-TW.md`
+- Mac mini deploy runbook: `06-deployment/mac-mini/README.md`
 
-Future Codex threads should not assume they can read other desktop thread
-transcripts directly. Use explicit thread handoffs, Notion PM Hub records, and
-repo-backed summaries.
+## Run The Prototype Locally
 
-For material work, include a short `Startup Context Receipt` before
-implementation or key product judgment: files read, roles read, locked
-decisions used, and unresolved gaps.
+From the repo root:
 
-New material threads should use the fixed first-response format from
-`AGENTS.md`: `Read`, `Roles`, `Flows/Modules`, `Worktree`, `Decisions`,
-`Gaps`, and `Next`. Use
-`project-progress/NEW_THREAD_STARTUP_VALIDATOR.md` as the local checklist.
+```bash
+cd 05-engineering-source/procurement-prototype
+./test.sh
+```
 
-Before material edits, run or inspect `git status --short`. If the worktree is
-dirty, unmerged, or already contains staged work, identify ownership before
-editing. Do not mix feature work, deployment work, PM memory updates, and
-archive/generated cleanup in one commit.
-
-## Start Local Test Server
-
-From this folder, run:
+For a simple static local preview from the repo root:
 
 ```bash
 python3 -m http.server 8080
@@ -61,37 +43,34 @@ python3 -m http.server 8080
 Then open:
 
 ```text
-http://127.0.0.1:8080/procurement-prototype/
+http://127.0.0.1:8080/05-engineering-source/procurement-prototype/
 ```
 
-If port `8080` is already in use, use another port:
+## Development And Deployment Baseline
 
-```bash
-python3 -m http.server 8081
-```
+- MacBook Pro is the primary feature-development and review machine.
+- GitHub `origin/main` is the deployable source of truth.
+- Mac mini is the UAT deployment host and allowed UAT-blocking hotfix machine.
+- Source changes must happen in a Git working copy, be validated, committed,
+  pushed, and then deployed. Do not patch running containers by hand.
+- Docker / Compose deployment assets live in `06-deployment/mac-mini/`.
+- Detailed sync guidance lives in `01-pm-owner/MACBOOK_PRO_SYNC_GUIDE.md`.
 
-## Internal Test Documents
+## Codex Startup
 
-Current documents for testers and reviewers:
+- Project rules live in `AGENTS.md`.
+- For material product work, read:
+  - `README.md`
+  - `05-engineering-source/procurement-prototype/_context/README.zh-TW.md`
+  - relevant role / flow / module docs under that `_context/` folder
+- For PM memory, branch hygiene, dirty worktree, or handoff work, read:
+  - `01-pm-owner/project-progress/MASTER_PM_LEDGER.md`
+  - `01-pm-owner/project-progress/WORKTREE_TRIAGE_20260613.md` when relevant
 
-- `procurement-prototype/docs-current/frontend-functional-spec.md`
-- `procurement-prototype/docs-current/ui-screen-guide-en.md`
-- `procurement-prototype/docs-current/uat-test-cases-en.md`
-- `procurement-prototype/docs-current/data-dictionary-en.md`
+## Notes
 
-Maintenance / implementation reference:
-
-- `procurement-prototype/_doc/module-table-role-permission-catalog.zh-TW.md`
-
-Older diagrams, screenshots, reports, and reference documents are kept in:
-
-- `procurement-prototype/docs-archive/`
-
-Procurement sample/reference files are kept in:
-
-- `檔案範例/`
-
-## Archived Project
-
-The old recognition project was moved to a sibling archive folder outside this
-workspace.
+- `03-it-handoff/` contains current handoff material and historical handoff
+  packages. Treat zip packages as snapshots unless rebuilt from current docs.
+- `04-business-reference/` is the first stop for PPTs and business sample files.
+- `07-review-and-artifacts/outputs/` may contain local generated artifacts and
+  is intentionally ignored unless a specific output is promoted.

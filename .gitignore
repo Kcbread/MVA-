@@ -1,30 +1,18 @@
 .venv/
 node_modules/
-procurement-prototype/node_modules/
+05-engineering-source/procurement-prototype/node_modules/
 __pycache__/
 .pycache/
 *.pyc
 .DS_Store
 ._*
 ~$*
-outputs/
+07-review-and-artifacts/outputs/
 .env
 delivery-packages/
-review-output/
-archive/
-procurement-prototype/docs-archive/
-procurement-prototype/test-artifacts/
-procurement-prototype/* 2.js
-procurement-prototype/* 2.html
-procurement-prototype/* 2.css
-handoff-delivery/**/*.zip
-handoff-delivery/20260604/
-handoff-delivery/*/01-source/
-procurement-prototype/docs-current/IT_MEETING_PACKAGE_*/
-procurement-prototype/docs-current/IT_MEETING_PACKAGE_*.zip
-procurement-prototype/docs-current/IT offical handoff/
-procurement-prototype/docs-current/IT offical handoff.zip
-檔案範例/
+05-engineering-source/procurement-prototype/* 2.js
+05-engineering-source/procurement-prototype/* 2.html
+05-engineering-source/procurement-prototype/* 2.css
 data/logs/*.log
 data/state/*.db
 data/output/**/*
