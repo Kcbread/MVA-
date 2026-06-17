@@ -1,7 +1,9 @@
 (() => {
-  const HISTORY_PRICE_DELTA_THRESHOLD_USD = 0.4;
+  const HISTORY_PRICE_MULTIPLIER_THRESHOLD = 1.1;
 
   const STATUS_AUTO_CLEARED = "Auto Cleared";
+  const STATUS_HIGH_HISTORY_QUOTE_REVIEW = "High History Quote Review";
+  const STATUS_REQUESTER_QUOTE_CONFIRMATION_REQUIRED = "Requester Quote Confirmation Required";
   const STATUS_ESCALATION_REQUIRED = "Price Escalation Required";
   const STATUS_ESCALATION_APPROVED = "Price Escalation Approved";
   const STATUS_ESCALATION_REJECTED = "Price Escalation Rejected";
@@ -53,7 +55,7 @@
     return positiveNumber(config.historyPriceDeltaUsd)
       || positiveNumber(config.HistoryPriceDeltaUsd)
       || positiveNumber(config.deltaUsd)
-      || HISTORY_PRICE_DELTA_THRESHOLD_USD;
+      || 0.4;
   }
 
   function compareQuoteToHistory(input = {}) {
@@ -61,7 +63,6 @@
     const quoteUnitPrice = positiveNumber(input.quoteUnitPriceUsd ?? input.quoteUnitPrice);
     const historyUnitPrice = positiveNumber(input.historyUnitPriceUsd ?? input.historyUnitPrice);
     const isTemporaryBudget = Boolean(input.isTemporaryBudget);
-    const thresholdUsd = thresholdForCategory(category, input.thresholds);
     const deltaUsd = historyUnitPrice ? roundUsdDelta(quoteUnitPrice - historyUnitPrice) : null;
 
     if (!quoteUnitPrice) {
@@ -70,7 +71,9 @@
         category,
         quoteUnitPrice,
         historyUnitPrice,
-        thresholdUsd,
+        thresholdUsd: 0,
+        thresholdUnitPriceUsd: null,
+        multiplierThreshold: HISTORY_PRICE_MULTIPLIER_THRESHOLD,
         deltaUsd,
         variancePercent: null,
         reason: "Missing quote price",
@@ -82,38 +85,45 @@
         category,
         quoteUnitPrice,
         historyUnitPrice,
-        thresholdUsd,
+        thresholdUsd: 0,
+        thresholdUnitPriceUsd: null,
+        multiplierThreshold: HISTORY_PRICE_MULTIPLIER_THRESHOLD,
         deltaUsd,
         variancePercent: historyUnitPrice ? ((quoteUnitPrice - historyUnitPrice) / historyUnitPrice) * 100 : null,
         reason: "Temporary Budget Request requires DRI review",
       };
     }
-    if (!historyUnitPrice) {
+    if (!historyUnitPrice || input.isNewItemRequest) {
       return {
-        status: STATUS_ESCALATION_REQUIRED,
+        status: STATUS_REQUESTER_QUOTE_CONFIRMATION_REQUIRED,
         category,
         quoteUnitPrice,
         historyUnitPrice,
-        thresholdUsd,
+        thresholdUsd: 0,
+        thresholdUnitPriceUsd: null,
+        multiplierThreshold: HISTORY_PRICE_MULTIPLIER_THRESHOLD,
         deltaUsd,
         variancePercent: null,
-        reason: "No reusable history price",
+        reason: "No reusable history price; requester must confirm OM quote before Dept DRI submission",
       };
     }
 
     const variancePercent = ((quoteUnitPrice - historyUnitPrice) / historyUnitPrice) * 100;
-    const status = deltaUsd <= thresholdUsd ? STATUS_AUTO_CLEARED : STATUS_ESCALATION_REQUIRED;
+    const thresholdUnitPriceUsd = roundUsdDelta(historyUnitPrice * HISTORY_PRICE_MULTIPLIER_THRESHOLD);
+    const status = quoteUnitPrice > thresholdUnitPriceUsd ? STATUS_HIGH_HISTORY_QUOTE_REVIEW : STATUS_AUTO_CLEARED;
     return {
       status,
       category,
       quoteUnitPrice,
       historyUnitPrice,
-      thresholdUsd,
+      thresholdUsd: roundUsdDelta(thresholdUnitPriceUsd - historyUnitPrice),
+      thresholdUnitPriceUsd,
+      multiplierThreshold: HISTORY_PRICE_MULTIPLIER_THRESHOLD,
       deltaUsd,
       variancePercent,
       reason: status === STATUS_AUTO_CLEARED
-        ? `Quote delta ${deltaUsd.toFixed(2)} USD is within ${thresholdUsd.toFixed(2)} USD threshold`
-        : `Quote delta ${deltaUsd.toFixed(2)} USD exceeds ${thresholdUsd.toFixed(2)} USD threshold`,
+        ? `Quote ${quoteUnitPrice.toFixed(2)} USD is within 110% of history price ${historyUnitPrice.toFixed(2)} USD`
+        : `Quote ${quoteUnitPrice.toFixed(2)} USD is higher than 110% of history price ${historyUnitPrice.toFixed(2)} USD`,
     };
   }
 
@@ -122,7 +132,7 @@
     const quoteUnitPrice = positiveNumber(input.quoteUnitPriceUsd ?? input.quoteUnitPrice);
     const qty = positiveNumber(input.qty ?? input.quantity ?? input.totalQty) || 0;
     const percentThreshold = positiveNumber(input.percentThreshold) || 20;
-    const amountThresholdUsd = positiveNumber(input.amountThresholdUsd) || HISTORY_PRICE_DELTA_THRESHOLD_USD;
+    const amountThresholdUsd = positiveNumber(input.amountThresholdUsd) || 0.4;
     if (!estimateUnitPrice || !quoteUnitPrice) {
       return {
         status: ESTIMATE_VARIANCE_WITHIN,
@@ -164,8 +174,10 @@
   }
 
   const api = {
-    HISTORY_PRICE_DELTA_THRESHOLD_USD,
+    HISTORY_PRICE_MULTIPLIER_THRESHOLD,
     STATUS_AUTO_CLEARED,
+    STATUS_HIGH_HISTORY_QUOTE_REVIEW,
+    STATUS_REQUESTER_QUOTE_CONFIRMATION_REQUIRED,
     STATUS_ESCALATION_REQUIRED,
     STATUS_ESCALATION_APPROVED,
     STATUS_ESCALATION_REJECTED,

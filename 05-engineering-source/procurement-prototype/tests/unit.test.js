@@ -455,27 +455,57 @@ test("demand cost dashboard filters carryover rows by exact project scope", () =
   assert.deepEqual(dashboard.filterCarryoverRows(rows, { project: "OR6" }), [rows[1]]);
 });
 
-test("price decision uses rounded USD delta threshold", () => {
-  assert.equal(priceDecision.compareQuoteToHistory({
-    category: "Computer",
-    quoteUnitPriceUsd: 10.4,
-    historyUnitPriceUsd: 10,
-  }).status, priceDecision.STATUS_AUTO_CLEARED);
+test("price decision uses rounded 110 percent history threshold", () => {
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "Computer",
     quoteUnitPriceUsd: 10.41,
-    historyUnitPriceUsd: 10,
-  }).status, priceDecision.STATUS_ESCALATION_REQUIRED);
+    historyUnitPriceUsd: 9.46,
+  }).status, priceDecision.STATUS_AUTO_CLEARED);
+  assert.equal(priceDecision.compareQuoteToHistory({
+    category: "Computer",
+    quoteUnitPriceUsd: 10.42,
+    historyUnitPriceUsd: 9.46,
+  }).status, priceDecision.STATUS_HIGH_HISTORY_QUOTE_REVIEW);
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "MFG",
-    quoteUnitPriceUsd: 10.404,
-    historyUnitPriceUsd: 10,
+    quoteUnitPriceUsd: 110,
+    historyUnitPriceUsd: 100,
   }).status, priceDecision.STATUS_AUTO_CLEARED);
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "MFG",
-    quoteUnitPriceUsd: 10.405,
-    historyUnitPriceUsd: 10,
-  }).status, priceDecision.STATUS_ESCALATION_REQUIRED);
+    quoteUnitPriceUsd: 110.01,
+    historyUnitPriceUsd: 100,
+  }).status, priceDecision.STATUS_HIGH_HISTORY_QUOTE_REVIEW);
+});
+
+test("price decision uses 110 percent history multiplier for quoted history items", () => {
+  const atThreshold = priceDecision.compareQuoteToHistory({
+    quoteUnitPriceUsd: 110,
+    historyUnitPriceUsd: 100,
+    isTemporaryBudget: false,
+  });
+  assert.equal(atThreshold.status, "Auto Cleared");
+  assert.equal(atThreshold.multiplierThreshold, 1.1);
+  assert.equal(atThreshold.thresholdUnitPriceUsd, 110);
+
+  const aboveThreshold = priceDecision.compareQuoteToHistory({
+    quoteUnitPriceUsd: 110.01,
+    historyUnitPriceUsd: 100,
+    isTemporaryBudget: false,
+  });
+  assert.equal(aboveThreshold.status, "High History Quote Review");
+  assert.equal(aboveThreshold.reason, "Quote 110.01 USD is higher than 110% of history price 100.00 USD");
+});
+
+test("price decision routes no-history item to requester quote confirmation", () => {
+  const result = priceDecision.compareQuoteToHistory({
+    quoteUnitPriceUsd: 80,
+    historyUnitPriceUsd: 0,
+    isTemporaryBudget: false,
+    isNewItemRequest: true,
+  });
+  assert.equal(result.status, "Requester Quote Confirmation Required");
+  assert.equal(result.reason, "No reusable history price; requester must confirm OM quote before Dept DRI submission");
 });
 
 test("price decision requires escalation for no history and temporary budget", () => {
@@ -483,7 +513,7 @@ test("price decision requires escalation for no history and temporary budget", (
     category: "Computer",
     quoteUnitPriceUsd: 100,
     historyUnitPriceUsd: 0,
-  }).status, priceDecision.STATUS_ESCALATION_REQUIRED);
+  }).status, priceDecision.STATUS_REQUESTER_QUOTE_CONFIRMATION_REQUIRED);
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "Computer",
     quoteUnitPriceUsd: 100,
