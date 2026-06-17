@@ -1089,6 +1089,10 @@ let requestItemPickerSourceMode = "catalog";
 let requestItemPickerLevel1 = "";
 let requestItemPickerLevel2 = "";
 let requestItemPickerLevel3 = "";
+let requestCatalogApiRows = [];
+let requestCatalogApiStatus = "idle";
+let requestCatalogApiKey = "";
+let requestCatalogApiTimer = null;
 let currentDeptDemandDepartment = "";
 let priceReviewAnalysisRowsOverride = null;
 let requestSequence = 1;
@@ -10704,10 +10708,84 @@ function requestWorksheetSourceHaystack(row) {
   return normalize(row.name || row.item || "");
 }
 
+function catalogRowFromApiItem(item = {}) {
+  const name = item.name || item.item || "Catalog item";
+  const spec = item.spec || item.detail || "";
+  return {
+    id: `DBCAT-${item.itemId || item.id || stableHash(`${name}|${spec}`)}`,
+    itemId: item.itemId || item.id || "",
+    project: currentProject,
+    yearProject: currentProject,
+    projectCode: currentProjectCode,
+    sourceProject: "DB Catalog",
+    source: "db-catalog",
+    name,
+    detail: item.detail || spec,
+    spec,
+    level1: item.lv1 || item.level1 || "",
+    level2: item.lv2 || item.level2 || "",
+    level3: item.lv3 || item.level3 || "",
+    category: item.category || [item.lv1, item.lv2, item.lv3].filter(Boolean).join(" / "),
+    materialCodingReviewStatus: item.materialCodingReviewStatus || "",
+    materialStatus: item.materialCodingReviewStatus || "Active Catalog",
+    unitPrice: 0,
+    qty: 0,
+    p10: 0,
+    p11: 0,
+    evt: 0,
+    dvt: 0,
+    pvt: 0,
+    mp: 0,
+    requesterReason: "Selected from DB catalog. Quantity starts at 0.",
+  };
+}
+
+function requestCatalogApiParams() {
+  const params = new URLSearchParams();
+  params.set("limit", "200");
+  if (requestItemPickerQuery.trim()) params.set("q", requestItemPickerQuery.trim());
+  if (requestItemPickerLevel1) params.set("lv1", requestItemPickerLevel1);
+  if (requestItemPickerLevel2) params.set("lv2", requestItemPickerLevel2);
+  if (requestItemPickerLevel3) params.set("lv3", requestItemPickerLevel3);
+  return params;
+}
+
+async function hydrateRequestCatalogItems({ force = false } = {}) {
+  if (!apiModeEnabled() || requestItemPickerSourceMode !== "catalog") return;
+  const params = requestCatalogApiParams();
+  const key = params.toString();
+  if (!force && requestCatalogApiKey === key && requestCatalogApiStatus === "loaded") return;
+  requestCatalogApiKey = key;
+  requestCatalogApiStatus = "loading";
+  try {
+    const payload = await apiRequest(`/api/catalog/items?${params.toString()}`);
+    if (requestCatalogApiKey !== key) return;
+    requestCatalogApiRows = Array.isArray(payload.items) ? payload.items.map(catalogRowFromApiItem) : [];
+    requestCatalogApiStatus = "loaded";
+  } catch (error) {
+    if (requestCatalogApiKey === key) requestCatalogApiStatus = "error";
+    console.warn("Catalog API unavailable; using local catalog fallback.", error);
+  }
+  const modal = document.getElementById("requestItemPickerModal");
+  if (modal && !modal.hidden) renderRequestItemPicker();
+}
+
+function scheduleHydrateRequestCatalogItems({ force = false } = {}) {
+  if (requestCatalogApiTimer) window.clearTimeout(requestCatalogApiTimer);
+  requestCatalogApiTimer = window.setTimeout(() => {
+    requestCatalogApiTimer = null;
+    hydrateRequestCatalogItems({ force });
+  }, 180);
+}
+
 function requestWorksheetMergedSources(query = requestWorksheetAddQuery) {
   const keyword = normalize(query);
   const rawQuery = String(query || "").trim();
-  const catalogRows = [...omCatalogRows(currentProject), ...purchaseRecords.filter(rowMatchesCurrentRequesterProjectScope)]
+  const shouldUseApiCatalog = apiModeEnabled() && ["loading", "loaded"].includes(requestCatalogApiStatus);
+  const activeCatalogRows = shouldUseApiCatalog
+    ? requestCatalogApiRows
+    : [...omCatalogRows(currentProject), ...purchaseRecords.filter(rowMatchesCurrentRequesterProjectScope)];
+  const catalogRows = activeCatalogRows
     .map((row) => ({ type: "catalog", badge: "Catalog", row }));
   const reuseRows = reusableHistoryRows()
     .map((row) => ({ type: "reuse", badge: "Reuse", row }));
@@ -10877,6 +10955,7 @@ function openRequestItemPicker() {
   requestItemPickerSourceMode = ["catalog", "reuse", "copy", "new"].includes(requestItemPickerSourceMode) ? requestItemPickerSourceMode : "catalog";
   const modal = document.getElementById("requestItemPickerModal");
   if (modal) modal.hidden = false;
+  hydrateRequestCatalogItems({ force: true });
   renderRequestItemPicker();
   document.getElementById("requestItemPickerQuery")?.focus();
 }
@@ -23347,6 +23426,7 @@ document.addEventListener("click", (event) => {
   }
   if (requestPickerSourceTab) {
     requestItemPickerSourceMode = requestPickerSourceTab.dataset.requestPickerSourceTab || "catalog";
+    if (requestItemPickerSourceMode === "catalog") hydrateRequestCatalogItems({ force: true });
     renderRequestItemPicker();
   }
   if (reuseModeTab) {
@@ -23870,15 +23950,18 @@ document.addEventListener("change", async (event) => {
     requestItemPickerLevel1 = event.target.value || "";
     requestItemPickerLevel2 = "";
     requestItemPickerLevel3 = "";
+    hydrateRequestCatalogItems({ force: true });
     renderRequestItemPicker();
   }
   if (event.target.id === "requestItemPickerLevel2") {
     requestItemPickerLevel2 = event.target.value || "";
     requestItemPickerLevel3 = "";
+    hydrateRequestCatalogItems({ force: true });
     renderRequestItemPicker();
   }
   if (event.target.id === "requestItemPickerLevel3") {
     requestItemPickerLevel3 = event.target.value || "";
+    hydrateRequestCatalogItems({ force: true });
     renderRequestItemPicker();
   }
   if (event.target.id === "managerDashboardProjectFilter") renderManagerDashboard();
@@ -24276,6 +24359,7 @@ document.addEventListener("input", (event) => {
   }
   if (event.target.id === "requestItemPickerQuery") {
     requestItemPickerQuery = event.target.value || "";
+    scheduleHydrateRequestCatalogItems({ force: true });
     renderRequestItemPicker();
   }
   if (event.target.id === "requestWorksheetSearch") {

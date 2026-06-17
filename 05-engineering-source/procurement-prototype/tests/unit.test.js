@@ -12,7 +12,7 @@ const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
 const sapPoRawImporter = require("../app-modules/sap-po-raw-importer.js");
 const materialCoding = require("../app-modules/material-coding.js");
-const omProgress = require("../app-modules/om-progress.js");
+
 
 test("quote validity uses 10-day warning threshold", () => {
   const today = new Date("2026-06-01T00:00:00");

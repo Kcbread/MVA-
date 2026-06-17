@@ -29,6 +29,9 @@ const sapPoRawMigration = fs.existsSync("db/migrations/002_sap_po_raw_mirror.sql
 const sapPoRawScopeMigration = fs.existsSync("db/migrations/003_sap_po_raw_scope.sql")
   ? fs.readFileSync("db/migrations/003_sap_po_raw_scope.sql", "utf8")
   : "";
+const sapPoRawSettlementWidthMigration = fs.existsSync("db/migrations/005_widen_sap_po_settlement_fields.sql")
+  ? fs.readFileSync("db/migrations/005_widen_sap_po_settlement_fields.sql", "utf8")
+  : "";
 const projectDecisions = fs.existsSync("PROJECT_DECISIONS.md") ? fs.readFileSync("PROJECT_DECISIONS.md", "utf8") : "";
 const dataDictionary = readIfExists(path.join(repoRoot, "03-it-handoff/current-docs/data-dictionary-en.md"));
 const namingRulesZh = readIfExists(path.join(repoRoot, "03-it-handoff/current-docs/it-handoff/zh-TW/00-naming-rules.md"));
@@ -1164,11 +1167,14 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(schema, /INDEX idx_sap_po_raw_factory_material \(factory_material_no\)/);
   assert.match(schema, /INDEX idx_sap_po_raw_sap_material \(sap_material_no\)/);
   assert.match(schema, /INDEX idx_sap_po_raw_scope \(buy_scope, scope_source\)/);
+  assert.match(schema, /pre_settlement_no TEXT/);
   assert.match(sapPoRawMigration, /CREATE TABLE IF NOT EXISTS sap_po_import_batches/);
   assert.match(sapPoRawMigration, /CREATE TABLE IF NOT EXISTS sap_po_raw_lines/);
   assert.match(sapPoRawScopeMigration, /003_sap_po_raw_scope/);
   assert.match(sapPoRawScopeMigration, /information_schema\.columns/);
   assert.match(sapPoRawScopeMigration, /idx_sap_po_raw_scope/);
+  assert.match(sapPoRawSettlementWidthMigration, /005_widen_sap_po_settlement_fields/);
+  assert.match(sapPoRawSettlementWidthMigration, /MODIFY COLUMN pre_settlement_no TEXT/);
   assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /資訊類::電腦週邊::鍵盤/);
   assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /資訊類::條碼設備::條碼打印機/);
   assert.match(fs.readFileSync("scripts/extract_sap_po_raw_xlsx.py", "utf8"), /SUPPLEMENTAL_LV3_PREFIX_BY_PATH/);
@@ -1223,6 +1229,7 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(app, /let LV_TAXONOMY/);
   assert.match(app, /function hydrateLvTaxonomy/);
   assert.match(app, /apiRequest\("\/api\/taxonomy\/lv123"\)/);
+
   assert.match(app, /syncRequestItemPickerFilters\(\)/);
   assert.match(html, /app-modules\/role-guards\.js/);
   assert.match(app, /ProcurementApp\?\.roleGuards\?\.canOperateOmRow/);
