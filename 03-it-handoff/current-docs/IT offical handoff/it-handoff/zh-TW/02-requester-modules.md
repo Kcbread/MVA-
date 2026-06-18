@@ -17,7 +17,7 @@
 - Request Workspace 是整頁 Excel worksheet，不使用 `Source Panel + Demand Matrix`。
 - 上方固定 scope：`MFG / Non-MFG` tab、Project、Line、Need Date、Save Draft、Submit。
 - `MFG / Non-MFG` 是兩個 input tab；一次編輯一條 line。
-- Need Date 是 package-level 共用欄位。
+- Need Date 跟著 `project + line + demandType` scope 管理；MFG / Non-MFG 可有不同 Need Date，不覆蓋彼此。
 - 主表是一列一個 `Item / Spec`，不是一列一個 phase。
 
 ### Worksheet Columns
@@ -58,10 +58,18 @@ Row Total / Hint / Action
 
 ### Data Mapping
 
+正式 submit 後的 request item row 使用 server 產生且不可變的 request ID：
+
+```text
+REQ-{YYMMDD}-{DEPT}-{YEARPROJECT}-{PROJECT}-{NNNN}
+```
+
+這個 ID 是 creation/submission snapshot，不包含 line、MFG/Non-MFG、phase、station 或 demand unit；這些維度屬於下方 quantity identity。
+
 Each worksheet qty cell maps to one long-form demand row:
 
 ```text
-requestId + project + requestLine + demandType + phase + station/demandUnit + qty
+requestId + yearProject + projectCode + requestLine + demandType + phase + station/demandUnit + qty
 ```
 
 Implementation field:
@@ -72,6 +80,8 @@ stationBreakdown[]
 
 Rules:
 
+- Draft rows 可使用 temporary ID，submit 前可真刪。
+- Submit 後 `requestId` 不可變；修改走 revision/status/audit events，刪除語意改走 cancel / amendment / void transition。
 - `MFG` cells write `station`.
 - `Non-MFG` cells write `demandUnit`.
 - All phase/station/unit qty starts at `0` when item/spec is added.
@@ -151,7 +161,7 @@ Requester worksheet、Add Item popup、Requester detail 不可顯示：
 | Action | Rule |
 | --- | --- |
 | Save Draft | 儲存目前 line 的 worksheet rows；不要求 Need Date。 |
-| Submit | 必須有 package-level Need Date，且至少一個 qty cell > 0。 |
+| Submit | 必須有目前 `project + line + demandType` scope 的 Need Date，且至少一個 qty cell > 0。 |
 | Remove | Requester worksheet row 直接移除，不跳二次確認；只刪目前 line/mode 下該 item 的 worksheet draft row。 |
 
 ## Carryover / Warehouse Suggestion

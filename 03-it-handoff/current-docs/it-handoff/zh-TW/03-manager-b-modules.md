@@ -24,7 +24,7 @@ Cost Manager 是 Dept DRI 後的成本授權者。它不再提供獨立 top-leve
 - 上方：Cost Review queue、selected-row detail、Authorize / Reject action。
 - 下方：Demand Analysis evidence，包含 `Demand Cost Dashboard` 與 `Station Matrix`。
 - `Demand Cost Dashboard` 與 `Station Matrix` 第一欄固定為 `Review Status`。
-- `Review Status` 只表示審批鏈狀態，不取代 project status。
+- `Review Status` 只表示審批鏈狀態，不取代 `P1.0`、`EVT` 這類 project/phase status。
 - Authorized / rejected / in-pipeline rows 仍留在 evidence，可 drilldown，但 action read-only。
 
 ## `costManager.demandCostDashboard`

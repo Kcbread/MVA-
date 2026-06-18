@@ -432,7 +432,7 @@ const MATERIAL_STANDARD_NAME_REQUESTED = "Standard Name Requested";
 
 const roleProfiles = {
   requester: { name: "Requester", dept: "MFG", functionName: "Demand Requester", defaultView: "department" },
-  manager: { name: "Cost Manager", dept: "MFG", functionName: "Demand Review", defaultView: "manager" },
+  manager: { name: "Cost Manager", dept: "MFG", functionName: "Cost Review", defaultView: "manager" },
   procurement: { name: "MFG Coordinator", dept: "MFG", functionName: "MFG Demand Coordination", defaultView: "procurement" },
   om: { name: "OM Purchasing", dept: "Operations", functionName: "Quotation & Export Package", defaultView: "om" },
   omLeader: { name: "OM Leader", dept: "Operations", functionName: "Exchange Rate / Package Owner", defaultView: "om" },
@@ -513,8 +513,8 @@ const roleCapabilityMatrix = [
 
 const pageTitles = {
   department: "Requester Workspace",
-  projectStatus: "Project Status",
-  manager: "Demand Review",
+  projectStatus: "Request Tracking",
+  manager: "Cost Review",
   procurement: "MFG Demand Coordination",
   om: "OM Purchasing",
   priceReview: "Price Review",
@@ -532,7 +532,7 @@ const roleWorkspaceConfigs = {
     defaultManagerTab: "review",
     managerTabs: ["review", "history"],
     managerTabLabels: {
-      review: "Demand Review",
+      review: "Cost Review",
       history: "Review History",
     },
   },
@@ -651,7 +651,7 @@ function syncMainNavigation(role = currentRole) {
 function syncManagerWorkspaceUi(role = currentRole) {
   const config = workspaceConfigForRole(role);
   const visibleTabs = new Set(config.managerTabs || ["review", "history"]);
-  const reviewLabel = config.managerTabLabels?.review || approvalReviewConfigForRole(role)?.entryLabel || "Demand Review";
+  const reviewLabel = config.managerTabLabels?.review || approvalReviewConfigForRole(role)?.entryLabel || "Cost Review";
   const managerNav = document.querySelector('.tabs .tab[data-view="manager"]');
   if (managerNav && isManagerReviewRole(role)) managerNav.textContent = reviewLabel;
   if (currentView === "manager") document.getElementById("pageTitle").textContent = reviewLabel;
@@ -2819,7 +2819,7 @@ function projectStatusStageSummaryForUnit(demandRows = [], unit = "") {
   const stageOwner = status.blockedAtOwner && status.blockedAtOwner !== "Closed"
     ? status.blockedAtOwner
     : status.nextOwner || "";
-  const stageLabel = stageOwner === "Cost Manager" ? "Demand Review" : stageOwner;
+  const stageLabel = stageOwner === "Cost Manager" ? "Cost Review" : stageOwner;
   const label = stageLabel || status.decisionStatus || "";
   return { label, tone: status.tone || "pending" };
 }
@@ -9523,7 +9523,7 @@ function seedProjectStatusCostDashboardDemoData() {
       requester: index % 2 ? "NPI Requester" : "Line Owner",
       submittedBy: index % 2 ? "NPI Requester" : "Line Owner",
       requesterReason: `${scope.project} ${scope.requestLine} line-opening cost dashboard demo row.`,
-      managerReason: "Project Status cost dashboard demo baseline.",
+      managerReason: "Request Tracking cost dashboard demo baseline.",
       stationBreakdown,
       demoProjectStatusCostSeed: true,
       ...statusPatch,
@@ -12401,7 +12401,7 @@ function renderNeedConfirmationRows() {
 	      <article class="need-confirm-card price-rework-card ${overdue ? "need-confirm-overdue" : ""}">
 	        <div class="need-confirm-main">
 	          <div class="need-confirm-taskbar">
-	            <span class="status-pill rejected">${submissionRework ? "Dept DRI Submission Rejected" : demandReviewRework ? "Demand Review Revise Required" : "Price / Budget Review Rejected"}</span>
+	            <span class="status-pill rejected">${submissionRework ? "Dept DRI Submission Rejected" : demandReviewRework ? "Cost Review Revise Required" : "Price / Budget Review Rejected"}</span>
 	            <span class="need-confirm-taskhint ${overdue ? "warning" : ""}">${overdue ? `Overdue ${overdueDays}d` : "Revise required"}</span>
 	          </div>
 	          <h4>${row.name}</h4>
@@ -14350,7 +14350,7 @@ function managerQueueStatus(row, role = managerReviewRole(currentRole)) {
 function managerQueueNextStep(row, role = managerReviewRole(currentRole)) {
   if (isPriceReviewStockRow(row)) return warehouseOwnerLabel(row);
   if (role === "dri") {
-    if (isDeptDriSubmissionPending(row)) return "Demand Review";
+    if (isDeptDriSubmissionPending(row)) return "Cost Review";
     if (row.priceDecisionStatus === PRICE_ESCALATION_REQUIRED || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_DRI) return "Budget Review";
     return row.nextStep || "Waiting Dept Review";
   }
@@ -15924,7 +15924,7 @@ function approvalPipelineDetailHtml(row = {}, role = currentRole) {
       note: row.deptDriReviewRejectReason || (row.deptDriSubmissionApprovedAt ? "Sent to Cost Manager." : row.driApprovedAt ? "Sent to Budget Approver." : "Waiting Dept DRI decision."),
     },
     {
-      stage: "Demand Review",
+      stage: "Cost Review",
       owner: "Cost Manager",
       status: row.costManagerAuthorizationStatus || (row.costManagerAuthorizationSubmittedAt ? COST_MANAGER_AUTH_PENDING : "Pending"),
       at: row.costManagerAuthorizedAt || row.costManagerRejectedAt || row.costManagerAuthorizationSubmittedAt || "",
@@ -20697,7 +20697,7 @@ function reviewStatusForRole(row = {}, role = currentRole) {
   }
   if (role === "manager") {
     if (demandReviewStatus(row) === DEMAND_REVIEW_DENIED) {
-      return { label: DEMAND_REVIEW_DENIED, secondary: demandReviewReason(row) || "Closed by Demand Review", owner: "Closed", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "denied", actionable: false };
+      return { label: DEMAND_REVIEW_DENIED, secondary: demandReviewReason(row) || "Closed by Cost Review", owner: "Closed", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "denied", actionable: false };
     }
     if (row.costManagerAuthorizationStatus === COST_MANAGER_AUTH_REJECTED || row.costManagerRejectedAt) {
       return { label: DEMAND_REVIEW_REVISE_REQUIRED, secondary: row.costManagerRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "revise", actionable: false };
@@ -20726,7 +20726,7 @@ function reviewStatusForRole(row = {}, role = currentRole) {
     return { label: DEMAND_REVIEW_REVISE_REQUIRED, secondary: row.deptDriReviewRejectReason || row.priceEscalationRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "revise", actionable: false };
   }
   if (row.deptDriSubmissionApprovedAt || row.driApprovedAt) {
-    const nextStage = pipeline.nextOwner === "Cost Manager" ? "Demand Review" : (pipeline.nextOwner || "next owner");
+    const nextStage = pipeline.nextOwner === "Cost Manager" ? "Cost Review" : (pipeline.nextOwner || "next owner");
     return { label: DEMAND_REVIEW_APPROVED, secondary: `Sent to ${nextStage}`, owner: pipeline.blockedAtOwner || pipeline.nextOwner || "-", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
   }
   if (isDeptDriSubmissionPending(row) || row.priceDecisionStatus === PRICE_ESCALATION_REQUIRED || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_DRI) {
@@ -21147,7 +21147,7 @@ function renderPriceReview() {
   if (queueHelper) {
     queueHelper.hidden = false;
     queueHelper.textContent = pending.length
-      ? "Select a row for approval actions. Use Project Status for Dashboard / MFG / Non-MFG tracking."
+      ? "Select a row for approval actions. Use Request Tracking for Dashboard / MFG / Non-MFG tracking."
       : `${activeQueue.label}: no rows are waiting.`;
   }
   const workspace = document.getElementById("priceReviewPendingWorkspace");
@@ -21159,8 +21159,8 @@ function renderPriceReview() {
         selectAttr: "data-price-review-select",
         title: currentRole === "dri" ? "Item Switcher" : roleSurface?.entryLabel || roleMeta.workbenchTitle || `${roleProfiles[currentRole]?.name || "Reviewer"} Rows`,
         helper: currentRole === "dri"
-          ? "Switch item here. Project Status keeps the full tracking matrix together."
-          : activeQueue.helper || "Select a row for approval actions. Track the full project in Project Status.",
+          ? "Switch item here. Request Tracking keeps the full tracking matrix together."
+          : activeQueue.helper || "Select a row for approval actions. Track the full project in Request Tracking.",
         emptyText: priceReviewEmptyState(currentRole, currentPriceReviewQueue),
         role: currentRole,
         actionHtml: priceReviewApprovalQuantityActions,
@@ -21347,7 +21347,7 @@ function applyPriceReviewDecision(requestId, action) {
       addHandoffHistory(latest, "Dept DRI submission approved", "Waiting Cost Manager final authorization.");
       rerenderReviewAfterDecision();
       renderDepartment();
-      showToast("Dept Review approved. Waiting Demand Review.", "success");
+      showToast("Dept Review approved. Waiting Cost Review.", "success");
       return;
     }
     requests = requests.map((item) => item.id === requestId ? {
@@ -21430,13 +21430,13 @@ function applyCostManagerAuthorization(requestId, action) {
       decidedAt: now,
     } : item);
     const latest = requests.find((item) => item.id === requestId);
-    addHandoffHistory(latest, "Demand Review revise required", reason);
+    addHandoffHistory(latest, "Cost Review revise required", reason);
     syncSelectedManagerRequest(managerRows(), requestId);
     renderManager();
     restoreApprovalViewport("manager");
     renderDepartment();
     renderPriceReview();
-    showToast("Demand Review marked Revise. Row returned to Requester Action Required.", "success");
+    showToast("Cost Review marked Revise. Row returned to Requester Action Required.", "success");
     return;
   }
   if (action === "deny") {
@@ -21464,13 +21464,13 @@ function applyCostManagerAuthorization(requestId, action) {
       procurementStatus: "Demand denied",
     } : item);
     const latest = requests.find((item) => item.id === requestId);
-    addHandoffHistory(latest, "Demand Review denied", reason);
+    addHandoffHistory(latest, "Cost Review denied", reason);
     syncSelectedManagerRequest(managerRows(), requestId);
     renderManager();
     restoreApprovalViewport("manager");
     renderDepartment();
     renderPriceReview();
-    showToast("Demand Review denied this item row. It is closed and will not move to OM.", "success");
+    showToast("Cost Review denied this item row. It is closed and will not move to OM.", "success");
     return;
   }
   requests = requests.map((item) => item.id === requestId ? syncRowPhaseQtyFromStationBreakdown({
@@ -21488,15 +21488,15 @@ function applyCostManagerAuthorization(requestId, action) {
     ...omLeaderIntakeRoutingPatch(item, now),
   }) : item);
   const latest = requests.find((item) => item.id === requestId);
-  addHandoffHistory(latest, "Demand Review approved", "Item row moved to OM Leader intake.");
-  addOmHistory(latest, "Received after Demand Review approval", "OM Leader can assign PAS Demand No / quote work.");
+  addHandoffHistory(latest, "Cost Review approved", "Item row moved to OM Leader intake.");
+  addOmHistory(latest, "Received after Cost Review approval", "OM Leader can assign PAS Demand No / quote work.");
   syncSelectedManagerRequest(managerRows(), requestId);
   renderManager();
   restoreApprovalViewport("manager");
   renderOmPurchasing();
   renderDepartment();
   renderPriceReview();
-  showToast("Demand Review approved. Row moved to OM Leader intake.", "success");
+  showToast("Cost Review approved. Row moved to OM Leader intake.", "success");
 }
 
 function applyManagerReviewDecision(requestId, action = "approve") {

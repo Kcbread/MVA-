@@ -103,7 +103,7 @@
 | 流程 | 角色順序 | 驗證重點 |
 | --- | --- | --- |
 | 基本送審到 OM | Requester -> Dept DRI -> Cost Manager -> OM | Cost Manager authorize 後 OM scope row 進 `PAS Demand No`。 |
-| PAS Demand No | OM Purchasing / OM Leader | 未填 PAS Demand No 不可移到 quote；填寫後可進 `PAS Quote Result`。 |
+| PAS Demand No | OM Purchasing / OM Leader | 未填 PAS Demand No 不可移到 quote；填寫後可進 `Quote Result / Monitor`，row 進 PAS Quote Result workflow stage。 |
 | Quote Result 完整性 | OM Purchasing | PAS Material No、Vendor、Vendor Part No、Unit Price、Quote Date、Valid Until、screenshot/image、Excel 必填。 |
 | 匯率權限 | OM Leader vs OM Purchasing | Leader 可改 USD to VND rate；OM Purchasing 只能查看與使用。 |
 | 價格審核 | OM -> Dept DRI -> Budget Approver | 超過 history threshold 或無 history price 時進 price escalation。 |

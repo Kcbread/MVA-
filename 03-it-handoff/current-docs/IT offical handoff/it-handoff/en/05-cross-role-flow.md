@@ -12,7 +12,7 @@ flowchart LR
   E -->|"Authorize"| F["OM Leader<br/>Intake / Assignment"]
   E -->|"Reject"| R
   F --> G["OM Purchasing<br/>PAS Demand No"]
-  G --> H["OM Purchasing<br/>PAS Quote Result"]
+  G --> H["OM Purchasing<br/>Quote Result / Monitor<br/>(PAS Quote Result stage)"]
   H --> I["System Price Decision<br/>USD delta threshold"]
   I -->|"Delta <= 0.40"| J["Auto Cleared"]
   I -->|"Delta > 0.40 / no history / new item / Temporary Budget"| K["Dept DRI<br/>Price Exception Review"]
@@ -36,7 +36,7 @@ flowchart LR
 | Cost Manager Review | Authorize | OM Intake / Assignment | Cost Manager |
 | Cost Manager Review | Reject | Requester Action Required | Cost Manager |
 | OM Intake / Assignment | Assign / auto-assign | PAS Demand No | OM Leader / System |
-| PAS Demand No | Save PAS Demand No | PAS Quote Result | OM Purchasing |
+| PAS Demand No | Save PAS Demand No | PAS Quote Result via Quote Result / Monitor | OM Purchasing |
 | PAS Quote Result | Save Quote Info | Price Decision | OM Purchasing / System |
 | Price Decision | Auto Clear | OM Export Package | System |
 | Price Decision | Exception Required | Dept DRI Price Exception Review | System |

@@ -12,12 +12,19 @@ This document defines official naming for near-term IT implementation. If older 
 | `Dept DRI` | First scoped business reviewer for requester submission, unit-owned warehouse/carryover, and first price exception review. |
 | `Cost Manager` | Cost authorization owner after Dept DRI; uses Cost Review for final authorization. |
 | `OM Leader` | OM lead for assignment, exchange rate, feedback triage, and OM tracking. |
-| `OM Purchasing` | OM operator for assigned PAS Demand No, PAS Quote Result, and Export Package work. |
+| `OM Purchasing` | OM operator for assigned PAS Demand No, Quote Result / Monitor, and Export Package work. |
 | `Budget Approver` | Final approver for quote-stage price/budget exceptions. |
 | `Admin` | System setup and governance; no business approval. |
 | `Buyer Handoff` | Post-OM-export PR / PO ownership stage; do not use legacy post-export wording as primary user-facing copy. |
 
 ## Tab Names
+
+### Cross-Role Top Level
+
+| Tab / Term | Purpose |
+| --- | --- |
+| `Request Tracking` | Top-level cross-role, read-only per-request progress module after Requester submission. Role permissions control visible fields and actions; package/item details are drilldowns, not the primary tracking grain. Prototype technical ids may still use legacy `projectStatus` until moduleization. |
+| `Project Status` | Project current phase/status label, such as `P1.0`, `EVT`, `DVT`, `PVT`, or `MP`. It is not the top-level request tracking module name. |
 
 ### Requester
 
@@ -47,7 +54,7 @@ This document defines official naming for near-term IT implementation. If older 
 | --- | --- |
 | `OM Submission Dashboard` | OM stage, pending owner, assignment, and quote expiry overview. |
 | `PAS Demand No` | Enter PAS Demand No. |
-| `PAS Quote Result` | Enter PAS Material No, vendor, quote price, quote screenshot/image, quote Excel, valid until. |
+| `Quote Result / Monitor` | Business screen name; enters PAS Quote Result fields such as PAS Material No, vendor, quote price, quote screenshot/image, quote Excel, and valid until, while monitoring blockers, stage aging, and quote expiry. |
 | `Export Package` | Export after Auto Cleared or Budget Approver approved state. |
 
 ### Budget Approver
@@ -70,7 +77,7 @@ This document defines official naming for near-term IT implementation. If older 
 | `budgetApprover.budgetReview` | Budget exception final review shell. |
 | `om.submissionDashboard` | OM work tracking. |
 | `om.pasDemandNo` | PAS Demand No input. |
-| `om.pasQuoteResult` | Quote result and price decision input. |
+| `om.pasQuoteResult` | `Quote Result / Monitor` business screen for PAS Quote Result workflow-stage quote result and price decision input. |
 | `om.exportPackage` | Export package workflow. |
 | `buyerHandoff.status` | Post-export Buyer Handoff status. |
 
@@ -117,7 +124,7 @@ This document defines official naming for near-term IT implementation. If older 
 | `Station Breakdown` | Long-form qty rows; MFG uses station, Non-MFG uses demand unit. |
 | `Review Status` | Approval-chain status column; first column in review evidence tables. |
 | `PAS Demand No` | Entered by OM in PAS Demand No stage. |
-| `PAS Material No` | Entered by OM in PAS Quote Result stage. |
+| `PAS Material No` | Entered by OM in the PAS Quote Result workflow stage inside the `Quote Result / Monitor` business screen. |
 | `Quote Valid Until` | Quote expiry source; expiring soon within 10 days. |
 | `Quote screenshot/image` | Quote evidence; v1 uses screenshot/image plus Excel as the primary evidence model. |
 | `Quote Excel` | Quote evidence required alongside screenshot/image. |

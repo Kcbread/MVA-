@@ -12,12 +12,19 @@
 | `Dept DRI` | 第一層 scoped business reviewer；審 requester submission、unit-owned warehouse/carryover、price exception 第一層。 |
 | `Cost Manager` | Dept DRI 後的成本授權者；使用 Cost Review 做 final authorization。 |
 | `OM Leader` | OM 作業主管；負責 assignment、exchange rate、feedback triage、OM tracking。 |
-| `OM Purchasing` | OM 作業者；處理 assigned rows 的 PAS Demand No、PAS Quote Result、Export Package。 |
+| `OM Purchasing` | OM 作業者；處理 assigned rows 的 PAS Demand No、Quote Result / Monitor、Export Package。 |
 | `Budget Approver` | quote 後 price/budget exception 的 final approver。 |
 | `Admin` | 系統設定與治理；不做 business approval。 |
 | `Buyer Handoff` | OM export 後 PR / PO 責任交接階段；不使用舊版 post-export 文案作為使用者主文案。 |
 
 ## Tab 命名
+
+### Cross-Role Top Level
+
+| Tab / Term | 用途 |
+| --- | --- |
+| `Request Tracking` | top-level 跨角色、唯讀的 per-request progress module；Requester submit 後以單一 request 為主粒度追蹤跨角色進度。角色權限控制可見欄位與操作；package/item detail 是 drilldown，不是主粒度。Prototype 技術 id 可暫時保留 legacy `projectStatus`，等 module 化再改。 |
+| `Project Status` | project 目前階段/status label，例如 `P1.0`、`EVT`、`DVT`、`PVT`、`MP`；不是 top-level request tracking module 名稱。 |
 
 ### Requester
 
@@ -47,7 +54,7 @@
 | --- | --- |
 | `OM Submission Dashboard` | OM stage、pending owner、assignment、quote expiry 總覽。 |
 | `PAS Demand No` | 輸入 PAS Demand No。 |
-| `PAS Quote Result` | 輸入 PAS Material No、vendor、quote price、quote screenshot/image、quote Excel、valid until。 |
+| `Quote Result / Monitor` | 商業畫面名稱；輸入 PAS Quote Result 欄位如 PAS Material No、vendor、quote price、quote screenshot/image、quote Excel、valid until，並監控 blocker / stage aging / quote expiry。 |
 | `Export Package` | Auto Cleared 或 Budget Approver approved 後 export。 |
 
 ### Budget Approver

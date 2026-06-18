@@ -75,11 +75,11 @@ async function clickPriceReviewSelection(page, requestId) {
   for (const role of ["requester", "dri", "manager", "projectDri", "omLeader", "omMember", "buyer"]) {
     await switchRole(page, role);
     const projectStatusTab = page.locator('.tabs .tab[data-view="projectStatus"]');
-    if (!await projectStatusTab.isVisible()) fail(`Project Status tab should be visible for ${role}`);
+    if (!await projectStatusTab.isVisible()) fail(`Request Tracking tab should be visible for ${role}`);
     await projectStatusTab.click();
-    await expectNoPageErrors(pageErrors, `Project Status ${role}`);
-    await expectText(page, `Project Status ${role}`, [
-      /Project Status/,
+    await expectNoPageErrors(pageErrors, `Request Tracking ${role}`);
+    await expectText(page, `Request Tracking ${role}`, [
+      /Request Tracking/,
       /Dashboard Quantity Review/,
       /Line Count/,
       /View Mode/,
@@ -87,9 +87,9 @@ async function clickPriceReviewSelection(page, requestId) {
       /Non-MFG Department Detail/,
     ], 'section[data-view="projectStatus"]');
     const visibleProjectStatusPanels = await page.locator('section[data-view="projectStatus"] [data-project-status-panel]:visible').count();
-    if (visibleProjectStatusPanels !== 3) fail(`Project Status should show three tables for ${role}`, { visibleProjectStatusPanels });
+    if (visibleProjectStatusPanels !== 3) fail(`Request Tracking should show three tables for ${role}`, { visibleProjectStatusPanels });
     const innerTabCount = await page.locator('section[data-view="projectStatus"] [data-project-status-tab]').count();
-    if (innerTabCount) fail(`Project Status should not use inner tabs for ${role}`, { innerTabCount });
+    if (innerTabCount) fail(`Request Tracking should not use inner tabs for ${role}`, { innerTabCount });
   }
 
   await switchRole(page, "requester", "department");
@@ -382,8 +382,8 @@ async function clickPriceReviewSelection(page, requestId) {
 
   await switchRole(page, "manager", "manager");
   await expectNoPageErrors(pageErrors, "Cost Manager shell");
-  await expectText(page, "Cost Manager shell", [
-	  /Demand Review/,
+	  await expectText(page, "Cost Manager shell", [
+		  /Cost Review/,
 	  /Review History/,
 	  /Quantity Review/,
 	  /Request ID/,
@@ -469,7 +469,7 @@ async function clickPriceReviewSelection(page, requestId) {
     };
   });
   if (!managerLineFilterState.options.length || managerLineFilterState.options.length > 1) {
-    fail("Demand Review focused matrix should expose only the selected item row request line", managerLineFilterState);
+	    fail("Cost Review focused matrix should expose only the selected item row request line", managerLineFilterState);
   }
   if (managerLineFilterState.lineCount !== "2") {
     fail("Cost Manager Line filter replaced or reset Line Count multiplier", managerLineFilterState);
@@ -481,12 +481,12 @@ async function clickPriceReviewSelection(page, requestId) {
     || !managerLineFilterState.matrixGroups.length
     || managerLineFilterState.dashboardRows.some((row) => row.id !== managerLineFilterState.selectedManagerRequestId)
     || managerLineFilterState.matrixGroups.some((row) => row.id !== managerLineFilterState.selectedManagerRequestId)) {
-    fail("Demand Review matrix did not stay focused on the selected item row", managerLineFilterState);
+	    fail("Cost Review matrix did not stay focused on the selected item row", managerLineFilterState);
   }
   await page.evaluate(() => window.setManagerTab?.("history"));
-  await expectText(page, "Cost Manager history", [
-    /Demand Review History/,
-    /Demand Review Decision/,
+	  await expectText(page, "Cost Manager history", [
+	    /Cost Review History/,
+	    /Cost Review Decision/,
   ], '[data-manager-panel="history"]');
   await page.evaluate(() => {
     const row = {
@@ -539,7 +539,7 @@ async function clickPriceReviewSelection(page, requestId) {
 	    /Dept Review Triage/,
 	    /Project Review/,
 	    /Carryover Review\s+Dept DRI reviews requester stock\/carryover candidates/,
-	    /PAS Quote Result/,
+	    /Quote Result \/ Monitor/,
       /Project Item Matrix Overview/,
 	  ], 'section[data-view="manager"]');
   await clickPriceReviewSelection(page, secondaryRequest.id);
@@ -567,7 +567,7 @@ async function clickPriceReviewSelection(page, requestId) {
     fail("Dept DRI manager review should stay in the unified Review shell without Project Context tabs", switchedItemState);
   }
   if (switchedItemState.selectedScope.requestId !== secondaryRequest.id) {
-    fail("Dept DRI row selection should seed Project Status scope", switchedItemState);
+    fail("Dept DRI row selection should seed Request Tracking scope", switchedItemState);
   }
   await switchRole(page, "dri", "projectStatus");
   const projectStatusTrackingState = await page.evaluate((requestId) => {
@@ -590,7 +590,7 @@ async function clickPriceReviewSelection(page, requestId) {
     };
   }, secondaryRequest.id);
   if (projectStatusTrackingState.tabCount || projectStatusTrackingState.panels.some((panel) => !panel.visible)) {
-    fail("Project Status should render Dashboard, MFG, and Non-MFG as three visible tables without inner tabs", projectStatusTrackingState);
+    fail("Request Tracking should render Dashboard, MFG, and Non-MFG as three visible tables without inner tabs", projectStatusTrackingState);
   }
   if (!projectStatusTrackingState.dashboardHead.includes("Dashboard Quantity Review")
     || projectStatusTrackingState.dashboard.includes("Dept DRI Quantity Smoke Item 2")
@@ -599,7 +599,7 @@ async function clickPriceReviewSelection(page, requestId) {
     || !projectStatusTrackingState.mfgHead.includes("MFG Mainline Station")
     || !projectStatusTrackingState.nonMfgHead.includes("Review Status")
     || !projectStatusTrackingState.nonMfgHead.includes("Department")) {
-    fail("Project Status did not carry Dept DRI selected row into the three-table tracking surface", projectStatusTrackingState);
+    fail("Request Tracking did not carry Dept DRI selected row into the three-table tracking surface", projectStatusTrackingState);
   }
   const projectStatusCurrencyState = await page.evaluate(() => {
     const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
@@ -627,7 +627,7 @@ async function clickPriceReviewSelection(page, requestId) {
     || !projectStatusCurrencyState.usd.dashboard.includes("$")
     || !projectStatusCurrencyState.usd.mfg.includes("$")
     || !projectStatusCurrencyState.usd.nonMfg.includes("$")) {
-    fail("Project Status VND/USD toggle should update dashboard and both detail matrices", projectStatusCurrencyState);
+    fail("Request Tracking VND/USD toggle should update dashboard and both detail matrices", projectStatusCurrencyState);
   }
   await switchRole(page, "dri", "manager");
   await clickPriceReviewSelection(page, submittedMfgRequest.id);
@@ -666,7 +666,7 @@ async function clickPriceReviewSelection(page, requestId) {
       poStatus: pipeline.poStatus || "",
       selectedId: selectedPriceReviewRequestId || "",
       projectStatusHasRow: projectStatusText.includes(requestId),
-      projectStatusHasReviewStatus: projectStatusText.includes("Demand Review"),
+	      projectStatusHasReviewStatus: projectStatusText.includes("Cost Manager Review"),
       visibleApproveButtonCount: visibleApproveButtons.length,
     };
   }, submittedMfgRequest.id);
@@ -674,16 +674,16 @@ async function clickPriceReviewSelection(page, requestId) {
     fail("Dept DRI approval did not route the row to Cost Manager pipeline tracking", approvedPipelineState);
   }
   if (!approvedPipelineState.projectStatusHasRow || !approvedPipelineState.projectStatusHasReviewStatus || approvedPipelineState.visibleApproveButtonCount) {
-    fail("Dept DRI approved row did not remain in Project Status as read-only tracking", approvedPipelineState);
+    fail("Dept DRI approved row did not remain in Request Tracking as read-only tracking", approvedPipelineState);
   }
   await page.evaluate((requestId) => {
     renderItemDetail(requests.find((item) => item.id === requestId), "request");
   }, submittedMfgRequest.id);
   await expectText(page, "Dept DRI approved detail pipeline", [
     /Approval \/ Pipeline Detail/,
-    /Current Owner:\s*Cost Manager/,
-    /Dept DRI Decision/,
-    /Demand Review/,
+	    /Current Owner:\s*Cost Manager/,
+	    /Dept DRI Decision/,
+	    /Cost Manager Review/,
     /PO Pending/,
   ], "#itemDetailModal");
   await page.evaluate(() => closeItemDetail());
@@ -777,17 +777,17 @@ async function clickPriceReviewSelection(page, requestId) {
     || demandReviewRowDecisionState.denied.omStage
     || demandReviewRowDecisionState.denied.sentToOmAt
     || !demandReviewRowDecisionState.projectStatusHasDenied) {
-    fail("Demand Review Denied should close only that item row and keep it out of OM", demandReviewRowDecisionState);
+	    fail("Cost Review Denied should close only that item row and keep it out of OM", demandReviewRowDecisionState);
   }
   if (demandReviewRowDecisionState.revise.demandReviewStatus !== "Revise Required"
     || demandReviewRowDecisionState.revise.costManagerAuthorizationStatus !== "Cost Manager Rejected"
     || !demandReviewRowDecisionState.revise.rework
     || !demandReviewRowDecisionState.requesterActionIds.includes(tertiaryRequest.id)
     || !demandReviewRowDecisionState.projectStatusHasRevise) {
-    fail("Demand Review Revise should route only that item row to Requester Action Required", demandReviewRowDecisionState);
+	    fail("Cost Review Revise should route only that item row to Requester Action Required", demandReviewRowDecisionState);
   }
   if (demandReviewRowDecisionState.actionButtonCount) {
-    fail("Project Status should stay read-only without Demand Review action controls", demandReviewRowDecisionState);
+	    fail("Request Tracking should stay read-only without Cost Review action controls", demandReviewRowDecisionState);
   }
   await page.evaluate((requestId) => {
     const row = requests.find((item) => item.id === requestId);
@@ -831,8 +831,8 @@ async function clickPriceReviewSelection(page, requestId) {
 	  ], 'section[data-view="manager"]');
   await rejectText(page, "Budget Approver review", [
     /Project Review/,
-    /Demand Review/,
-    /PAS Quote Result/,
+	    /Cost Review/,
+    /Quote Result \/ Monitor/,
     /Price Review Analysis: Cost Dashboard/,
     /Price Review Analysis: Station Matrix/,
   ], 'section[data-view="manager"]');
@@ -894,7 +894,7 @@ async function clickPriceReviewSelection(page, requestId) {
     };
   });
   if (!budgetFinalApprovedState.roleRowVisible || !budgetFinalApprovedState.projectStatusHasRow || !budgetFinalApprovedState.projectStatusHasReviewStatus || budgetFinalApprovedState.visibleDecisionButtonCount) {
-    fail("Budget Approver final approved row did not remain in Project Status as read-only tracking", budgetFinalApprovedState);
+    fail("Budget Approver final approved row did not remain in Request Tracking as read-only tracking", budgetFinalApprovedState);
   }
   await rejectText(page, "Budget Approver review carryover noise", [
     /Confirmed Carryover Saving/,

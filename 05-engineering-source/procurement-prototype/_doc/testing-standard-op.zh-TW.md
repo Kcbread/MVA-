@@ -35,7 +35,7 @@
 - Cost Manager tabs 固定為 `Cost Review / Review History`，不得出現獨立 `Authorized Analysis / Demand Analysis / Progress Tracking / Project Setup`。
 - Budget Approver tabs 固定為 `Review Queue / Project Review / Review History`。
 - Dept DRI、Cost Manager、Budget Approver 的 Project Review evidence 都採 `Dashboard / MFG Station Detail / Non-MFG Department Detail` 三分頁，不顯示 carryover 主區塊或 queue table 主畫面。
-- OM Purchasing tabs 固定為 `Submission Dashboard / PAS Demand No / PAS Quote Result / Export Package`。
+- OM Purchasing tabs 固定為 `Submission Dashboard / PAS Demand No / Quote Result / Monitor / Export Package`。
 - Contact 是右上角 popup 輔助工具，不是 top-level tab。
 - Temporary Budget input 只能出現在 OPM/User A `New Request`。
 - UI quality review 標準文件固定為 `_doc/ui-quality-review.zh-TW.md` 與 `_doc/ui-quality-review.en.md`。

@@ -18,6 +18,12 @@
 | Empty / Error State | 無資料或錯誤狀態。 |
 | DFD Notes | 視覺化建議。 |
 
+## Cross-Role Modules
+
+| Module ID | Module Name | Purpose |
+| --- | --- | --- |
+| `request.tracking` | Request Tracking | Requester submit 後的 top-level 跨角色唯讀 per-request progress table；以單一 request 為主粒度顯示跨角色進度，package/item detail 是 drilldown。Prototype 技術 id 可暫時保留 legacy `projectStatus`，等 module 化再改。 |
+
 ## Requester Modules
 
 | Module ID | Module Name | Purpose |
@@ -44,9 +50,9 @@
 | Module ID | Module Name | Purpose |
 | --- | --- | --- |
 | `om.submissionDashboard` | Submission Dashboard | OM stage/pending dashboard。 |
-| `om.pasDemandNo` | PAS Demand No | 輸入 PAS Demand No 並移到 PAS Quote Result。 |
-| `om.pasQuoteResult` | PAS Quote Result | 補 PAS Material No、quote result、quote validity、附件，送 Requester。 |
-| `om.quoteExpiryMonitor` | Quote Expiry Monitor | Submission Dashboard 內的報價時效與重新詢價提醒。 |
+| `om.pasDemandNo` | PAS Demand No | 輸入 PAS Demand No 並移到 Quote Result / Monitor。 |
+| `om.pasQuoteResult` | Quote Result / Monitor | 補 PAS Material No、quote result、quote validity、附件，送 Requester；對應 PAS Quote Result workflow stage。 |
+| `om.quoteExpiryMonitor` | Quote Expiry Monitor | Submission Dashboard 內的報價時效與重新詢價提醒 layer，不是獨立流程 tab。 |
 | `om.exportPackage` | Export Package | 產生 CFA/ECS package 並 mark exported。 |
 | `om.detail` | OM Detail | 看 PAS tracking、quote、previous reference、timeline。 |
 

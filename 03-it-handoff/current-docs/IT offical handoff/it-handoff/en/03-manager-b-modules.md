@@ -24,7 +24,7 @@ Cost Manager is the cost authorization owner after Dept DRI. It no longer has st
 - Top area: Cost Review queue, selected-row detail, Authorize / Reject actions.
 - Bottom area: Demand Analysis evidence with `Demand Cost Dashboard` and `Station Matrix`.
 - `Demand Cost Dashboard` and `Station Matrix` must use `Review Status` as the first column.
-- `Review Status` represents approval-chain state only; it does not replace project status.
+- `Review Status` represents approval-chain state only; it does not replace project/phase status labels such as `P1.0` or `EVT`.
 - Authorized / rejected / in-pipeline rows remain visible in evidence and can be drilled into, but their actions are read-only.
 
 ## `costManager.demandCostDashboard`

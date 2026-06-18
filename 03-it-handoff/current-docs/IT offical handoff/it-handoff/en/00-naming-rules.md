@@ -12,12 +12,19 @@ This document defines official naming for near-term IT implementation. If older 
 | `Dept DRI` | First scoped business reviewer for requester submission, unit-owned warehouse/carryover, and first price exception review. |
 | `Cost Manager` | Cost authorization owner after Dept DRI; uses Cost Review for final authorization. |
 | `OM Leader` | OM lead for assignment, exchange rate, feedback triage, and OM tracking. |
-| `OM Purchasing` | OM operator for assigned PAS Demand No, PAS Quote Result, and Export Package work. |
+| `OM Purchasing` | OM operator for assigned PAS Demand No, Quote Result / Monitor, and Export Package work. |
 | `Budget Approver` | Final approver for quote-stage price/budget exceptions. |
 | `Admin` | System setup and governance; no business approval. |
 | `Buyer Handoff` | Post-OM-export PR / PO ownership stage; do not use legacy post-export wording as primary user-facing copy. |
 
 ## Tab Names
+
+### Cross-Role Top Level
+
+| Tab / Term | Purpose |
+| --- | --- |
+| `Request Tracking` | Top-level cross-role, read-only per-request progress module after Requester submission. Role permissions control visible fields and actions; package/item details are drilldowns, not the primary tracking grain. Prototype technical ids may still use legacy `projectStatus` until moduleization. |
+| `Project Status` | Project current phase/status label, such as `P1.0`, `EVT`, `DVT`, `PVT`, or `MP`. It is not the top-level request tracking module name. |
 
 ### Requester
 
@@ -47,7 +54,7 @@ This document defines official naming for near-term IT implementation. If older 
 | --- | --- |
 | `OM Submission Dashboard` | OM stage, pending owner, assignment, and quote expiry overview. |
 | `PAS Demand No` | Enter PAS Demand No. |
-| `PAS Quote Result` | Enter PAS Material No, vendor, quote price, quote screenshot/image, quote Excel, valid until. |
+| `Quote Result / Monitor` | Business screen name; enters PAS Quote Result fields such as PAS Material No, vendor, quote price, quote screenshot/image, quote Excel, and valid until, while monitoring blockers, stage aging, and quote expiry. |
 | `Export Package` | Export after Auto Cleared or Budget Approver approved state. |
 
 ### Budget Approver

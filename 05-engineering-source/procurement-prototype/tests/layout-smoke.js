@@ -224,12 +224,12 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
     await new Promise((resolve) => requestAnimationFrame(resolve));
     return { gYears, gCodes, nonGState };
   });
-  if (projectStatusScopeAudit.missing) throw new Error("Project Status should expose Project Type / Year Project / Project filters.");
+  if (projectStatusScopeAudit.missing) throw new Error("Request Tracking should expose Project Type / Year Project / Project filters.");
   if (!projectStatusScopeAudit.gYears.includes("P26 Zombie line") || !projectStatusScopeAudit.gCodes.includes("BZ5") || !projectStatusScopeAudit.gCodes.includes("FL5") || projectStatusScopeAudit.gCodes.includes("Bidding list 26")) {
-    throw new Error(`Project Status should expose canonical G scope master, got ${JSON.stringify(projectStatusScopeAudit)}`);
+    throw new Error(`Request Tracking should expose canonical G scope master, got ${JSON.stringify(projectStatusScopeAudit)}`);
   }
   if (!projectStatusScopeAudit.nonGState.yearDisabled || !projectStatusScopeAudit.nonGState.codeOptions.includes("OR6")) {
-    throw new Error(`Project Status Non-G should disable Year Project and expose Non-G project codes, got ${JSON.stringify(projectStatusScopeAudit)}`);
+    throw new Error(`Request Tracking Non-G should disable Year Project and expose Non-G project codes, got ${JSON.stringify(projectStatusScopeAudit)}`);
   }
   const phaseHeaderAlign = await page.locator(".request-phase-group-head", { hasText: "EVT" }).first().evaluate((header) => getComputedStyle(header).textAlign);
   if (phaseHeaderAlign !== "center") throw new Error(`Requester phase group headers should be centered, got ${phaseHeaderAlign}`);
@@ -401,17 +401,17 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   await assertButtonsStayInsideCells(page, ".om-rate-utility button", "OM exchange rate utility");
   await page.evaluate(() => window.setOmTab?.("quoteConfirm"));
   await page.waitForTimeout(250);
-  await assertTableHasRows(page, ".om-quote-result-table", "OM PAS Quote Result table");
-  await assertNoPageOverflow(page, "OM PAS Quote Result shell");
-  await assertButtonsStayInsideCells(page, ".om-quote-result-table tbody button", "OM PAS Quote Result actions");
-  await assertVisibleTableCellsDoNotOverlap(page, ".om-quote-result-table", "OM PAS Quote Result table");
-  await assertRowHeights(page, ".om-quote-result-table", { min: 34, max: 118 }, "OM PAS Quote Result row height");
+  await assertTableHasRows(page, ".om-quote-result-table", "OM Quote Result / Monitor table");
+  await assertNoPageOverflow(page, "OM Quote Result / Monitor shell");
+  await assertButtonsStayInsideCells(page, ".om-quote-result-table tbody button", "OM Quote Result / Monitor actions");
+  await assertVisibleTableCellsDoNotOverlap(page, ".om-quote-result-table", "OM Quote Result / Monitor table");
+  await assertRowHeights(page, ".om-quote-result-table", { min: 34, max: 118 }, "OM Quote Result / Monitor row height");
   const quoteScroll = await page.locator(".om-quote-result-wrap").evaluate((wrap) => ({
     scrollWidth: wrap.scrollWidth,
     clientWidth: wrap.clientWidth,
   }));
   if (quoteScroll.scrollWidth <= quoteScroll.clientWidth) {
-    throw new Error(`OM PAS Quote Result should scroll inside table shell: ${quoteScroll.scrollWidth} <= ${quoteScroll.clientWidth}`);
+    throw new Error(`OM Quote Result / Monitor should scroll inside table shell: ${quoteScroll.scrollWidth} <= ${quoteScroll.clientWidth}`);
   }
 
   for (const viewport of [

@@ -18,7 +18,7 @@ These UAT cases define behavior for IT implementation. They are no-source accept
 | UAT-REQ-010 | Qty input validation | Enter negative, decimal, or scientific notation in qty cells | Invalid characters are blocked or sanitized; no negative/decimal/scientific value remains. |
 | UAT-REQ-011 | Keyboard entry | Enter qty and press Enter | Focus moves to the next qty cell. |
 | UAT-REQ-012 | Save Draft without Need Date | Add a row, enter qty, leave Need Date blank, click Save Draft | Draft saves without requiring Need Date. |
-| UAT-REQ-013 | Submit requires Need Date | Add row, enter qty, leave Need Date blank, click Submit | Submit is blocked and asks for package-level Need Date. |
+| UAT-REQ-013 | Submit requires Need Date | Add row, enter qty, leave Need Date blank, click Submit | Submit is blocked and asks for the current `project + line + demandType` scope Need Date. |
 | UAT-REQ-014 | Submit requires qty | Add row, keep all qty cells 0, fill Need Date, click Submit | Submit is blocked until at least one qty cell > 0. |
 | UAT-REQ-015 | Remove row | Click Remove on a worksheet draft row | Row disappears immediately; no confirmation modal opens. |
 | UAT-REQ-016 | Layout overflow | Seed or display 40 item rows and test desktop/tablet/compact viewport | Page has no horizontal overflow; worksheet scrolls inside table shell only. |
@@ -45,7 +45,7 @@ These UAT cases define behavior for IT implementation. They are no-source accept
 
 | ID | Scenario | Steps | Expected Result |
 | --- | --- | --- | --- |
-| UAT-OM-001 | PAS Demand No | Enter PAS Demand No and move row | Row moves to PAS Quote Result. |
+| UAT-OM-001 | PAS Demand No | Enter PAS Demand No and move row | Row moves to Quote Result / Monitor and enters the PAS Quote Result workflow stage. |
 | UAT-OM-002 | Save quote info | Enter PAS Material No, quote date, valid until, price, attachments, save | Quote result and price decision status update. |
 | UAT-OM-003 | Quote validity required | Try sending quote without Quote Valid Until | Send is blocked unless rule allows auto-clear path. |
 | UAT-OM-004 | Export package | Export eligible rows | Export status/package code updates; Buyer Handoff can continue. |

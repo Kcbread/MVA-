@@ -28,10 +28,12 @@ Locked rules:
 - `MFG / Non-MFG` are separate input tabs.
 - One worksheet row = `Item / Spec`.
 - Top scope chooses Project and Line.
-- Need Date is package-level.
+- Need Date is scoped by `project + line + demandType`; MFG and Non-MFG may have different Need Dates.
 - Qty cells are edited directly in the worksheet.
 - `Save Draft` does not require Need Date.
-- `Submit` requires package-level Need Date and at least one qty cell > 0.
+- `Submit` requires the current `project + line + demandType` scope Need Date and at least one qty cell > 0.
+- Formal submitted request item rows use server-generated immutable IDs: `REQ-{YYMMDD}-{DEPT}-{YEARPROJECT}-{PROJECT}-{NNNN}`.
+- Draft rows may be physically removed before submit; submitted rows use revision/status/audit events for modification, cancel, amendment, or void.
 
 MFG phase group columns:
 
@@ -52,7 +54,7 @@ FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC
 Data mapping:
 
 ```text
-requestId + project + requestLine + demandType + phase + station/demandUnit + qty
+requestId + yearProject + projectCode + requestLine + demandType + phase + station/demandUnit + qty
 ```
 
 Implementation target:
@@ -133,13 +135,13 @@ OM Purchasing tabs:
 
 - `Submission Dashboard`
 - `PAS Demand No`
-- `PAS Quote Result`
+- `Quote Result / Monitor`
 - `Export Package`
 
 Rules:
 
-- PAS Demand No is recorded before moving to PAS Quote Result.
-- PAS Quote Result owns PAS Material No, quote result, quote validity, screenshot/image plus Excel attachment state, and price decision.
+- PAS Demand No is recorded before moving to `Quote Result / Monitor`; the row enters the `PAS Quote Result` workflow stage.
+- `Quote Result / Monitor` owns PAS Material No, quote result, quote validity, screenshot/image plus Excel attachment state, and price decision.
 - Quote Valid Until is required before sending quote result to Requester unless the row is auto-cleared by price rule.
 - Export Package receives Requester confirmed, Auto Cleared, or Budget Approver Approved rows.
 

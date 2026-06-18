@@ -36,6 +36,7 @@ The prototype source code is not included and should not be requested as the imp
 Requester input is a full-page Excel-like worksheet:
 
 - One row = `Item / Spec`.
+- Formal submitted request item rows use server-generated immutable IDs: `REQ-{YYMMDD}-{DEPT}-{YEARPROJECT}-{PROJECT}-{NNNN}`.
 - Phase groups = `P1.0 / P1.1 / EVT / DVT / PVT / MP`.
 - MFG phase group expands:
   - `CG / BG / FATP / Test / Hybrid / Auto / ENG Pack / Zombie / Laser_pico / Rework / Repair / WH`.
@@ -44,7 +45,7 @@ Requester input is a full-page Excel-like worksheet:
 - Every qty cell maps to:
 
 ```text
-requestId + project + requestLine + demandType + phase + station/demandUnit + qty
+requestId + yearProject + projectCode + requestLine + demandType + phase + station/demandUnit + qty
 ```
 
 - Production implementation should store these as long-form `stationBreakdown` rows.

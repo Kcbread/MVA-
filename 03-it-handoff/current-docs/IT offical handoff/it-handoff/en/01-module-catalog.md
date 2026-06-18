@@ -18,6 +18,12 @@ Each module must be independently integrable, so every module uses the same defi
 | Empty / Error State | Empty or blocked states. |
 | DFD Notes | Visualization recommendation. |
 
+## Cross-Role Modules
+
+| Module ID | Module Name | Purpose |
+| --- | --- | --- |
+| `request.tracking` | Request Tracking | Top-level cross-role read-only per-request progress table after Requester submission. Shows one request's cross-role progress with role-based visible fields; package/item details are drilldowns. Prototype technical ids may still use legacy `projectStatus` until moduleization. |
+
 ## Requester Modules
 
 | Module ID | Module Name | Purpose |
@@ -44,8 +50,8 @@ Each module must be independently integrable, so every module uses the same defi
 | Module ID | Module Name | Purpose |
 | --- | --- | --- |
 | `om.submissionDashboard` | Submission Dashboard | OM stage/pending dashboard. |
-| `om.pasDemandNo` | PAS Demand No | Enter PAS Demand No and move to PAS Quote Result. |
-| `om.pasQuoteResult` | PAS Quote Result | Complete PAS Material No, quote result, quote validity, attachments, and send to Requester. |
+| `om.pasDemandNo` | PAS Demand No | Enter PAS Demand No and move to Quote Result / Monitor. |
+| `om.pasQuoteResult` | Quote Result / Monitor | Complete PAS Material No, quote result, quote validity, attachments, and send to Requester; corresponds to the PAS Quote Result workflow stage. |
 | `om.quoteExpiryMonitor` | Quote Expiry Monitor | Quote validity and requote monitor inside Submission Dashboard. |
 | `om.exportPackage` | Export Package | Generate CFA/ECS package and mark exported. |
 | `om.detail` | OM Detail | Review PAS tracking, quote, previous reference, and timeline. |

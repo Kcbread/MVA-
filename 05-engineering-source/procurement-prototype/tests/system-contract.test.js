@@ -66,11 +66,11 @@ test("Mac mini Docker runtime supports SAP PO Raw Excel import", () => {
   assert.match(sapPoRawCommitScript, /postCommitChecks/);
 });
 
-test("Demand Review top-level tabs are consolidated", () => {
+test("Cost Review top-level tabs are consolidated", () => {
   const managerView = between(html, '<section class="view" data-view="manager" data-approval-review-role="manager">', '<section class="view" data-view="procurement">');
   assert.match(managerView, /data-approval-review-role="manager"/);
   const managerTabs = between(managerView, '<div class="inner-tabs manager-tabs"', "</div>");
-  assert.match(managerTabs, /data-manager-tab="review">Demand Review</);
+  assert.match(managerTabs, /data-manager-tab="review">Cost Review</);
   assert.match(managerTabs, /data-manager-tab="history">Review History</);
   assert.doesNotMatch(managerTabs, /Submission Monitor|Authorized Analysis|Demand Analysis|Progress Tracking|Project Setup/);
   assert.doesNotMatch(managerTabs, /data-manager-tab="authorized"|data-manager-tab="analysis"|data-manager-tab="demand"|data-manager-tab="setup"/);
@@ -82,8 +82,8 @@ test("Demand Review top-level tabs are consolidated", () => {
   assert.match(managerView, /id="managerQuantityMatrixTable"/);
   assert.match(managerView, /id="managerDemandCostLineFilter"/);
   assert.match(managerView, /id="managerQuantityLineFilter"/);
-  assert.match(managerView, /id="managerDashboardTitle">Demand Review History<\/h3>/);
-  assert.match(managerView, /Demand Review Decision/);
+  assert.match(managerView, /id="managerDashboardTitle">Cost Review History<\/h3>/);
+  assert.match(managerView, /Cost Review Decision/);
   assert.match(app, /data-manager-review-decision/);
   assert.match(app, /data-manager-review-action="deny"/);
   assert.match(app, /data-manager-review-action="revise"/);
@@ -108,7 +108,7 @@ test("Dept DRI, Cost Manager, and Budget Approver use one approval review surfac
   assert.match(approvalReviewSurfaceModule, /manager:\s*\{/);
   assert.match(approvalReviewSurfaceModule, /projectDri:\s*\{/);
   assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Dept Review"/);
-  assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Demand Review"/);
+  assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Cost Review"/);
   assert.match(approvalReviewSurfaceModule, /entryLabel:\s*"Budget Review"/);
   assert.match(approvalReviewSurfaceModule, /viewKey:\s*"manager"/);
   assert.match(approvalReviewSurfaceModule, /shellMode:\s*"managerAuthorized"/);
@@ -137,9 +137,9 @@ test("Dept DRI, Cost Manager, and Budget Approver use one approval review surfac
   assert.match(fs.readFileSync("app-modules/role-queue-config.js", "utf8"), /approvalReviewSurface/);
 });
 
-test("Project Status is a separate read-only dashboard surface", () => {
+test("Request Tracking is a separate read-only dashboard surface", () => {
   const projectStatusView = between(html, '<section class="view" data-view="projectStatus">', '<section class="view active" data-view="department">');
-  assert.match(html, /data-view="projectStatus"[\s\S]*Project Status/);
+  assert.match(html, /data-view="projectStatus"[\s\S]*Request Tracking/);
   assert.match(projectStatusView, /class="project-status-stack"/);
   assert.match(projectStatusView, /data-project-status-panel="dashboard"[\s\S]*Dashboard Quantity Review/);
   assert.match(projectStatusView, /Project Type[\s\S]*id="projectStatusProjectTypeFilter"/);
@@ -180,8 +180,8 @@ test("Project Status is a separate read-only dashboard surface", () => {
   assert.match(app, /project:\s*"OR5"[\s\S]*requestLine:\s*"Line 1"[\s\S]*prefix:\s*"OR5-L1"/);
   assert.doesNotMatch(projectStatusView, /data-price-review-decision|data-cost-manager-authorization|omPrepare|omMarkExported/);
   assert.match(styles, /\.project-status-stage-badge/);
-  assert.match(workflowStatusModule, /"Demand Review": 1/);
-  assert.match(workflowStatusModule, /return "Demand Review"/);
+  assert.match(workflowStatusModule, /"Cost Manager Review": 1/);
+  assert.match(workflowStatusModule, /return "Cost Manager Review"/);
 });
 
 test("Cost Manager review embeds protected Demand Analysis baseline instead of duplicate Project Context evidence", () => {
@@ -900,7 +900,7 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.match(app, /COST_MANAGER_AUTH_PENDING/);
   assert.match(app, /function applyCostManagerAuthorization/);
   assert.match(app, /data-cost-manager-authorization/);
-  assert.match(app, /Dept Review approved\. Waiting Demand Review/);
+  assert.match(app, /Dept Review approved\. Waiting Cost Review/);
   assert.match(app, /function priceReviewSubmissionRows/);
   assert.match(app, /function priceReviewExceptionRows/);
   assert.match(app, /function priceReviewBudgetRows/);

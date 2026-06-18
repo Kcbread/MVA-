@@ -7,6 +7,7 @@ const priceDecision = require("../app-modules/price-decision.js");
 const leadTime = require("../app-modules/lead-time.js");
 const workflowStatus = require("../app-modules/workflow-status.js");
 const workflowStatusTable = require("../app-modules/workflow-status-table.js");
+const omProgress = require("../app-modules/om-progress.js");
 const ftvCode = require("../app-modules/ftv-code.js");
 const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");

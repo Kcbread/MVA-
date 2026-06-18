@@ -45,7 +45,7 @@ These UAT cases define behavior for IT implementation. They are no-source accept
 
 | ID | Scenario | Steps | Expected Result |
 | --- | --- | --- | --- |
-| UAT-OM-001 | PAS Demand No | Enter PAS Demand No and move row | Row moves to PAS Quote Result. |
+| UAT-OM-001 | PAS Demand No | Enter PAS Demand No and move row | Row moves to Quote Result / Monitor and enters the PAS Quote Result workflow stage. |
 | UAT-OM-002 | Save quote info | Enter PAS Material No, quote date, valid until, price, attachments, save | Quote result and price decision status update. |
 | UAT-OM-003 | Quote validity required | Try sending quote without Quote Valid Until | Send is blocked unless rule allows auto-clear path. |
 | UAT-OM-004 | Export package | Export eligible rows | Export status/package code updates; Buyer Handoff can continue. |

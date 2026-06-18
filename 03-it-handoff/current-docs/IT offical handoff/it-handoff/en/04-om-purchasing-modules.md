@@ -18,10 +18,10 @@
 
 - `Submission Dashboard`
 - `PAS Demand No`
-- `PAS Quote Result`
+- `Quote Result / Monitor`
 - `Export Package`
 
-The OM workspace is intentionally task-based. PAS Demand No records the PAS number only; PAS Quote Result records the bidding/quote result and quote validity; Quote Expiry is monitored inside Submission Dashboard, not a workflow step.
+The OM workspace is intentionally task-based. PAS Demand No records the PAS number only; Quote Result / Monitor is the business screen for the PAS Quote Result workflow stage and records the bidding/quote result plus quote validity; Quote Expiry is a validity risk/requote status monitored inside Submission Dashboard, not a workflow step.
 
 ## `om.submissionDashboard`
 
@@ -62,7 +62,7 @@ The OM workspace is intentionally task-based. PAS Demand No records the PAS numb
 - `Current Stage` is the active OM work step: PAS Demand No, PAS Quote Result, Waiting Requester, or Export Package.
 - `Days in Stage` counts how long the row has stayed in the current OM stage.
 - `Next Action` tells the operator what should happen next.
-- `Quote Expiry` is a monitor field only; validity is edited in `PAS Quote Result`.
+- `Quote Expiry` is a monitor field only; validity is edited in `Quote Result / Monitor`.
 - Detail modal keeps the full stage timeline.
 
 ## `om.pasDemandNo`
@@ -87,7 +87,7 @@ The OM workspace is intentionally task-based. PAS Demand No records the PAS numb
 | Level 2 / Level 3 | OM category. |
 | CPD-IEP Owner | OM owner. |
 | PAS Result Status | Waiting or entered. |
-| Next Step | Move to PAS Quote Result. |
+| Next Step | Move to Quote Result / Monitor. |
 | Contact | Contact DRI. |
 | Detail | Detail modal. |
 
@@ -95,7 +95,7 @@ The OM workspace is intentionally task-based. PAS Demand No records the PAS numb
 
 | Action | Precondition | Success Result |
 | --- | --- | --- |
-| `Move to PAS Quote Result` | `PAS Demand No` entered. | Row enters `PAS Quote Result`. |
+| `Move to Quote Result / Monitor` | `PAS Demand No` entered. | Row enters the PAS Quote Result workflow stage handled by the `Quote Result / Monitor` screen. |
 | `Reject to Requester / Dept DRI` | Reason required. | Row rejected. |
 | `Contact DRI` | Any row. | Opens contact modal. |
 | `Detail` | Any row. | Opens detail. |
@@ -197,7 +197,7 @@ Requester must not see vendor / vendor part no / supplier. Requester only sees:
 | --- | --- |
 | Purpose | Quote validity monitor inside `Submission Dashboard`; it is not a workflow step. |
 | Input Data | Rows with quote/bidding path fields: PAS Demand No, PAS Material No, quote date, quote valid until, screenshot/image and Excel, or vendor. |
-| Output / Mutation | None in v1; users edit validity from `PAS Quote Result`. |
+| Output / Mutation | None in v1; users edit validity from `Quote Result / Monitor`. |
 | Next Consumers | OM follow-up, MFG quote expiry reminders, Manager detail. |
 
 ### Status Rules
@@ -261,7 +261,7 @@ Requester must not see vendor / vendor part no / supplier. Requester only sees:
 - `Expense` is the OM user decision; Buyer Handoff target displays as `ECS`.
 - `Capex` is the OM user decision; Buyer Handoff target displays as `CFA`.
 - `CFA / ECS` is package/Buyer Handoff mapping, not the only business decision label.
-- PAS Demand No, PAS Material No, quote screenshot/image, quote Excel, and quote validity are readonly in `Export Package`; their official input point remains `PAS Quote Result`.
+- PAS Demand No, PAS Material No, quote screenshot/image, quote Excel, and quote validity are readonly in `Export Package`; their official input point remains `Quote Result / Monitor`.
 
 ### Package Code
 

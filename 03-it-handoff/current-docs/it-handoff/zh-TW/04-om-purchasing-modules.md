@@ -18,10 +18,10 @@
 
 - `Submission Dashboard`
 - `PAS Demand No`
-- `PAS Quote Result`
+- `Quote Result / Monitor`
 - `Export Package`
 
-OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS Quote Result` 輸入 bidding/quote result 與 quote validity；`Quote Expiry` 是 `Submission Dashboard` 內的監控資訊，不是流程 tab。
+OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`Quote Result / Monitor` 是商業畫面名稱，用來輸入 PAS Quote Result workflow stage 的 bidding/quote result 與 quote validity；`Quote Expiry` 是 quote validity 的過期/重詢提醒狀態，不是流程 tab。
 
 ## `om.submissionDashboard`
 
@@ -62,7 +62,7 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 - `Current Stage` 顯示目前 OM 作業節點：PAS Demand No、PAS Quote Result、Waiting Requester 或 Export Package。
 - `Days in Stage` 顯示 row 停留在目前 OM stage 的天數。
 - `Next Action` 顯示 OM operator 下一步應該做什麼。
-- `Quote Expiry` 只做監控；validity 仍在 `PAS Quote Result` 編輯。
+- `Quote Expiry` 只做監控；validity 仍在 `Quote Result / Monitor` 編輯。
 - Detail modal 保留完整 stage timeline。
 
 ## `om.pasDemandNo`
@@ -87,7 +87,7 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 | Level 2 / Level 3 | OM category。 |
 | CPD-IEP Owner | OM owner。 |
 | PAS Result Status | 等待或已輸入。 |
-| Next Step | Move to PAS Quote Result。 |
+| Next Step | Move to Quote Result / Monitor。 |
 | Contact | Contact DRI。 |
 | Detail | detail modal。 |
 
@@ -95,7 +95,7 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 
 | Action | 前置條件 | 成功後 |
 | --- | --- | --- |
-| `Move to PAS Quote Result` | `PAS Demand No` 已輸入。 | row 進 `PAS Quote Result`。 |
+| `Move to Quote Result / Monitor` | `PAS Demand No` 已輸入。 | row 進 PAS Quote Result workflow stage，由 `Quote Result / Monitor` 畫面處理。 |
 | `Reject to Requester / Dept DRI` | 必填 reason。 | row rejected。 |
 | `Contact DRI` | 任意 row。 | 開 contact modal。 |
 | `Detail` | 任意 row。 | 開 detail。 |
@@ -104,9 +104,9 @@ OM 工作區採 task-based 命名。`PAS Demand No` 只輸入 PAS number；`PAS 
 
 - 此頁不 upload screenshot/image and Excel。
 - 此頁不處理 quote price。
-- PAS Demand No 可一路帶到 PAS Quote Result / Export Package / Buyer / Detail。
+- PAS Demand No 可一路帶到 Quote Result / Monitor / Export Package / Buyer / Detail。
 
-## `om.pasQuoteResult`
+## `om.pasQuoteResult` (`Quote Result / Monitor`)
 
 | 項目 | 定義 |
 | --- | --- |
@@ -197,7 +197,7 @@ Requester 不看 vendor / vendor part no / supplier。Requester 只看：
 | --- | --- |
 | Purpose | `Submission Dashboard` 內的報價時效、到期與重新詢價提醒監控；不是流程 tab。 |
 | Input Data | 有 quote/bidding path 的 rows：PAS Demand No、PAS Material No、quote date、quote valid until、screenshot/image and Excel、vendor。 |
-| Output / Mutation | v1 不直接寫入；validity 從 `PAS Quote Result` 編輯。 |
+| Output / Mutation | v1 不直接寫入；validity 從 `Quote Result / Monitor` 編輯。 |
 | Next Consumers | OM follow-up、MFG quote expiry reminder、Manager detail。 |
 
 ### Status Rules
@@ -261,7 +261,7 @@ Requester 不看 vendor / vendor part no / supplier。Requester 只看：
 - `Expense` 是 OM 使用者選擇的費用類型；Buyer Handoff target 顯示為 `ECS`。
 - `Capex` 是 OM 使用者選擇的費用類型；Buyer Handoff target 顯示為 `CFA`。
 - `CFA / ECS` 是 package / Buyer Handoff 對應資訊，不是使用者唯一決策語意。
-- PAS Demand No、PAS Material No、quote screenshot/image、quote Excel、quote validity 在 `Export Package` 只讀，正式輸入點仍是 `PAS Quote Result`。
+- PAS Demand No、PAS Material No、quote screenshot/image、quote Excel、quote validity 在 `Export Package` 只讀，正式輸入點仍是 `Quote Result / Monitor`。
 
 ### Package Code
 

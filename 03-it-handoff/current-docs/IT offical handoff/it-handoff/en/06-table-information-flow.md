@@ -78,7 +78,7 @@ Rules:
 | Reads | Cost Manager authorized rows, OM assignments, quote status, export status. |
 | Writes | Assignment only when actor is OM Leader / Admin; otherwise read-only. |
 | Key Columns | Project, Item, Qty, Received Date, Current Stage, Days in Stage, Pending Owner, Quote Expiry, Next Action, Detail. |
-| Next Consumer | PAS Demand No, PAS Quote Result, Export Package. |
+| Next Consumer | PAS Demand No, Quote Result / Monitor, Export Package. |
 
 ### `om.pasDemandNo.table.pasRows`
 
@@ -87,7 +87,7 @@ Rules:
 | Reads | Assigned OM rows waiting PAS Demand No. |
 | Writes | PAS Demand No, audit event. |
 | Key Columns | Project, Item / Spec, Qty, PAS Demand No, PAS Result Status, Next Step, Detail. |
-| Next Consumer | PAS Quote Result. |
+| Next Consumer | Quote Result / Monitor. |
 
 ### `om.pasQuoteResult.table.quoteRows`
 

@@ -83,8 +83,8 @@
 
         <nav class="tabs" aria-label="Main navigation">
           <button class="tab active" data-view="department" data-roles="requester admin">Requester Workspace</button>
-          <button class="tab" data-view="projectStatus" data-roles="requester manager procurement om omLeader omMember dri projectDri sourcing buyer admin">Project Status</button>
-          <button class="tab" data-view="manager" data-roles="dri manager projectDri admin">Demand Review</button>
+          <button class="tab" data-view="projectStatus" data-roles="requester manager procurement om omLeader omMember dri projectDri sourcing buyer admin">Request Tracking</button>
+          <button class="tab" data-view="manager" data-roles="dri manager projectDri admin">Cost Review</button>
           <button class="tab" data-view="procurement" data-roles="procurement admin">MFG Coordination</button>
           <button class="tab" data-view="om" data-roles="om omLeader omMember admin">OM Purchasing</button>
           <button class="tab" data-view="priceReview" data-roles="admin">Price Review</button>
@@ -95,7 +95,7 @@
 
         <section class="view" data-view="projectStatus">
           <div class="section-head-tight">
-            <h2>Project Status</h2>
+            <h2>Request Tracking</h2>
             <p class="muted">Read-only line-opening cost overview using the manager-accepted Demand Cost Dashboard and station matrices.</p>
           </div>
           <div class="page-toolbar compact-toolbar">
@@ -529,7 +529,7 @@
 
         <section class="view" data-view="manager" data-approval-review-role="manager">
           <div class="inner-tabs manager-tabs" aria-label="Cost Manager review sections">
-            <button class="inner-tab active" data-manager-tab="review">Demand Review</button>
+            <button class="inner-tab active" data-manager-tab="review">Cost Review</button>
             <button class="inner-tab" data-manager-tab="history">Review History</button>
           </div>
 
@@ -630,7 +630,7 @@
             <section class="work-panel review-history-panel">
               <div class="panel-title">
                 <div>
-                  <h3 id="managerDashboardTitle">Demand Review History</h3>
+                  <h3 id="managerDashboardTitle">Cost Review History</h3>
                 </div>
               </div>
               <div class="summary-grid" id="managerDashboardSummary"></div>
@@ -663,7 +663,7 @@
                       <th>Item</th>
                       <th>Affected Phases</th>
                       <th>Total Qty</th>
-                      <th id="managerDashboardDecisionHead">Demand Review Decision</th>
+                      <th id="managerDashboardDecisionHead">Cost Review Decision</th>
                       <th>Reason</th>
                       <th>Decision Time</th>
                       <th>Detail</th>
@@ -1306,13 +1306,13 @@
               <div class="panel-title" id="priceReviewPendingHeader">
                 <div>
                   <h3>Review Queue</h3>
-                  <p class="muted">Approve or reject queued review rows here. Use Project Status for cross-role tracking.</p>
+                  <p class="muted">Approve or reject queued review rows here. Use Request Tracking for cross-role tracking.</p>
                 </div>
                 <span class="record-count" id="priceReviewPendingCount">0 rows</span>
               </div>
               <div id="priceReviewWorkspaceBanner" class="decision-explain-strip" hidden></div>
               <div id="priceReviewQueueTabs" class="pending-work-queue-tabs"></div>
-              <p id="priceReviewQueueHelper" class="muted">Select a row for approval actions. Project tracking is available in the top-level Project Status tab.</p>
+              <p id="priceReviewQueueHelper" class="muted">Select a row for approval actions. Project tracking is available in the top-level Request Tracking tab.</p>
               <div id="priceReviewPendingWorkspace" class="pending-work-host"></div>
             </section>
           </section>
