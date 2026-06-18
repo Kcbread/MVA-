@@ -1,5 +1,5 @@
 (function registerQuoteValidityModule(root) {
-  const EXPIRING_SOON_DAYS = 10;
+  const EXPIRING_SOON_DAYS = 7;
 
   function daysUntil(dateText, today = new Date()) {
     if (!dateText) return null;

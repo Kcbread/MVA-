@@ -156,18 +156,18 @@
   - `Detail`
 - `PAS Demand No` exists only to record PAS Demand No after PAS/Bidding returns it. It does not upload quote attachments and does not export PAS files in the system.
 - `Quote Result / Monitor` exists to record PAS Material No, vendor/price/date, quote received date, quote valid until, quote screenshot/image, and quote Excel before sending the result to User A confirmation, while also showing blocker/stage/aging/next-action chips.
-- Quote validity input belongs inside `Quote Result / Monitor`, not in a standalone expiry tab or separate workflow.
+- Quote validity input belongs inside `Quote Result / Monitor`; expiry risk tracking belongs in the standalone `Quote Expiry Watch` tab and is not a separate workflow gate.
 - `Quote Result / Monitor` combines quote input and tracking. It does not export packages or change downstream Buyer workflow state.
-- `Quote Valid Until` is required before `Send to User A`; quote expiry status uses a 10-day warning threshold (`Valid`, `Expiring Soon`, `Expired / Requote Required`).
+- `Quote Valid Until` is required before `Send to User A`; quote expiry status uses a 7-day warning threshold (`Valid`, `Expiring Soon`, `Expired / Requote Required`).
 - PAS Demand No and PAS Material No must carry from `Quote Result / Monitor` to `Action Required`, `Export Package`, Buyer, Detail, and History.
 - OM `Export Package` is the system stage for sending rows to `CFA` or `ECS`; both platforms are PR entry points.
 - Buyer starts after OM export and owns PO/progress/evidence only.
 - OM final export package codes are system-generated as `{Process}-{Stage}-{ProjectCode}-MVA{YYMM}-{Seq}OM`, for example `FATP-MP-CGY4-MVA2604-21OM`.
 - `Payment methods` is locked to `MVA` in OM data and exported workbooks.
-- OM `Submission Dashboard` focuses on received date, current OM stage, days in current stage, quote expiry monitor, and over-SLA rows.
+- OM `Submission Dashboard` focuses on received date, current OM stage, days in current stage, and over-SLA rows; quote expiry risk is tracked in `Quote Expiry Watch`.
 - OM internal days are measured by current stage: received date for PAS Demand No, PAS Demand No recorded date for Quote Result / Monitor, sent-to-User-A date for Waiting User A, and User A confirmation date for Export Package.
 - Quote expiry is a warning layer, not a separate Sourcing module in v1:
-  - quotes expiring within 10 days show `Quote Expiring Soon`
+  - quotes expiring within 7 days show `Quote Expiring Soon`
   - expired quotes show re-quote/update risk
   - existing quote data remains reference until OM/Sourcing refreshes it
 
@@ -316,10 +316,10 @@
   - `Linh` and other `OM Member` users can use the rate and operate assigned workflow rows, but cannot modify exchange rate unless explicitly assigned later.
 - UAT Feedback UI/API is removed; no role has in-app feedback submit, personal status, or triage boards.
 - Currency display is global. Canonical stored amount remains VND; USD display uses the current monthly exchange rate or a visible fallback rate.
-- OM `Submission Dashboard` must show `Received Date`, `Current Stage`, and `Days in Stage`; quote validity appears as a lightweight monitor there and in the merged `Quote Result / Monitor` tab.
+- OM `Submission Dashboard` must show `Received Date`, `Current Stage`, and `Days in Stage`; quote validity risk appears in `Quote Expiry Watch`, while quote input remains in `Quote Result / Monitor`.
 - OPM/new-item budget estimates are allowed at request creation as `Estimated Unit Price`, `Estimated Amount`, and `Budget Remark`. These are planning estimates only; OM quote and Buyer actuals remain the official downstream values.
 - New item budget is a run-ahead planning field. Manager can compare OPM estimated amount against later OM quote / Buyer actual amount, but the estimate is never treated as official purchase price.
-- Quote expiry warning uses the existing `quoteExpiry` / `quoteValidUntil` field. Quotes within 10 days are `Quote Expiring Soon`; expired quotes are treated as needing re-quote/update.
+- Quote expiry warning uses the existing `quoteExpiry` / `quoteValidUntil` field. Quotes within 7 days are `Quote Expiring Soon`; expired quotes are treated as needing re-quote/update.
 - `Buffer` and `Stock` remain blank until there is a real input/calculation source. `Total Demand for EQ` and `Actual Need QTY` initially mirror the phase station total.
 - Calculation fields such as `Buffer / Stock / Actual Need QTY` are not displayed unless the system has a real input or calculation source for them.
 - When real submitted station data is not rich enough for UI validation, the prototype may seed Manager-only matrix demo requests. These seed rows must cover all 12 MFG stations, multiple demand units, and enough item variety to validate a boss-facing Excel-like quantity table. They must not overwrite user-entered requests.

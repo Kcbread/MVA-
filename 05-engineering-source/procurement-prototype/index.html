@@ -1034,6 +1034,7 @@
             <button class="inner-tab active" data-om-tab="submission">Submission Dashboard</button>
             <button class="inner-tab" data-om-tab="pasRequest">PAS Demand No</button>
             <button class="inner-tab" data-om-tab="quoteConfirm">Quote Result / Monitor</button>
+            <button class="inner-tab" data-om-tab="quoteExpiry">Quote Expiry Watch</button>
             <button class="inner-tab" data-om-tab="finalExport">Export Package</button>
           </div>
 
@@ -1056,10 +1057,6 @@
             </section>
             <div class="manager-progress-toolbar om-submission-toolbar">
               <div class="toolbar-label">Submission Status Scope</div>
-              <div class="segmented-control om-pivot-toggle" role="group" aria-label="OM submission pivot mode">
-                <button class="segment active" type="button" data-om-pivot-mode="project">Project View</button>
-                <button class="segment" type="button" data-om-pivot-mode="item">Item View</button>
-              </div>
               <div class="manager-progress-controls">
                 <label>
                   Year Project
@@ -1073,25 +1070,25 @@
                     <option value="">All projects</option>
                   </select>
                 </label>
-                <label data-om-item-scope hidden>
+                <label data-om-item-scope>
                   LV1
                   <select id="omSubmissionLevel1Filter">
                     <option value="">All LV1</option>
                   </select>
                 </label>
-                <label data-om-item-scope hidden>
+                <label data-om-item-scope>
                   LV2
                   <select id="omSubmissionLevel2Filter" disabled>
                     <option value="">Select LV1 first</option>
                   </select>
                 </label>
-                <label data-om-item-scope hidden>
+                <label data-om-item-scope>
                   LV3
                   <select id="omSubmissionLevel3Filter" disabled>
                     <option value="">Select LV2 first</option>
                   </select>
                 </label>
-                <label data-om-item-scope hidden>
+                <label data-om-item-scope>
                   Item
                   <select id="omSubmissionItemFilter" disabled>
                     <option value="">Select LV123 first</option>
@@ -1131,37 +1128,12 @@
             </div>
             <div class="summary-grid" id="omSubmissionSummary"></div>
             <div id="omSubmissionTriage" class="queue-triage-strip"></div>
-            <section class="work-panel om-expiry-monitor-panel">
-              <div class="panel-title section-head-tight">
-                <div>
-                  <h3>Quote Validity Monitor</h3>
-                  <p class="panel-subcopy">Quote validity is entered in Quote Result / Monitor. This monitor highlights expiring or expired bidding results.</p>
-                </div>
-              </div>
-              <div class="table-wrap om-expiry-monitor-wrap">
-                <table class="data-table om-expiry-monitor-table">
-                  <thead>
-                    <tr>
-                      <th>Project</th>
-                      <th>Item</th>
-                      <th>PAS Demand No</th>
-                      <th>PAS Material No</th>
-                      <th>Valid Until</th>
-                      <th>Expiry Status</th>
-                      <th>Pending Action</th>
-                      <th>Detail</th>
-                    </tr>
-                  </thead>
-                  <tbody id="omSubmissionExpiryRows"></tbody>
-                </table>
-              </div>
-            </section>
             <div class="table-wrap manager-cost-wrap om-table-wrap om-submission-wrap">
               <table class="data-table manager-cost-table om-submission-workbench-table" id="omSubmissionTable">
                 <thead>
                   <tr>
-                    <th>Project</th>
                     <th>Request ID</th>
+                    <th>Project</th>
                     <th>Item</th>
                     <th>Qty</th>
                     <th>Submitted / OM Received</th>
@@ -1243,22 +1215,6 @@
               </div>
             </div>
             <div class="summary-grid" id="omSummary"></div>
-            <section class="work-panel om-quote-monitor-panel">
-              <div class="panel-title section-head-tight">
-                <div>
-                  <h3>Quote Monitor Summary</h3>
-                  <p class="panel-subcopy">Track where each quote is blocked, how long it has been there, and who owns the next step.</p>
-                </div>
-              </div>
-              <div class="summary-grid om-quote-monitor-summary" id="omQuoteExpirySummary">
-                <article class="summary-card"><span>Waiting PAS Reply</span><strong>0</strong></article>
-                <article class="summary-card"><span>Missing Valid Until</span><strong>0</strong></article>
-                <article class="summary-card"><span>Expiring Soon</span><strong>0</strong></article>
-                <article class="summary-card"><span>Expired / Requote</span><strong>0</strong></article>
-                <article class="summary-card"><span>Waiting Requester</span><strong>0</strong></article>
-                <article class="summary-card"><span>Ready to Export</span><strong>0</strong></article>
-              </div>
-            </section>
             <div class="table-wrap om-table-wrap om-quote-result-wrap">
               <table class="data-table om-quote-result-table form-table" data-layout-managed="manual">
                 <colgroup>
@@ -1308,6 +1264,77 @@
                   </tr>
                 </thead>
                 <tbody id="omWorkbenchRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="om-panel" data-om-panel="quoteExpiry">
+            <div class="om-workbench-bar">
+              <div class="om-action-group om-context-group">
+                <span class="toolbar-label">Quote Expiry Watch</span>
+                <label>
+                  Project Package
+                  <select id="omQuoteExpiryProjectFilter"></select>
+                </label>
+                <label>
+                  Expiry Status
+                  <select id="omQuoteExpiryStatusFilter">
+                    <option value="">All statuses</option>
+                    <option value="missing">Missing Valid Until</option>
+                    <option value="expiring">Expiring Soon</option>
+                    <option value="expired">Expired / Requote</option>
+                    <option value="valid">Valid</option>
+                  </select>
+                </label>
+                <label>
+                  Assigned To
+                  <select id="omQuoteExpiryAssigneeFilter"></select>
+                </label>
+                <span class="record-count" id="omQuoteExpiryCount">0 rows</span>
+              </div>
+              <div class="om-action-group om-primary-actions">
+                <div class="om-toolbar-hint" id="omQuoteExpiryHint"></div>
+              </div>
+            </div>
+            <div class="summary-grid om-quote-monitor-summary" id="omQuoteExpirySummary">
+              <article class="summary-card"><span>Waiting PAS Reply</span><strong>0</strong></article>
+              <article class="summary-card"><span>Missing Valid Until</span><strong>0</strong></article>
+              <article class="summary-card"><span>Expiring Soon</span><strong>0</strong></article>
+              <article class="summary-card"><span>Expired / Requote</span><strong>0</strong></article>
+              <article class="summary-card"><span>Waiting Requester</span><strong>0</strong></article>
+              <article class="summary-card"><span>Ready to Export</span><strong>0</strong></article>
+            </div>
+            <div class="table-wrap om-table-wrap">
+              <table class="data-table workflow-table om-expiry-table">
+                <colgroup>
+                  <col class="om-expiry-col-project" />
+                  <col class="om-expiry-col-item" />
+                  <col class="om-expiry-col-demand" />
+                  <col class="om-expiry-col-material" />
+                  <col class="om-expiry-col-date" />
+                  <col class="om-expiry-col-date" />
+                  <col class="om-expiry-col-days" />
+                  <col class="om-expiry-col-status" />
+                  <col class="om-expiry-col-assignee" />
+                  <col class="om-expiry-col-action" />
+                  <col class="om-expiry-col-detail" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Item</th>
+                    <th>PAS Demand No</th>
+                    <th>PAS Material No</th>
+                    <th>Quote Date</th>
+                    <th>Valid Until</th>
+                    <th>Days Left</th>
+                    <th>Expiry Status</th>
+                    <th>Assigned To</th>
+                    <th>Pending Action</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="omQuoteExpiryRows"></tbody>
               </table>
             </div>
           </section>

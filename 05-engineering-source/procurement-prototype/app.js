@@ -264,7 +264,7 @@ let projectConfigs = mergeCanonicalProjectConfigs(Array.isArray(globalThis.REAL_
 ]);
 let PROJECTS = projectConfigs.map((project) => project.code);
 const DEMAND_STAGE_ORDER = ["p0", ...STAGES];
-const QUOTE_EXPIRING_SOON_DAYS = 10;
+const QUOTE_EXPIRING_SOON_DAYS = 7;
 
 const LEGACY_CATEGORY_SOURCE = `
 生產設備與工具	設備工程工具	輔助工具
@@ -539,11 +539,11 @@ const roleWorkspaceConfigs = {
   omLeader: {
     mainViews: ["om", "projectStatus"],
     defaultOmTab: "submission",
-    omTabs: ["submission", "pasRequest", "quoteConfirm", "finalExport"],
+    omTabs: ["submission", "pasRequest", "quoteExpiry", "finalExport"],
     omTabLabels: {
       submission: "Submission Dashboard",
       pasRequest: "PAS Demand No",
-      quoteConfirm: "Quote Result / Monitor",
+      quoteExpiry: "Quote Expiry Watch",
       finalExport: "Export Package",
     },
     showOmRateUtility: true,
@@ -554,10 +554,11 @@ const roleWorkspaceConfigs = {
   omMember: {
     mainViews: ["om", "projectStatus"],
     defaultOmTab: "pasRequest",
-    omTabs: ["pasRequest", "quoteConfirm", "finalExport"],
+    omTabs: ["pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"],
     omTabLabels: {
       pasRequest: "My Intake",
       quoteConfirm: "My Quote Result / Monitor",
+      quoteExpiry: "My Quote Expiry Watch",
       finalExport: "My Exports",
     },
     showOmRateUtility: true,
@@ -672,7 +673,7 @@ function syncManagerWorkspaceUi(role = currentRole) {
 
 function syncOmWorkspaceUi(role = currentRole) {
   const config = workspaceConfigForRole(role);
-  const visibleTabs = new Set(config.omTabs || ["submission", "pasRequest", "quoteConfirm", "finalExport"]);
+  const visibleTabs = new Set(config.omTabs || ["submission", "pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"]);
   document.querySelectorAll("[data-om-tab]").forEach((tab) => {
     const label = config.omTabLabels?.[tab.dataset.omTab];
     if (label) tab.textContent = label;
@@ -1057,7 +1058,6 @@ const expandedManagerQuantityRows = new Set();
 const expandedDemandEditorCarryoverRows = new Set();
 let currentHandoffTab = "queue";
 let currentOmTab = "submission";
-let currentOmSubmissionPivotMode = "project";
 let currentPriceReviewTab = "pending";
 let currentPriceReviewQueue = "submission";
 let selectedProjectStatusScope = { requestId: "", unit: "", mode: "mfg" };
@@ -2371,6 +2371,7 @@ function omTabLabel(tab = currentOmTab) {
     submission: "Submission Dashboard",
     pasRequest: "PAS Demand No",
     quoteConfirm: "Quote Result / Monitor",
+    quoteExpiry: "Quote Expiry Watch",
     finalExport: "Export Package",
   };
   return labels[tab] || tab || "OM";
@@ -9167,7 +9168,7 @@ function seedOmDemoData() {
       updatedPrice: validRecord.unitPrice || 95,
       pasDemandNo: "AIDB260512-OM004",
       pasMaterialNo: "PAS-MAT-OM004",
-      procurementRemark: "PAS quote is ready and within the 10-day expiry warning window.",
+      procurementRemark: "PAS quote is ready and within the 7-day expiry warning window.",
       decidedAt: "2026-05-12T09:30:00.000Z",
       sentToOmAt: "2026-05-12T10:00:00.000Z",
       pasResultReceivedAt: "2026-05-12T10:30:00.000Z",
@@ -15074,10 +15075,6 @@ function managerDeliveryStatusCell(group) {
   return `<div class="pivot-status-stack">${pills.join("")}<small>${summary}</small></div>`;
 }
 
-function omSubmissionPivotMode() {
-  return currentOmSubmissionPivotMode === "item" ? "item" : "project";
-}
-
 function omSubmissionItemKey(row = {}) {
   return row.name || row.item || omItemBucket(row) || "-";
 }
@@ -15090,14 +15087,21 @@ function omSubmissionItemTaxonomy(row = {}) {
   };
 }
 
-function omSubmissionPivotKey(row, filters = {}) {
-  const pivotPrefix = omSubmissionPivotMode() === "item" ? "item" : "project";
-  const itemScope = omSubmissionPivotMode() === "item" ? omSubmissionItemKey(row) : "project-scope";
+function omSubmissionPackageId(row = {}) {
+  return row.requestPackageId || row.requestId || row.id || "-";
+}
+
+function omSubmissionPackageLabel(row = {}) {
+  return row.requestPackageLabel || omSubmissionPackageId(row);
+}
+
+function omSubmissionRowKey(row, filters = {}) {
   return [
-    pivotPrefix,
+    "item",
     managerProgressYearProject(row),
     managerProgressProject(row),
-    itemScope,
+    omSubmissionPackageId(row),
+    row.id || row.requestId || omSubmissionItemKey(row),
     managerProgressStage(row),
     row.department || "-",
     filters.requestType || "all",
@@ -15105,11 +15109,8 @@ function omSubmissionPivotKey(row, filters = {}) {
 }
 
 function omSubmissionScopeLabel(filters = omSubmissionFilterState()) {
-  if (omSubmissionPivotMode() === "item") {
-    const levelPath = [filters.level1, filters.level2, filters.level3].filter(Boolean).join(" / ") || "All LV123";
-    return `Item View · ${levelPath} · ${filters.item || "All items"} · ${filters.project || "All projects"}`;
-  }
-  return `Project View · ${filters.project || "All projects"} pending`;
+  const levelPath = [filters.level1, filters.level2, filters.level3].filter(Boolean).join(" / ") || "All LV123";
+  return `Item-first · ${levelPath} · ${filters.item || "All items"} · ${filters.project || "All projects"}`;
 }
 
 function omSubmissionFilterState() {
@@ -15133,13 +15134,11 @@ function omSubmissionFilterState() {
 function omSubmissionMatchesFilters(row, filters) {
   if (filters.yearProject && managerProgressYearProject(row) !== filters.yearProject) return false;
   if (filters.project && managerProgressProject(row) !== filters.project) return false;
-  if (omSubmissionPivotMode() === "item") {
-    const taxonomy = omSubmissionItemTaxonomy(row);
-    if (filters.level1 && taxonomy.level1 !== filters.level1) return false;
-    if (filters.level2 && taxonomy.level2 !== filters.level2) return false;
-    if (filters.level3 && taxonomy.level3 !== filters.level3) return false;
-    if (filters.item && omSubmissionItemKey(row) !== filters.item) return false;
-  }
+  const taxonomy = omSubmissionItemTaxonomy(row);
+  if (filters.level1 && taxonomy.level1 !== filters.level1) return false;
+  if (filters.level2 && taxonomy.level2 !== filters.level2) return false;
+  if (filters.level3 && taxonomy.level3 !== filters.level3) return false;
+  if (filters.item && omSubmissionItemKey(row) !== filters.item) return false;
   if (filters.process && row.process !== filters.process) return false;
   if (filters.stage && managerProgressStage(row) !== filters.stage) return false;
   if (filters.department && row.department !== filters.department) return false;
@@ -15178,16 +15177,13 @@ function omSubmissionMatchesNonItemFilters(row, filters) {
 }
 
 function omSubmissionGroupItemLabel(group = {}) {
-  if (omSubmissionPivotMode() === "item") return group.item || "All items";
-  const items = [...(group.itemValues || new Set())].filter(Boolean);
-  if (items.length === 1) return items[0];
-  return items.length ? `${items.length} items` : "All items";
+  return group.item || "All items";
 }
 
 function omSubmissionGroupItemHelper(group = {}) {
-  if (omSubmissionPivotMode() === "item") return `${group.rows?.length || 0} raw row${group.rows?.length === 1 ? "" : "s"}`;
-  const items = [...(group.itemValues || new Set())].filter(Boolean);
-  return items.slice(0, 3).join(" / ") + (items.length > 3 ? ` / +${items.length - 3} more` : "");
+  const row = group.rows?.[0] || {};
+  const spec = userVisibleItemDetail(row) || itemDetail(row) || row.spec || "";
+  return spec || `${group.rows?.length || 0} raw row${group.rows?.length === 1 ? "" : "s"}`;
 }
 
 function syncOmSubmissionSelectOptions(id, allLabel, values, currentValue = "") {
@@ -15238,11 +15234,8 @@ function syncOmSubmissionItemFilters(rawRows, filters) {
 }
 
 function syncOmSubmissionScopeControls() {
-  const isItemView = omSubmissionPivotMode() === "item";
   document.querySelectorAll("[data-om-item-scope]").forEach((element) => {
-    element.hidden = !isItemView;
-    const control = element.querySelector("select");
-    if (control) control.disabled = !isItemView || control.disabled;
+    element.hidden = false;
   });
 }
 
@@ -15296,7 +15289,7 @@ function omSubmissionRows() {
   const groups = new Map();
   managerProgressRawRows().forEach((row) => {
     if (!omSubmissionMatchesFilters(row, filters)) return;
-    const key = omSubmissionPivotKey(row, filters);
+    const key = omSubmissionRowKey(row, filters);
     if (!groups.has(key)) {
       groups.set(key, {
         key,
@@ -15304,6 +15297,8 @@ function omSubmissionRows() {
         yearProject: managerProgressYearProject(row),
         project: managerProgressProject(row),
         item: omSubmissionItemKey(row),
+        requestPackageId: omSubmissionPackageId(row),
+        requestPackageLabel: omSubmissionPackageLabel(row),
         department: row.department || "-",
         quantity: 0,
         budgetDone: 0,
@@ -15567,15 +15562,26 @@ function omSubmittedReceivedCell(group) {
     </div>`;
 }
 
+function omSubmissionPackageRows(row = {}) {
+  const packageId = omSubmissionPackageId(row);
+  return managerProgressRawRows()
+    .filter((item) => omSubmissionPackageId(item) === packageId)
+    .sort((left, right) => `${omSubmissionItemKey(left)} ${left.id || ""}`.localeCompare(`${omSubmissionItemKey(right)} ${right.id || ""}`));
+}
+
 function omRequestIdCell(group) {
   const rows = group.rows || [];
-  const ids = [...new Set(rows.map((row) => row.id || row.requestId).filter(Boolean))];
-  const primary = ids[0] || "-";
-  const extra = ids.length > 1 ? `+${ids.length - 1} more` : `${rows.length} raw row${rows.length === 1 ? "" : "s"}`;
+  const primaryRow = rows[0] || {};
+  const packageRows = omSubmissionPackageRows(primaryRow);
+  const ordinal = Math.max(1, packageRows.findIndex((item) => item === primaryRow || item.id === primaryRow.id) + 1);
+  const packageId = omSubmissionPackageId(primaryRow);
+  const packageLabel = omSubmissionPackageLabel(primaryRow);
+  const ids = [...new Set(packageRows.map((row) => row.id || row.requestId).filter(Boolean))];
+  const helper = packageRows.length > 1 ? `item ${ordinal}/${packageRows.length}` : "single item";
   return `
-    <div class="om-request-id-stack" title="${htmlAttr(ids.join(" / ") || primary)}">
-      <strong>${htmlText(primary)}</strong>
-      <span>${htmlText(extra)}</span>
+    <div class="om-request-id-stack" title="${htmlAttr(ids.join(" / ") || packageId)}">
+      <strong>${htmlText(packageId)}</strong>
+      <span>${htmlText(packageLabel === packageId ? helper : `${packageLabel} · ${helper}`)}</span>
     </div>`;
 }
 
@@ -15754,9 +15760,6 @@ function renderOmSubmission() {
   syncOmSubmissionFilters();
   renderOmExchangeRatePanel();
   const filters = omSubmissionFilterState();
-  document.querySelectorAll("[data-om-pivot-mode]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.omPivotMode === omSubmissionPivotMode());
-  });
   const scopeLabel = document.getElementById("omSubmissionScopeLabel");
   if (scopeLabel) scopeLabel.textContent = omSubmissionScopeLabel(filters);
   const rows = omSubmissionRows();
@@ -15781,14 +15784,13 @@ function renderOmSubmission() {
     ]);
   }
   renderOmSubmissionTriage(rows);
-  renderOmSubmissionExpiryMonitor();
   const body = document.getElementById("omSubmissionRows");
   if (!body) return;
   const headRow = body.closest("table")?.querySelector("thead tr");
   if (headRow) {
     headRow.innerHTML = `
-      <th>Project</th>
       <th>Request ID</th>
+      <th>Project</th>
       <th>Item</th>
       <th>Qty</th>
       <th>Submitted / OM Received</th>
@@ -15800,8 +15802,8 @@ function renderOmSubmission() {
     ? rows.map((row) => {
       return `
       <tr class="${omIsOverSla(row) ? "om-over-sla-row" : row.lateRows || row.pendingRows || row.notArrivedRows ? "pivot-risk-row" : ""}" data-om-submission-row="${htmlAttr(row.keyId)}">
-        <td>${htmlText(row.project)}</td>
         <td>${omRequestIdCell(row)}</td>
+        <td>${htmlText(row.project)}</td>
         <td><div class="item-primary">${htmlText(omSubmissionGroupItemLabel(row))}</div><div class="reason-text">${htmlText(omSubmissionGroupItemHelper(row))}</div></td>
         <td><strong>${row.quantity}</strong></td>
         <td>${omSubmittedReceivedCell(row)}</td>
@@ -23503,7 +23505,6 @@ document.addEventListener("click", (event) => {
   const contactDriButton = event.target.closest("[data-contact-dri]");
   const omSubmissionFocusButton = event.target.closest("[data-om-submission-focus]");
   const omSubmissionDetailButton = event.target.closest("[data-om-submission-detail]");
-  const omSubmissionPivotButton = event.target.closest("[data-om-pivot-mode]");
   const projectAccessButton = event.target.closest("[data-project-config-access]");
   const omRowButton = event.target.closest("[data-om-row-button]");
   const rfqGroupButton = event.target.closest("[data-rfq-group-action]");
@@ -23576,10 +23577,6 @@ document.addEventListener("click", (event) => {
   }
   if (handoffTab) setHandoffTab(handoffTab.dataset.handoffTab);
   if (omTab) setOmTab(omTab.dataset.omTab);
-  if (omSubmissionPivotButton) {
-    currentOmSubmissionPivotMode = omSubmissionPivotButton.dataset.omPivotMode === "item" ? "item" : "project";
-    renderOmSubmission();
-  }
   if (action === "logout") {
     logoutWithApi().finally(() => setScreen("login"));
   }

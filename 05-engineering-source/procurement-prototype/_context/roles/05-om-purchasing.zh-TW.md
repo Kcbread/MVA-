@@ -40,6 +40,7 @@ OM Purchasing 是 OM 實際作業者。第一版為 Giang / Linh，只操作派�
 
 - PAS Demand No
 - Quote Result / Monitor
+- Quote Expiry Watch
 - Export Package
 - Assigned Work Table
 
@@ -53,7 +54,7 @@ OM Purchasing 是 OM 實際作業者。第一版為 Giang / Linh，只操作派�
 - Quote 不是 PDF upload；第一版 quote evidence 是 screenshot/image，加上 quote Excel。
 - Vendor part no 應使用 Vendor number；Vendor 應使用 Vendor name。
 - Quote date 與 quote received date 視為同一天，不要重複增加欄位。
-- Quote expiry warning threshold 是 10 天。
+- Quote expiry warning threshold 是 7 天；`Quote Expiry Watch` 是追蹤/提醒面，實際 valid until 輸入仍在 Quote Result / Monitor。
 - Quote conversion 使用 quote date 所在月份 rate；若該月缺失，fallback 到最新的前一個 locked monthly rate。每月 28 日到下月 4 日提醒期間仍照此規則。
 
 ## 測試 / QA 重點

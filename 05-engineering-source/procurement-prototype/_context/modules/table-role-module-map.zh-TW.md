@@ -135,7 +135,7 @@
 
 ### OMWorkflowTable
 
-封裝 PAS Demand No、Quote Result / Monitor、Export Package 的 shared row layout。Quote validity / expiry 是 `Quote Result / Monitor` 內的 warning / status layer，不再是 standalone tab。
+封裝 PAS Demand No、Quote Result / Monitor、Quote Expiry Watch、Export Package 的 shared row layout。Quote validity / expiry 由 `Quote Expiry Watch` standalone tracking tab 追蹤 7 天內到期與已過期風險；`Quote Valid Until` 的資料輸入仍在 `Quote Result / Monitor`。
 
 ### AssignmentControl
 

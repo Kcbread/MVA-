@@ -39,8 +39,8 @@
 - Quote evidence 第一版是 screenshot/image，不是 PDF upload。
 - Quote Excel 仍必須保留。
 - Quote date 與 quote received date 視為同一天。
-- Quote expiry warning threshold = 10 days。
-- Quote validity / expiry monitor 屬於 OM `Quote Result / Monitor`，不是 standalone tab，也不是 workflow gate。
+- Quote expiry warning threshold = 7 days。
+- Quote validity / expiry monitor 屬於 OM `Quote Expiry Watch` standalone tracking tab；不是 workflow gate，資料輸入仍回 `Quote Result / Monitor`。
 
 ## UI 透明度
 
