@@ -15,7 +15,13 @@ function between(source, start, end) {
   return source.slice(startIndex, endIndex);
 }
 
-test("Price Review is approval-only and Project Status owns Excel-like tracking matrices", () => {
+function cssBlock(source, selector) {
+  const match = source.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{[^}]*\\}`));
+  assert.ok(match, `Missing CSS block ${selector}`);
+  return match[0];
+}
+
+test("Price Review is approval-only and Request Tracking owns Excel-like tracking matrices", () => {
   const priceReviewView = between(
     html,
     '<section class="view" data-view="priceReview"',
@@ -35,17 +41,19 @@ test("Price Review is approval-only and Project Status owns Excel-like tracking 
   assert.doesNotMatch(priceReviewView, /data-approval-quantity-tab=/);
   assert.doesNotMatch(priceReviewView, /Project Context/);
 
-  assert.match(projectStatusView, /Project Status/);
+  assert.match(projectStatusView, /Request Tracking/);
+  assert.doesNotMatch(projectStatusView, /Demand Progress/);
+  assert.doesNotMatch(projectStatusView, /Project Status/);
   assert.match(projectStatusView, /data-project-status-panel="dashboard"[\s\S]*id="projectStatusDashboardRows"/);
   assert.match(projectStatusView, /data-project-status-panel="mfg"[\s\S]*id="projectStatusMfgMatrixTable"/);
   assert.match(projectStatusView, /data-project-status-panel="nonMfg"[\s\S]*id="projectStatusNonMfgMatrixTable"/);
   assert.match(projectStatusView, /manager-quantity-table manager-quantity-wide-table/);
   assert.doesNotMatch(projectStatusView, /data-project-status-tab=/);
   assert.match(styles, /\.project-status-stack/);
-  assert.doesNotMatch(styles, /\.project-status-panel\s*\{[\s\S]*display:\s*none/);
+  assert.doesNotMatch(cssBlock(styles, ".project-status-panel"), /display:\s*none/);
 });
 
-test("approval evidence keeps Review Status wording and Project Status matrix stays read-only", () => {
+test("approval evidence keeps Review Status wording and Request Tracking matrix stays read-only", () => {
   const projectStatusView = between(
     html,
     '<section class="view" data-view="projectStatus">',

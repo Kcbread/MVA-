@@ -17,7 +17,7 @@
         history: "Review History",
       },
       queueDefinitions: [
-        { id: "submission", label: "Submission Review", actionLabel: "Approved / Denied / Revise", nextStage: "Demand Review" },
+        { id: "submission", label: "Submission Review", actionLabel: "Approved / Denied / Revise", nextStage: "Cost Manager Review" },
         { id: "exception", label: "Price Exception Review", actionLabel: "Approved / Denied / Revise", nextStage: "Budget Review" },
         { id: "stock", label: "Stock / Carryover Review", actionLabel: "Approved / Denied / Revise", nextStage: "Locked / applied evidence" },
       ],
@@ -31,7 +31,7 @@
     },
     manager: {
       roleKey: "manager",
-      entryLabel: "Demand Review",
+      entryLabel: "Cost Review",
       viewKey: "manager",
       stateKey: "manager",
       shellMode: "managerAuthorized",
@@ -39,7 +39,7 @@
       defaultQueue: "authorization",
       tabs: ["pending", "history"],
       tabLabels: {
-        pending: "Demand Review",
+        pending: "Cost Review",
         projectReview: "Quantity Review",
         history: "Review History",
       },

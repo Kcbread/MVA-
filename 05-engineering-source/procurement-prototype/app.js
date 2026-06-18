@@ -432,7 +432,7 @@ const MATERIAL_STANDARD_NAME_REQUESTED = "Standard Name Requested";
 
 const roleProfiles = {
   requester: { name: "Requester", dept: "MFG", functionName: "Demand Requester", defaultView: "department" },
-  manager: { name: "Cost Manager", dept: "MFG", functionName: "Demand Review", defaultView: "manager" },
+  manager: { name: "Cost Manager", dept: "MFG", functionName: "Cost Review", defaultView: "manager" },
   procurement: { name: "MFG Coordinator", dept: "MFG", functionName: "MFG Demand Coordination", defaultView: "procurement" },
   om: { name: "OM Purchasing", dept: "Operations", functionName: "Quotation & Export Package", defaultView: "om" },
   omLeader: { name: "OM Leader", dept: "Operations", functionName: "Exchange Rate / Package Owner", defaultView: "om" },
@@ -513,8 +513,8 @@ const roleCapabilityMatrix = [
 
 const pageTitles = {
   department: "Requester Workspace",
-  projectStatus: "Project Status",
-  manager: "Demand Review",
+  projectStatus: "Request Tracking",
+  manager: "Cost Review",
   procurement: "MFG Demand Coordination",
   om: "OM Purchasing",
   priceReview: "Price Review",
@@ -532,7 +532,7 @@ const roleWorkspaceConfigs = {
     defaultManagerTab: "review",
     managerTabs: ["review", "history"],
     managerTabLabels: {
-      review: "Demand Review",
+      review: "Cost Review",
       history: "Review History",
     },
   },
@@ -651,7 +651,7 @@ function syncMainNavigation(role = currentRole) {
 function syncManagerWorkspaceUi(role = currentRole) {
   const config = workspaceConfigForRole(role);
   const visibleTabs = new Set(config.managerTabs || ["review", "history"]);
-  const reviewLabel = config.managerTabLabels?.review || approvalReviewConfigForRole(role)?.entryLabel || "Demand Review";
+  const reviewLabel = config.managerTabLabels?.review || approvalReviewConfigForRole(role)?.entryLabel || "Cost Review";
   const managerNav = document.querySelector('.tabs .tab[data-view="manager"]');
   if (managerNav && isManagerReviewRole(role)) managerNav.textContent = reviewLabel;
   if (currentView === "manager") document.getElementById("pageTitle").textContent = reviewLabel;
@@ -1108,6 +1108,30 @@ let activeItemQuantityReview = null;
 let approvalQuantityReviewMode = DEMAND_TYPE_MFG;
 let approvalQuantityReviewTab = "dashboard";
 let selectedNewItemId = null;
+
+function requestIdDatePart(nowIso = new Date().toISOString()) {
+  const raw = String(nowIso || "").trim();
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1].slice(2)}${isoMatch[2]}${isoMatch[3]}`;
+  const date = new Date(raw || Date.now());
+  if (Number.isNaN(date.getTime())) return "000000";
+  const year = String(date.getFullYear()).slice(2);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
+}
+
+function requestIdSnapshotPart(value = "", fallback = "NA") {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "");
+  return normalized.slice(0, 24) || fallback;
+}
+
+function formalRequestIdForRow(row = {}, nowIso = new Date().toISOString(), sequence = 1, department = "") {
+  return `REQ-${requestIdDatePart(nowIso)}-${requestIdSnapshotPart(department)}-${requestIdSnapshotPart(row.yearProject || row.yearProjectCode || currentProject)}-${requestIdSnapshotPart(projectCodeForRow(row) || row.project || currentProject)}-${String(sequence).padStart(4, "0")}`;
+}
 let activeDemandRequestId = "";
 let searchResults = [];
 let naturalSearchActive = false;
@@ -2810,7 +2834,7 @@ function projectStatusStageSummaryForUnit(demandRows = [], unit = "") {
   const stageOwner = status.blockedAtOwner && status.blockedAtOwner !== "Closed"
     ? status.blockedAtOwner
     : status.nextOwner || "";
-  const stageLabel = stageOwner === "Cost Manager" ? "Demand Review" : stageOwner;
+  const stageLabel = stageOwner === "Cost Manager" ? "Cost Manager Review" : stageOwner;
   const label = stageLabel || status.decisionStatus || "";
   return { label, tone: status.tone || "pending" };
 }
@@ -4917,7 +4941,7 @@ function renderManagerStageTracking() {
 function managerQuantitySourceRows() {
   const sourceRows = Array.isArray(priceReviewAnalysisRowsOverride) ? priceReviewAnalysisRowsOverride : requests;
   const allowReviewStatusRows = Array.isArray(priceReviewAnalysisRowsOverride);
-  return sourceRows.filter((row) => {
+  const filteredRows = sourceRows.filter((row) => {
     const status = row.status || "";
     return status
       && !["Draft", USER_CANCELLED_REQUEST, "Cancelled"].includes(status)
@@ -4925,6 +4949,12 @@ function managerQuantitySourceRows() {
       && !isSupersededRequest(row)
       && stationBreakdownHasDemand(row);
   });
+  if (Array.isArray(priceReviewAnalysisRowsOverride)) return filteredRows;
+  if (currentView === "manager" && currentRole === "manager" && selectedManagerRequestId) {
+    const selectedRow = filteredRows.find((row) => row.id === selectedManagerRequestId);
+    if (selectedRow) return [selectedRow];
+  }
+  return filteredRows;
 }
 
 function managerQuantityRequestLine(entry = {}, request = {}) {
@@ -9501,7 +9531,7 @@ function seedProjectStatusCostDashboardDemoData() {
       requester: index % 2 ? "NPI Requester" : "Line Owner",
       submittedBy: index % 2 ? "NPI Requester" : "Line Owner",
       requesterReason: `${scope.project} ${scope.requestLine} line-opening cost dashboard demo row.`,
-      managerReason: "Project Status cost dashboard demo baseline.",
+      managerReason: "Request Tracking cost dashboard demo baseline.",
       stationBreakdown,
       demoProjectStatusCostSeed: true,
       ...statusPatch,
@@ -12379,7 +12409,7 @@ function renderNeedConfirmationRows() {
 	      <article class="need-confirm-card price-rework-card ${overdue ? "need-confirm-overdue" : ""}">
 	        <div class="need-confirm-main">
 	          <div class="need-confirm-taskbar">
-	            <span class="status-pill rejected">${submissionRework ? "Dept DRI Submission Rejected" : demandReviewRework ? "Demand Review Revise Required" : "Price / Budget Review Rejected"}</span>
+            <span class="status-pill rejected">${submissionRework ? "Dept DRI Submission Rejected" : demandReviewRework ? "Cost Review Revise Required" : "Price / Budget Review Rejected"}</span>
 	            <span class="need-confirm-taskhint ${overdue ? "warning" : ""}">${overdue ? `Overdue ${overdueDays}d` : "Revise required"}</span>
 	          </div>
 	          <h4>${row.name}</h4>
@@ -13409,7 +13439,7 @@ function submitRequests() {
   const requesterDepartment = currentRequesterDepartment();
   const submittedIds = new Map(selectedRows.map((row) => [
     row.id,
-    row.id.startsWith("REQ-") && !row.id.startsWith("DRAFT-") ? row.id : `REQ-${String(requestSequence++).padStart(4, "0")}`,
+    row.id.startsWith("REQ-") && !row.id.startsWith("DRAFT-") ? row.id : formalRequestIdForRow(row, now, requestSequence++, requesterDepartment),
   ]));
   const amendmentSubmissions = selectedRows
     .filter((row) => row.amendmentOf)
@@ -14328,7 +14358,7 @@ function managerQueueStatus(row, role = managerReviewRole(currentRole)) {
 function managerQueueNextStep(row, role = managerReviewRole(currentRole)) {
   if (isPriceReviewStockRow(row)) return warehouseOwnerLabel(row);
   if (role === "dri") {
-    if (isDeptDriSubmissionPending(row)) return "Demand Review";
+    if (isDeptDriSubmissionPending(row)) return "Cost Manager Review";
     if (row.priceDecisionStatus === PRICE_ESCALATION_REQUIRED || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_DRI) return "Budget Review";
     return row.nextStep || "Waiting Dept Review";
   }
@@ -15052,13 +15082,22 @@ function omSubmissionItemKey(row = {}) {
   return row.name || row.item || omItemBucket(row) || "-";
 }
 
+function omSubmissionItemTaxonomy(row = {}) {
+  return {
+    level1: row.level1 || row.lv1 || row.omCategoryLevel1 || row.omCategoryLevel1Cn || row.itemLevel1 || row.materialLevel1 || row.materialLv1 || "",
+    level2: row.level2 || row.lv2 || row.omCategoryLevel2 || row.omCategoryLevel2Cn || row.itemLevel2 || row.materialLevel2 || row.materialLv2 || "",
+    level3: row.level3 || row.lv3 || row.omCategoryLevel3 || row.omCategoryLevel3Cn || row.itemLevel3 || row.materialLevel3 || row.materialLv3 || "",
+  };
+}
+
 function omSubmissionPivotKey(row, filters = {}) {
   const pivotPrefix = omSubmissionPivotMode() === "item" ? "item" : "project";
+  const itemScope = omSubmissionPivotMode() === "item" ? omSubmissionItemKey(row) : "project-scope";
   return [
     pivotPrefix,
     managerProgressYearProject(row),
     managerProgressProject(row),
-    omSubmissionItemKey(row),
+    itemScope,
     managerProgressStage(row),
     row.department || "-",
     filters.requestType || "all",
@@ -15067,15 +15106,19 @@ function omSubmissionPivotKey(row, filters = {}) {
 
 function omSubmissionScopeLabel(filters = omSubmissionFilterState()) {
   if (omSubmissionPivotMode() === "item") {
-    return `Item View · ${filters.item || "All items"} · ${filters.project || "All projects"}`;
+    const levelPath = [filters.level1, filters.level2, filters.level3].filter(Boolean).join(" / ") || "All LV123";
+    return `Item View · ${levelPath} · ${filters.item || "All items"} · ${filters.project || "All projects"}`;
   }
-  return `Project View · ${filters.project || "All projects"} · ${filters.item || "All items"} pending`;
+  return `Project View · ${filters.project || "All projects"} pending`;
 }
 
 function omSubmissionFilterState() {
   return {
     yearProject: document.getElementById("omSubmissionYearFilter")?.value || "",
     project: document.getElementById("omSubmissionProjectFilter")?.value || "",
+    level1: document.getElementById("omSubmissionLevel1Filter")?.value || "",
+    level2: document.getElementById("omSubmissionLevel2Filter")?.value || "",
+    level3: document.getElementById("omSubmissionLevel3Filter")?.value || "",
     item: document.getElementById("omSubmissionItemFilter")?.value || "",
     process: document.getElementById("omSubmissionProcessFilter")?.value || "",
     stage: document.getElementById("omSubmissionStageFilter")?.value || "",
@@ -15090,7 +15133,13 @@ function omSubmissionFilterState() {
 function omSubmissionMatchesFilters(row, filters) {
   if (filters.yearProject && managerProgressYearProject(row) !== filters.yearProject) return false;
   if (filters.project && managerProgressProject(row) !== filters.project) return false;
-  if (filters.item && omSubmissionItemKey(row) !== filters.item) return false;
+  if (omSubmissionPivotMode() === "item") {
+    const taxonomy = omSubmissionItemTaxonomy(row);
+    if (filters.level1 && taxonomy.level1 !== filters.level1) return false;
+    if (filters.level2 && taxonomy.level2 !== filters.level2) return false;
+    if (filters.level3 && taxonomy.level3 !== filters.level3) return false;
+    if (filters.item && omSubmissionItemKey(row) !== filters.item) return false;
+  }
   if (filters.process && row.process !== filters.process) return false;
   if (filters.stage && managerProgressStage(row) !== filters.stage) return false;
   if (filters.department && row.department !== filters.department) return false;
@@ -15108,12 +15157,100 @@ function omSubmissionMatchesFilters(row, filters) {
   return true;
 }
 
+function omSubmissionMatchesNonItemFilters(row, filters) {
+  if (filters.yearProject && managerProgressYearProject(row) !== filters.yearProject) return false;
+  if (filters.project && managerProgressProject(row) !== filters.project) return false;
+  if (filters.process && row.process !== filters.process) return false;
+  if (filters.stage && managerProgressStage(row) !== filters.stage) return false;
+  if (filters.department && row.department !== filters.department) return false;
+  if (filters.requestType === "temporary" && !isProgressTempBudget(row)) return false;
+  if (filters.requestType === "standard" && isProgressTempBudget(row)) return false;
+  if (filters.quoteValidity) {
+    const status = progressQuoteValidity(row).status;
+    if (filters.quoteValidity === "expiring" && status !== "Expiring Soon") return false;
+    if (filters.quoteValidity === "expired" && status !== "Expired / Requote Required") return false;
+    if (filters.quoteValidity === "missing" && status !== "Missing validity") return false;
+    if (filters.quoteValidity === "valid" && !["Valid", "Quote Valid"].includes(status)) return false;
+  }
+  if (filters.lateOnly && !managerProgressIsLate(row)) return false;
+  if (filters.pendingOnly && !managerProgressIsPending(row)) return false;
+  return true;
+}
+
+function omSubmissionGroupItemLabel(group = {}) {
+  if (omSubmissionPivotMode() === "item") return group.item || "All items";
+  const items = [...(group.itemValues || new Set())].filter(Boolean);
+  if (items.length === 1) return items[0];
+  return items.length ? `${items.length} items` : "All items";
+}
+
+function omSubmissionGroupItemHelper(group = {}) {
+  if (omSubmissionPivotMode() === "item") return `${group.rows?.length || 0} raw row${group.rows?.length === 1 ? "" : "s"}`;
+  const items = [...(group.itemValues || new Set())].filter(Boolean);
+  return items.slice(0, 3).join(" / ") + (items.length > 3 ? ` / +${items.length - 3} more` : "");
+}
+
+function syncOmSubmissionSelectOptions(id, allLabel, values, currentValue = "") {
+  const select = document.getElementById(id);
+  if (!select) return "";
+  const uniqueValues = [...new Set(values.filter(Boolean))].sort((left, right) => String(left).localeCompare(String(right)));
+  select.innerHTML = `<option value="">${allLabel}</option>${uniqueValues.map((value) => optionHtml(value, currentValue)).join("")}`;
+  select.value = currentValue && uniqueValues.includes(currentValue) ? currentValue : "";
+  return select.value;
+}
+
+function syncOmSubmissionItemFilters(rawRows, filters) {
+  const rows = rawRows.filter((row) => omSubmissionMatchesNonItemFilters(row, filters));
+  const level1 = syncOmSubmissionSelectOptions(
+    "omSubmissionLevel1Filter",
+    "All LV1",
+    rows.map((row) => omSubmissionItemTaxonomy(row).level1),
+    filters.level1
+  );
+  const level2Rows = level1 ? rows.filter((row) => omSubmissionItemTaxonomy(row).level1 === level1) : rows;
+  const level2 = syncOmSubmissionSelectOptions(
+    "omSubmissionLevel2Filter",
+    level1 ? "All LV2" : "Select LV1 first",
+    level1 ? level2Rows.map((row) => omSubmissionItemTaxonomy(row).level2) : [],
+    filters.level2
+  );
+  const level3Rows = level2 ? level2Rows.filter((row) => omSubmissionItemTaxonomy(row).level2 === level2) : level2Rows;
+  const level3 = syncOmSubmissionSelectOptions(
+    "omSubmissionLevel3Filter",
+    level2 ? "All LV3" : "Select LV2 first",
+    level2 ? level3Rows.map((row) => omSubmissionItemTaxonomy(row).level3) : [],
+    filters.level3
+  );
+  const itemRows = level3 ? level3Rows.filter((row) => omSubmissionItemTaxonomy(row).level3 === level3) : [];
+  syncOmSubmissionSelectOptions(
+    "omSubmissionItemFilter",
+    level3 ? "All items" : "Select LV123 first",
+    level3 ? itemRows.map((row) => omSubmissionItemKey(row)) : [],
+    filters.item
+  );
+
+  const level2Select = document.getElementById("omSubmissionLevel2Filter");
+  const level3Select = document.getElementById("omSubmissionLevel3Filter");
+  const itemSelect = document.getElementById("omSubmissionItemFilter");
+  if (level2Select) level2Select.disabled = !level1;
+  if (level3Select) level3Select.disabled = !level2;
+  if (itemSelect) itemSelect.disabled = !level3;
+}
+
+function syncOmSubmissionScopeControls() {
+  const isItemView = omSubmissionPivotMode() === "item";
+  document.querySelectorAll("[data-om-item-scope]").forEach((element) => {
+    element.hidden = !isItemView;
+    const control = element.querySelector("select");
+    if (control) control.disabled = !isItemView || control.disabled;
+  });
+}
+
 function syncOmSubmissionFilters() {
   const rawRows = managerProgressRawRows();
   const controls = [
     ["omSubmissionYearFilter", "All year projects", (row) => managerProgressYearProject(row)],
     ["omSubmissionProjectFilter", "All projects", (row) => managerProgressProject(row)],
-    ["omSubmissionItemFilter", "All items", (row) => omSubmissionItemKey(row)],
     ["omSubmissionProcessFilter", "All process", (row) => row.process],
     ["omSubmissionStageFilter", "All stage", (row) => managerProgressStage(row)],
     ["omSubmissionDepartmentFilter", "All departments", (row) => row.department],
@@ -15126,12 +15263,17 @@ function syncOmSubmissionFilters() {
     select.innerHTML = `<option value="">${allLabel}</option>${values.map((value) => optionHtml(value, currentValue)).join("")}`;
     if (currentValue && values.includes(currentValue)) select.value = currentValue;
   });
+  syncOmSubmissionItemFilters(rawRows, omSubmissionFilterState());
+  syncOmSubmissionScopeControls();
 }
 
 function clearOmSubmissionFilters() {
   [
     "omSubmissionYearFilter",
     "omSubmissionProjectFilter",
+    "omSubmissionLevel1Filter",
+    "omSubmissionLevel2Filter",
+    "omSubmissionLevel3Filter",
     "omSubmissionItemFilter",
     "omSubmissionProcessFilter",
     "omSubmissionStageFilter",
@@ -15176,6 +15318,7 @@ function omSubmissionRows() {
         etaValues: new Set(),
         dtaValues: new Set(),
         pendingReasons: new Set(),
+        itemValues: new Set(),
         rows: [],
       });
     }
@@ -15195,6 +15338,7 @@ function omSubmissionRows() {
     if (row.dtaActual || row.actualEta) group.dtaValues.add(row.dtaActual || row.actualEta);
     const pendingReason = managerProgressPendingReason(row);
     if (pendingReason) group.pendingReasons.add(pendingReason);
+    group.itemValues.add(omSubmissionItemKey(row));
     group.rows.push(row);
   });
   return [...groups.values()].sort((left, right) => {
@@ -15207,6 +15351,12 @@ function omSubmissionRows() {
 }
 
 const OM_INTERNAL_SLA_DAYS = 7;
+const OM_STAGE_SLA_DAYS = Object.freeze({
+  "PAS Demand No": 2,
+  "PAS Quote Result": 15,
+  "Waiting Requester": null,
+  "Buyer PR / PO": null,
+});
 
 function daysBetweenDates(startText, endText = new Date().toISOString()) {
   if (!startText) return 0;
@@ -15347,6 +15497,33 @@ function omDaysInStage(group) {
   return workflowStatusForGroup(group, "om").daysPending;
 }
 
+function omSlaDaysForStage(stage) {
+  return Object.hasOwn(OM_STAGE_SLA_DAYS, stage) ? OM_STAGE_SLA_DAYS[stage] : null;
+}
+
+function omIsStageOverSla(stage, days) {
+  const slaDays = omSlaDaysForStage(stage);
+  if (slaDays === null) return false;
+  if (days === null || days === undefined) return false;
+  return days > slaDays;
+}
+
+function omAgingClassForStage(stage, days) {
+  const slaDays = omSlaDaysForStage(stage);
+  if (days === null) return "approved";
+  if (slaDays === null) return "approved";
+  if (omIsStageOverSla(stage, days)) return "warning";
+  return days >= Math.ceil(slaDays * 0.7) ? "pending" : "approved";
+}
+
+function omIsOverSla(group) {
+  return omIsStageOverSla(omCurrentStageForGroup(group), omDaysInStage(group));
+}
+
+function omAgingClassForGroup(group) {
+  return omAgingClassForStage(omCurrentStageForGroup(group), omDaysInStage(group));
+}
+
 function omAgingStatusClass(days) {
   if (days === null) return "approved";
   if (days > OM_INTERNAL_SLA_DAYS) return "warning";
@@ -15354,13 +15531,27 @@ function omAgingStatusClass(days) {
   return "approved";
 }
 
+function omStageSlaLabel(group) {
+  const stage = omCurrentStageForGroup(group);
+  const days = omDaysInStage(group);
+  const slaDays = omSlaDaysForStage(stage);
+  if (days === null) return "Completed";
+  if (slaDays === null) return "Aging only";
+  return days > slaDays ? `Over SLA >${slaDays}d` : `SLA ${days}/${slaDays}d`;
+}
+
+function omSlaHelperText(stage) {
+  const slaDays = omSlaDaysForStage(stage);
+  return slaDays === null ? "Aging only" : `SLA ${slaDays}d`;
+}
+
 function omAgingCell(group) {
   const stage = omCurrentStageForGroup(group);
   const startAt = omGroupStageStartAt(group, stage);
   const days = omDaysInStage(group);
   if (days === null) return `<span class="status-pill approved">Completed</span><div class="reason-text">${startAt ? compactDateTime(startAt) : "-"}</div>`;
-  const helper = startAt ? `Since ${compactDateTime(startAt)}` : "Missing stage start";
-  return `<span class="status-pill ${omAgingStatusClass(days)}">${days}d</span><div class="reason-text">${helper}</div>`;
+  const helper = startAt ? `Since ${compactDateTime(startAt)} · ${omSlaHelperText(stage)}` : `Missing stage start · ${omSlaHelperText(stage)}`;
+  return `<span class="status-pill ${omAgingClassForGroup(group)}">${days}d</span><div class="reason-text">${helper}</div>`;
 }
 
 function omSubmittedReceivedCell(group) {
@@ -15376,6 +15567,18 @@ function omSubmittedReceivedCell(group) {
     </div>`;
 }
 
+function omRequestIdCell(group) {
+  const rows = group.rows || [];
+  const ids = [...new Set(rows.map((row) => row.id || row.requestId).filter(Boolean))];
+  const primary = ids[0] || "-";
+  const extra = ids.length > 1 ? `+${ids.length - 1} more` : `${rows.length} raw row${rows.length === 1 ? "" : "s"}`;
+  return `
+    <div class="om-request-id-stack" title="${htmlAttr(ids.join(" / ") || primary)}">
+      <strong>${htmlText(primary)}</strong>
+      <span>${htmlText(extra)}</span>
+    </div>`;
+}
+
 function omPendingOwnerHelper(group, pendingOwner) {
   if (pendingOwner === "Buyer Handoff") {
     const buyerStart = (group.rows || [])
@@ -15387,6 +15590,20 @@ function omPendingOwnerHelper(group, pendingOwner) {
     return `Buyer owns PR / PO · ${days}d since ${compactDateTime(buyerStart)}`;
   }
   return "Current blocker";
+}
+
+function omOwnerStageCell(group) {
+  const owner = omPendingOwnerForGroup(group);
+  const stage = omCurrentStageForGroup(group);
+  const startAt = omGroupStageStartAt(group, stage);
+  return `
+    <div class="om-owner-stage-stack">
+      <span class="status-pill ${statusClass(owner)}">${htmlText(owner)}</span>
+      <strong>${htmlText(stage)}</strong>
+      <small>${htmlText(omPendingOwnerHelper(group, owner))}</small>
+      <small>${startAt ? `Stage started ${compactDateTime(startAt)}` : "Missing stage start"}</small>
+      <span class="status-pill ${omAgingClassForGroup(group)}">${htmlText(omStageSlaLabel(group))}</span>
+    </div>`;
 }
 
 function omNextActionForGroup(group) {
@@ -15469,38 +15686,67 @@ function saveOmExchangeRate() {
   showToast(`Exchange rate saved: 1 USD = ${rate.toLocaleString("en-US")} VND.`, "success");
 }
 
+function omPendingFocusReason(group) {
+  const owner = omPendingOwnerForGroup(group);
+  const stage = omCurrentStageForGroup(group);
+  const quoteStatus = omQuoteStatusForGroup(group);
+  if (omIsOverSla(group)) return `Over SLA in ${stage}`;
+  if (owner === "PAS / Bidding") return "Waiting PAS bidding result";
+  if (owner === "Requester") return "Waiting Requester confirm / cancel";
+  if (stage === "Export Package") return "Confirmed by Requester; export package pending";
+  if (quoteStatus === "Missing Validity") return "Quote validity missing in Quote Result / Monitor";
+  if (["Expiring Soon", "Expired / Requote Required"].includes(quoteStatus)) return quoteStatus;
+  if (stage === "PAS Demand No") return "PAS Demand No not recorded";
+  return omNextActionForGroup(group);
+}
+
+function omPendingFocusScore(group) {
+  const days = omDaysInStage(group);
+  const owner = omPendingOwnerForGroup(group);
+  const quoteStatus = omQuoteStatusForGroup(group);
+  let score = 0;
+  if (omIsOverSla(group)) score += 100;
+  if (quoteStatus === "Expired / Requote Required") score += 80;
+  if (quoteStatus === "Expiring Soon") score += 60;
+  if (owner === "PAS / Bidding") score += 40;
+  if (owner === "Requester") score += 30;
+  if (omCurrentStageForGroup(group) === "Export Package") score += 20;
+  return score + (days || 0);
+}
+
 function renderOmSubmissionTriage(rows = []) {
   const target = document.getElementById("omSubmissionTriage");
   if (!target) return;
-  const missingPasNo = rows.filter((group) => group.rows.some((row) => !row.pasDemandNo && omPendingOwnerForGroup(group) === "OM Purchasing"));
-  const waitingPasReply = rows.filter((group) => omPendingOwnerForGroup(group) === "PAS / Bidding");
-  const quoteMissing = rows.filter((group) => group.rows.some((row) => row.pasDemandNo && omQuoteStatusForGroup(group) === "Missing Validity"));
-  const expiryRisk = rows.filter((group) => ["Expiring Soon", "Expired / Requote Required"].includes(omQuoteStatusForGroup(group)));
-  const exportReady = rows.filter((group) => group.rows.some((row) => row.userAQuoteDecisionStatus === OM_USER_CONFIRMED && !row.finalExportedAt));
-  const overSla = rows.filter((group) => {
-    const days = omDaysInStage(group);
-    return days !== null && days > OM_INTERNAL_SLA_DAYS;
-  });
-  const triageItems = [
-    { label: "Over SLA", value: overSla.length, helper: `>${OM_INTERNAL_SLA_DAYS}d in current stage`, tone: overSla.length ? "warning" : "ok" },
-    { label: "Missing PAS Demand No", value: missingPasNo.length, helper: "Start PAS tracking", tone: missingPasNo.length ? "warning" : "ok" },
-    { label: "Waiting PAS Reply", value: waitingPasReply.length, helper: "Follow bidding result", tone: waitingPasReply.length ? "pending" : "ok" },
-    { label: "Quote Validity Missing", value: quoteMissing.length, helper: "Fill Valid Until", tone: quoteMissing.length ? "warning" : "ok" },
-    { label: "Expiry Risk", value: expiryRisk.length, helper: `Expired or <= ${QUOTE_EXPIRING_SOON_DAYS}d`, tone: expiryRisk.length ? "warning" : "ok" },
-    { label: "Ready to Export", value: exportReady.length, helper: "Confirmed by Requester", tone: exportReady.length ? "info" : "ok" },
-  ];
+  const focusRows = rows
+    .filter((group) => ["OM Purchasing", "PAS / Bidding"].includes(omPendingOwnerForGroup(group)))
+    .sort((left, right) => omPendingFocusScore(right) - omPendingFocusScore(left))
+    .slice(0, 5);
   target.innerHTML = `
     <div class="triage-title">
-      <strong>Queue Triage</strong>
-      <span>Prioritize overdue, missing PAS number, quote validity, and export-ready rows before routine monitoring.</span>
+      <strong>Pending Request Focus</strong>
+      <span>Prioritize request-level blockers here. Edit quote data only in Quote Result / Monitor.</span>
     </div>
-    <div class="triage-grid">
-      ${triageItems.map((item) => `
-        <div class="triage-card triage-${item.tone}">
-          <span>${htmlText(item.label)}</span>
-          <strong>${item.value}</strong>
-          <small>${htmlText(item.helper)}</small>
-        </div>`).join("")}
+    <div class="pending-focus-list">
+      <div class="pending-focus-head" aria-hidden="true">
+        <span>Request ID</span>
+        <span>Project / Item</span>
+        <span>Owner / Stage</span>
+        <span>Aging</span>
+        <span>Reason</span>
+      </div>
+      ${focusRows.length ? focusRows.map((group) => {
+        const days = omDaysInStage(group);
+        const owner = omPendingOwnerForGroup(group);
+        const stage = omCurrentStageForGroup(group);
+        return `
+          <button class="pending-focus-row ${omIsOverSla(group) ? "is-over-sla" : ""}" type="button" data-om-submission-focus="${group.keyId}" title="Jump to this row in Submission Dashboard">
+            <span class="pending-focus-id">${htmlText(group.rows[0]?.id || group.rows[0]?.requestId || group.project || "-")}</span>
+            <span class="pending-focus-main">${htmlText(group.project)} · ${htmlText(group.item)}</span>
+            <span class="pending-focus-stage">${htmlText(owner)} / ${htmlText(stage)}</span>
+            <span class="pending-focus-days">${days === null ? "Done" : `${days}d`}</span>
+            <span class="pending-focus-reason">${htmlText(omPendingFocusReason(group))}</span>
+          </button>`;
+      }).join("") : `<div class="empty-cell">No pending request needs triage in the current scope.</div>`}
     </div>`;
 }
 
@@ -15523,17 +15769,14 @@ function renderOmSubmission() {
     const exportPending = rows.filter((group) => group.rows.some((row) => row.userAQuoteDecisionStatus === OM_USER_CONFIRMED && !row.finalExportedAt)).length;
     const expiringSoon = rows.filter((group) => omQuoteStatusForGroup(group) === "Expiring Soon").length;
     const expired = rows.filter((group) => omQuoteStatusForGroup(group) === "Expired / Requote Required").length;
-    const overSla = rows.filter((group) => {
-      const days = omDaysInStage(group);
-      return days !== null && days > OM_INTERNAL_SLA_DAYS;
-    }).length;
+    const overSla = rows.filter(omIsOverSla).length;
     summary.innerHTML = summaryCardsHtml([
       { label: "Waiting OM", value: waitingOm, helper: "PAS no / quote input / export", variant: "hero" },
       { label: "Waiting PAS Reply", value: waitingPasReply, helper: "PAS bidding result not returned" },
       { label: "Waiting Requester", value: waitingConfirm, helper: "Need confirm / cancel" },
       { label: "Export Pending", value: exportPending, helper: "Confirmed, not exported" },
       { label: "Expired / Requote", value: expired, helper: "Quote expired", variant: expired ? "warning" : "" },
-      { label: "Over SLA", value: overSla, helper: `>${OM_INTERNAL_SLA_DAYS}d pending`, variant: overSla ? "warning" : "" },
+      { label: "Over SLA", value: overSla, helper: "Current-stage SLA breached", variant: overSla ? "warning" : "" },
       { label: "Expiring Soon", value: expiringSoon, helper: `Quote expires within ${QUOTE_EXPIRING_SOON_DAYS}d` },
     ]);
   }
@@ -15545,31 +15788,94 @@ function renderOmSubmission() {
   if (headRow) {
     headRow.innerHTML = `
       <th>Project</th>
+      <th>Request ID</th>
       <th>Item</th>
       <th>Qty</th>
-      <th>Submitted / Received Date</th>
-      <th>Pending Owner</th>
-      <th>Current Stage</th>
-      <th>Days Pending</th>
+      <th>Submitted / OM Received</th>
+      <th>Owner / Stage</th>
+      <th>Days in Current Stage</th>
       <th>Detail</th>`;
   }
   body.innerHTML = rows.length
     ? rows.map((row) => {
-      const omStage = omCurrentStageForGroup(row);
-      const pendingOwner = omPendingOwnerForGroup(row);
       return `
-      <tr class="${row.lateRows || row.pendingRows || row.notArrivedRows ? "pivot-risk-row" : ""}">
-        <td>${row.project}</td>
-        <td><div class="item-primary">${row.item}</div><div class="reason-text">${row.rows.length} raw row${row.rows.length === 1 ? "" : "s"}</div></td>
+      <tr class="${omIsOverSla(row) ? "om-over-sla-row" : row.lateRows || row.pendingRows || row.notArrivedRows ? "pivot-risk-row" : ""}" data-om-submission-row="${htmlAttr(row.keyId)}">
+        <td>${htmlText(row.project)}</td>
+        <td>${omRequestIdCell(row)}</td>
+        <td><div class="item-primary">${htmlText(omSubmissionGroupItemLabel(row))}</div><div class="reason-text">${htmlText(omSubmissionGroupItemHelper(row))}</div></td>
         <td><strong>${row.quantity}</strong></td>
         <td>${omSubmittedReceivedCell(row)}</td>
-        <td><span class="status-pill ${statusClass(pendingOwner)}">${pendingOwner}</span><div class="reason-text">${omPendingOwnerHelper(row, pendingOwner)}</div></td>
-        <td><span class="status-pill ${statusClass(omStage)}">${omStage}</span><div class="reason-text">${row.department || "-"}</div></td>
+        <td>${omOwnerStageCell(row)}</td>
         <td>${omAgingCell(row)}</td>
         <td><button class="mini return" data-om-submission-detail="${row.keyId}">Detail</button></td>
       </tr>`;
     }).join("")
     : `<tr><td colspan="8" class="empty-cell">No OM submission rows match the selected filters.</td></tr>`;
+}
+
+function focusOmSubmissionRow(groupKeyId) {
+  const row = [...document.querySelectorAll("[data-om-submission-row]")]
+    .find((item) => item.dataset.omSubmissionRow === groupKeyId);
+  if (!row) {
+    showToast("This focus item is no longer visible in the current filters.", "error");
+    return;
+  }
+  document.querySelectorAll("[data-om-submission-row].is-focus-target").forEach((item) => {
+    item.classList.remove("is-focus-target");
+  });
+  row.classList.add("is-focus-target");
+  row.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  window.setTimeout(() => row.classList.remove("is-focus-target"), 2600);
+}
+
+function omSubmissionDetailSummaryHtml(group) {
+  const rows = group.rows || [];
+  const owner = omPendingOwnerForGroup(group);
+  const stage = omCurrentStageForGroup(group);
+  const days = omDaysInStage(group);
+  const stageStart = omGroupStageStartAt(group, stage);
+  const receivedAt = omGroupReceivedAt(group);
+  const riskReason = [...group.pendingReasons].join(" / ") || omPendingFocusReason(group);
+  const pasDate = rows.map((row) => row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt).filter(Boolean).sort()[0] || "";
+  const quoteDate = rows.map((row) => row.quoteCompletionReadyAt || row.quoteReadyAt).filter(Boolean).sort()[0] || "";
+  const requesterDate = rows.map((row) => row.userAQuoteDecisionAt || row.sentToUserAAt).filter(Boolean).sort().pop() || "";
+  const exportDate = rows.map((row) => row.finalExportedAt || row.finalExportPreparedAt).filter(Boolean).sort().pop() || "";
+  const steps = [
+    ["PAS Demand", rows.some((row) => row.pasDemandNo) ? "Recorded" : "Pending", pasDate ? compactDateTime(pasDate) : "Waiting PAS Demand No"],
+    ["Quote Result", rows.some((row) => isOmQuoteReady(row) || row.quoteCompletionReadyAt) ? "Ready" : "Pending", quoteDate ? compactDateTime(quoteDate) : "Quote Result / Monitor"],
+    ["Requester", rows.some((row) => row.userAQuoteDecisionAt) ? "Done" : rows.some((row) => isOmWaitingUserConfirm(row)) ? "Waiting" : "Not Sent", requesterDate ? compactDateTime(requesterDate) : "No requester action yet"],
+    ["Export Package", rows.some((row) => row.finalExportedAt) ? "Exported" : "Pending", exportDate ? compactDateTime(exportDate) : "Waiting export package"],
+  ];
+  return `
+    <div class="om-detail-overview">
+      <div class="om-detail-primary">
+        <div>
+          <span class="om-detail-kicker">Current Blocker</span>
+          <strong>${htmlText(owner)} / ${htmlText(stage)}</strong>
+          <small>${stageStart ? `Stage started ${compactDateTime(stageStart)}` : "Missing stage start"}</small>
+        </div>
+        <span class="status-pill ${omAgingClassForGroup(group)}">${htmlText(omStageSlaLabel(group))}</span>
+      </div>
+      <div class="om-detail-facts">
+        <div><span>Project</span><strong>${htmlText(group.project)}</strong><small>${htmlText(group.yearProject || "-")}</small></div>
+        <div><span>Department</span><strong>${htmlText(group.department || "-")}</strong><small>${rows.length} raw row${rows.length === 1 ? "" : "s"}</small></div>
+        <div><span>Qty</span><strong>${htmlText(group.quantity)}</strong><small>${receivedAt ? `OM received ${compactDateTime(receivedAt)}` : "OM received -"}</small></div>
+        <div><span>Aging</span><strong>${days === null ? "Done" : `${days}d`}</strong><small>${htmlText(omStageSlaLabel(group))}</small></div>
+      </div>
+      <div class="om-detail-risk">
+        <span>Pending / Risk</span>
+        <strong>${htmlText(riskReason)}</strong>
+        <small>${htmlText(group.item)}</small>
+      </div>
+      <div class="om-detail-status-strip">
+        ${steps.map(([label, value, helper]) => `
+          <div class="om-detail-step">
+            <span>${htmlText(label)}</span>
+            <strong>${htmlText(value)}</strong>
+            <small>${htmlText(helper)}</small>
+          </div>`).join("")}
+      </div>
+    </div>`;
 }
 
 function openOmSubmissionDetail(groupKeyId) {
@@ -15583,18 +15889,9 @@ function openOmSubmissionDetail(groupKeyId) {
     ? "Needs Attention"
     : "On Track";
   document.getElementById("managerDetail").innerHTML = `
-    <section class="work-panel detail-subsection">
+    <section class="work-panel detail-subsection om-submission-detail-overview">
       <div class="panel-title section-head-tight"><h4>Submission Status Summary</h4></div>
-      ${detailSummaryGridHtml([
-        ["Project", group.project, group.yearProject],
-        ["Department", group.department, `${group.rows.length} raw row${group.rows.length === 1 ? "" : "s"}`],
-        ["Quantity", group.quantity],
-        ["Pending / Risk", [...group.pendingReasons].join(" / ") || "-", group.item],
-        ["PAS Demand", group.rows.some((row) => row.pasDemandNo) ? "Recorded" : "Pending", group.rows.map((row) => row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt).filter(Boolean).sort()[0] || "-"],
-        ["Quote Completion", group.rows.some((row) => isOmQuoteReady(row) || row.quoteCompletionReadyAt) ? "Ready" : "Pending", group.rows.map((row) => row.quoteCompletionReadyAt || row.quoteReadyAt).filter(Boolean).sort()[0] || "-"],
-        ["User Confirmation", group.rows.some((row) => row.userAQuoteDecisionAt) ? "Done" : group.rows.some((row) => isOmWaitingUserConfirm(row)) ? "Waiting" : "Not Sent", group.rows.map((row) => row.userAQuoteDecisionAt || row.sentToUserAAt).filter(Boolean).sort().pop() || "-"],
-        ["Export Package", group.rows.some((row) => row.finalExportedAt) ? "Exported" : "Pending", group.rows.map((row) => row.finalExportedAt || row.finalExportPreparedAt).filter(Boolean).sort().pop() || "-"],
-      ])}
+      ${omSubmissionDetailSummaryHtml(group)}
     </section>
     <section class="work-panel detail-subsection">
       <div class="panel-title section-head-tight">
@@ -15847,7 +16144,7 @@ function approvalPipelineDetailHtml(row = {}, role = currentRole) {
       note: row.deptDriReviewRejectReason || (row.deptDriSubmissionApprovedAt ? "Sent to Cost Manager." : row.driApprovedAt ? "Sent to Budget Approver." : "Waiting Dept DRI decision."),
     },
     {
-      stage: "Demand Review",
+      stage: "Cost Manager Review",
       owner: "Cost Manager",
       status: row.costManagerAuthorizationStatus || (row.costManagerAuthorizationSubmittedAt ? COST_MANAGER_AUTH_PENDING : "Pending"),
       at: row.costManagerAuthorizedAt || row.costManagerRejectedAt || row.costManagerAuthorizationSubmittedAt || "",
@@ -17077,7 +17374,7 @@ function renderOmPasRequest() {
         </td>
         <td>
           <div class="row-action-stack">
-            <button class="mini approve" type="button" title="${row.pasDemandNo ? "Move to PAS Quote Result" : "Enter PAS Demand No first"}" data-om-row-button="${row.id}" data-om-row-button-action="moveToQuoteCompletion" ${omActionDisabledAttr(row, !row.pasDemandNo)}>Move to Quote</button>
+            <button class="mini approve" type="button" title="${row.pasDemandNo ? "Move to Quote Result / Monitor" : "Enter PAS Demand No first"}" data-om-row-button="${row.id}" data-om-row-button-action="moveToQuoteCompletion" ${omActionDisabledAttr(row, !row.pasDemandNo)}>Move to Quote</button>
             <button class="mini danger" type="button" data-om-row-button="${row.id}" data-om-row-button-action="rejectToDri" ${omActionDisabledAttr(row)}>Reject to DRI</button>
           </div>
         </td>
@@ -19358,7 +19655,7 @@ function renderOmQuoteConfirmRows(rows) {
         <td>${omQuoteResultFileCell(row, readOnly)}</td>
         <td>${omQuoteResultCompletionCell(row, amendmentAwaitingOm ? OM_QUOTE_REVIEW_REQUIRED : status, readOnlyReason)}</td>
         <td><span class="status-pill ${statusClass(currentBlocker)}">${currentBlocker}</span><div class="reason-text">${currentStage}</div></td>
-        <td><span class="status-pill ${omAgingStatusClass(daysInStage)}">${daysInStage === null ? "Done" : `${daysInStage}d`}</span><div class="reason-text">${stageStartAt ? `Since ${compactDateTime(stageStartAt)}` : "Missing stage start"}</div></td>
+        <td><span class="status-pill ${omAgingClassForStage(currentStage, daysInStage)}">${daysInStage === null ? "Done" : `${daysInStage}d`}</span><div class="reason-text">${stageStartAt ? `Since ${compactDateTime(stageStartAt)} · ${omSlaHelperText(currentStage)}` : `Missing stage start · ${omSlaHelperText(currentStage)}`}</div></td>
         <td><div class="reason-text">${htmlText(nextAction)}</div><span class="status-pill ${statusClass(omQuoteExpiryStatusLabel(row))}">${omQuoteExpiryStatusLabel(row)}</span></td>
         <td class="om-quote-assignee-cell">${omAssignmentCell(row)}</td>
         <td>
@@ -19838,7 +20135,7 @@ function movePasRowsToQuoteCompletion(rows) {
     showToast("Select at least one PAS result row before moving to Quote Completion.", "error");
     return;
   }
-  if (!rows.every((row) => ensureOmRowAccess(row, "move to PAS Quote Result"))) return;
+  if (!rows.every((row) => ensureOmRowAccess(row, "move to Quote Result / Monitor"))) return;
   const missingDemandNo = rows.filter((row) => !row.pasDemandNo);
   if (missingDemandNo.length) {
     showToast("Enter PAS Demand No before moving to Quote Completion.", "error");
@@ -20518,7 +20815,7 @@ function reviewStatusForRole(row = {}, role = currentRole) {
   }
   if (role === "manager") {
     if (demandReviewStatus(row) === DEMAND_REVIEW_DENIED) {
-      return { label: DEMAND_REVIEW_DENIED, secondary: demandReviewReason(row) || "Closed by Demand Review", owner: "Closed", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "denied", actionable: false };
+      return { label: DEMAND_REVIEW_DENIED, secondary: demandReviewReason(row) || "Closed by Cost Review", owner: "Closed", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "denied", actionable: false };
     }
     if (row.costManagerAuthorizationStatus === COST_MANAGER_AUTH_REJECTED || row.costManagerRejectedAt) {
       return { label: DEMAND_REVIEW_REVISE_REQUIRED, secondary: row.costManagerRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "revise", actionable: false };
@@ -20547,7 +20844,7 @@ function reviewStatusForRole(row = {}, role = currentRole) {
     return { label: DEMAND_REVIEW_REVISE_REQUIRED, secondary: row.deptDriReviewRejectReason || row.priceEscalationRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "revise", actionable: false };
   }
   if (row.deptDriSubmissionApprovedAt || row.driApprovedAt) {
-    const nextStage = pipeline.nextOwner === "Cost Manager" ? "Demand Review" : (pipeline.nextOwner || "next owner");
+    const nextStage = pipeline.nextOwner === "Cost Manager" ? "Cost Manager Review" : (pipeline.nextOwner || "next owner");
     return { label: DEMAND_REVIEW_APPROVED, secondary: `Sent to ${nextStage}`, owner: pipeline.blockedAtOwner || pipeline.nextOwner || "-", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
   }
   if (isDeptDriSubmissionPending(row) || row.priceDecisionStatus === PRICE_ESCALATION_REQUIRED || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_DRI) {
@@ -20968,7 +21265,7 @@ function renderPriceReview() {
   if (queueHelper) {
     queueHelper.hidden = false;
     queueHelper.textContent = pending.length
-      ? "Select a row for approval actions. Use Project Status for Dashboard / MFG / Non-MFG tracking."
+      ? "Select a row for approval actions. Use Request Tracking for Dashboard / MFG / Non-MFG tracking."
       : `${activeQueue.label}: no rows are waiting.`;
   }
   const workspace = document.getElementById("priceReviewPendingWorkspace");
@@ -20980,8 +21277,8 @@ function renderPriceReview() {
         selectAttr: "data-price-review-select",
         title: currentRole === "dri" ? "Item Switcher" : roleSurface?.entryLabel || roleMeta.workbenchTitle || `${roleProfiles[currentRole]?.name || "Reviewer"} Rows`,
         helper: currentRole === "dri"
-          ? "Switch item here. Project Status keeps the full tracking matrix together."
-          : activeQueue.helper || "Select a row for approval actions. Track the full project in Project Status.",
+          ? "Switch item here. Request Tracking keeps the full tracking matrix together."
+          : activeQueue.helper || "Select a row for approval actions. Track the full request in Request Tracking.",
         emptyText: priceReviewEmptyState(currentRole, currentPriceReviewQueue),
         role: currentRole,
         actionHtml: priceReviewApprovalQuantityActions,
@@ -21168,7 +21465,7 @@ function applyPriceReviewDecision(requestId, action) {
       addHandoffHistory(latest, "Dept DRI submission approved", "Waiting Cost Manager final authorization.");
       rerenderReviewAfterDecision();
       renderDepartment();
-      showToast("Dept Review approved. Waiting Demand Review.", "success");
+      showToast("Dept Review approved. Waiting Cost Review.", "success");
       return;
     }
     requests = requests.map((item) => item.id === requestId ? {
@@ -21251,13 +21548,13 @@ function applyCostManagerAuthorization(requestId, action) {
       decidedAt: now,
     } : item);
     const latest = requests.find((item) => item.id === requestId);
-    addHandoffHistory(latest, "Demand Review revise required", reason);
+    addHandoffHistory(latest, "Cost Review revise required", reason);
     syncSelectedManagerRequest(managerRows(), requestId);
     renderManager();
     restoreApprovalViewport("manager");
     renderDepartment();
     renderPriceReview();
-    showToast("Demand Review marked Revise. Row returned to Requester Action Required.", "success");
+    showToast("Cost Review marked Revise. Row returned to Requester Action Required.", "success");
     return;
   }
   if (action === "deny") {
@@ -21285,13 +21582,13 @@ function applyCostManagerAuthorization(requestId, action) {
       procurementStatus: "Demand denied",
     } : item);
     const latest = requests.find((item) => item.id === requestId);
-    addHandoffHistory(latest, "Demand Review denied", reason);
+    addHandoffHistory(latest, "Cost Review denied", reason);
     syncSelectedManagerRequest(managerRows(), requestId);
     renderManager();
     restoreApprovalViewport("manager");
     renderDepartment();
     renderPriceReview();
-    showToast("Demand Review denied this item row. It is closed and will not move to OM.", "success");
+    showToast("Cost Review denied this item row. It is closed and will not move to OM.", "success");
     return;
   }
   requests = requests.map((item) => item.id === requestId ? syncRowPhaseQtyFromStationBreakdown({
@@ -21309,15 +21606,15 @@ function applyCostManagerAuthorization(requestId, action) {
     ...omLeaderIntakeRoutingPatch(item, now),
   }) : item);
   const latest = requests.find((item) => item.id === requestId);
-  addHandoffHistory(latest, "Demand Review approved", "Item row moved to OM Leader intake.");
-  addOmHistory(latest, "Received after Demand Review approval", "OM Leader can assign PAS Demand No / quote work.");
+  addHandoffHistory(latest, "Cost Review approved", "Item row moved to OM Leader intake.");
+  addOmHistory(latest, "Received after Cost Review approval", "OM Leader can assign PAS Demand No / quote work.");
   syncSelectedManagerRequest(managerRows(), requestId);
   renderManager();
   restoreApprovalViewport("manager");
   renderOmPurchasing();
   renderDepartment();
   renderPriceReview();
-  showToast("Demand Review approved. Row moved to OM Leader intake.", "success");
+  showToast("Cost Review approved. Row moved to OM Leader intake.", "success");
 }
 
 function applyManagerReviewDecision(requestId, action = "approve") {
@@ -23204,6 +23501,7 @@ document.addEventListener("click", (event) => {
   const managerQuantitySelectRow = event.target.closest("[data-manager-quantity-select]");
   const managerQuantityExpandButton = event.target.closest("[data-manager-quantity-expand]");
   const contactDriButton = event.target.closest("[data-contact-dri]");
+  const omSubmissionFocusButton = event.target.closest("[data-om-submission-focus]");
   const omSubmissionDetailButton = event.target.closest("[data-om-submission-detail]");
   const omSubmissionPivotButton = event.target.closest("[data-om-pivot-mode]");
   const projectAccessButton = event.target.closest("[data-project-config-access]");
@@ -23568,6 +23866,10 @@ document.addEventListener("click", (event) => {
   else if (quantityDashboardItem) applyManagerQuantityItemFilter(quantityDashboardItem);
   if (managerQuantityDetailButton) openManagerQuantityDetail(managerQuantityDetailButton.dataset.managerQuantityDetail);
   if (contactDriButton) openDriContact(contactDriButton.dataset.contactDri);
+  if (omSubmissionFocusButton) {
+    focusOmSubmissionRow(omSubmissionFocusButton.dataset.omSubmissionFocus);
+    return;
+  }
   if (omSubmissionDetailButton) openOmSubmissionDetail(omSubmissionDetailButton.dataset.omSubmissionDetail);
   if (managerStageDetailButton) openManagerStageDetail(
     managerStageDetailButton.dataset.managerStageDetailProject,
@@ -23703,6 +24005,9 @@ document.addEventListener("change", async (event) => {
   if ([
     "omSubmissionYearFilter",
     "omSubmissionProjectFilter",
+    "omSubmissionLevel1Filter",
+    "omSubmissionLevel2Filter",
+    "omSubmissionLevel3Filter",
     "omSubmissionItemFilter",
     "omSubmissionProcessFilter",
     "omSubmissionStageFilter",

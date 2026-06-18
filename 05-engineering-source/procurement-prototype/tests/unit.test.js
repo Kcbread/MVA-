@@ -62,6 +62,38 @@ test("workflow status maps core ownership stages across roles", () => {
   assert.equal(buyer.nextAction, "Buyer owns PR / PO after OM export");
 });
 
+test("workflow status measures OM days pending from the current stage start", () => {
+  const today = new Date("2026-06-18T00:00:00Z");
+
+  const pasDemand = workflowStatus.buildWorkflowStatus({
+    status: "Approved",
+    submittedAt: "2026-05-01T00:00:00Z",
+    sentToOmAt: "2026-06-10T00:00:00Z",
+  }, { role: "om", today });
+  assert.equal(pasDemand.currentStage, "PAS Demand No");
+  assert.equal(pasDemand.stageStartAt, "2026-06-10T00:00:00Z");
+  assert.equal(pasDemand.daysPending, 8);
+
+  const quoteResult = workflowStatus.buildWorkflowStatus({
+    status: "Approved",
+    submittedAt: "2026-05-01T00:00:00Z",
+    sentToOmAt: "2026-06-01T00:00:00Z",
+    pasDemandNo: "AIDB-1",
+    pasDemandNoRecordedAt: "2026-06-15T00:00:00Z",
+  }, { role: "om", today });
+  assert.equal(quoteResult.currentStage, "PAS Quote Result");
+  assert.equal(quoteResult.stageStartAt, "2026-06-15T00:00:00Z");
+  assert.equal(quoteResult.daysPending, 3);
+
+  const waitingRequester = workflowStatus.buildWorkflowStatus({
+    userAQuoteDecisionStatus: "Waiting Requester Confirmation",
+    sentToUserAAt: "2026-06-16T00:00:00Z",
+  }, { role: "om", today });
+  assert.equal(waitingRequester.currentStage, "Waiting Requester");
+  assert.equal(waitingRequester.stageStartAt, "2026-06-16T00:00:00Z");
+  assert.equal(waitingRequester.daysPending, 2);
+});
+
 test("workflow status role visibility hides internal OM fields from requester", () => {
   const requester = workflowStatus.buildWorkflowStatus({}, { role: "requester" }).visibilityFlags;
   assert.equal(requester.showVendor, false);

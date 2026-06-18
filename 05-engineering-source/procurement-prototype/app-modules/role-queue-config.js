@@ -19,7 +19,7 @@
       },
     },
     manager: {
-      workbenchTitle: "Demand Review",
+      workbenchTitle: "Cost Review",
       workbenchHelper: "Approve, deny, or return Dept DRI-approved demand rows with the same scoped evidence structure as Dept Review.",
     },
   };

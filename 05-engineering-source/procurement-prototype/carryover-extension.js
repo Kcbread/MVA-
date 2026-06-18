@@ -286,12 +286,12 @@
     var exact = candidates.find(function (node) {
       var nodeText = (node.innerText || '').slice(0, 3000);
       if (role === 'manager') return /Cost Manager|Cost Owner|Demand Analysis|Cost Dashboard|Station Matrix/.test(nodeText);
-      if (role === 'om') return /OM Purchasing|Submission Dashboard|PAS Demand No|PAS Quote Result|Export Package/.test(nodeText);
+      if (role === 'om') return /OM Purchasing|Submission Dashboard|PAS Demand No|Quote Result \/ Monitor|PAS Quote Result|Export Package/.test(nodeText);
       return false;
     });
     if (exact) return exact;
     if (role === 'manager' && /Cost Manager|Cost Owner|Manager Dashboard/.test(text)) return candidates[0] || document.body;
-    if (role === 'om' && /OM Purchasing|Submission Dashboard|PAS Quote Result/.test(text)) return candidates[0] || document.body;
+    if (role === 'om' && /OM Purchasing|Submission Dashboard|Quote Result \/ Monitor|PAS Quote Result/.test(text)) return candidates[0] || document.body;
     return null;
   }
 
