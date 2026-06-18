@@ -97,7 +97,7 @@
     base.setHours(0, 0, 0, 0);
     const remaining = Math.ceil((target - base) / 86400000);
     if (remaining < 0) return "Expired / Requote Required";
-    if (remaining <= 14) return "Expiring Soon";
+    if (remaining <= 7) return "Expiring Soon";
     return "Reusable Quote";
   }
 

@@ -911,10 +911,11 @@ async function clickPriceReviewSelection(page, requestId) {
     /OM Purchasing/,
     /OM Leader Console/,
     /PAS Demand No/,
-    /Quote Result \/ Monitor/,
+    /Quote Expiry Watch/,
     /Export Package/,
   ], 'section[data-view="om"]');
   await rejectText(page, "OM Leader", [
+    /Quote Result \/ Monitor/,
     /Budget Progress/,
     /PR Progress/,
     /PO Progress/,

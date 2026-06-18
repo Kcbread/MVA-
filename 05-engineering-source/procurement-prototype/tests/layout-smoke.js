@@ -399,6 +399,17 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   assertNoPageErrors(pageErrors, "OM Purchasing shell");
   await assertNoPageOverflow(page, "OM Purchasing shell");
   await assertButtonsStayInsideCells(page, ".om-rate-utility button", "OM exchange rate utility");
+  await page.evaluate(() => window.setOmTab?.("quoteExpiry"));
+  await page.waitForTimeout(250);
+  await assertTableHasRows(page, ".om-expiry-table", "OM Leader Quote Expiry Watch table");
+  await assertNoPageOverflow(page, "OM Leader Quote Expiry Watch shell");
+  await assertVisibleTableCellsDoNotOverlap(page, ".om-expiry-table", "OM Leader Quote Expiry Watch table");
+
+  await page.evaluate(() => {
+    window.applyRole?.("omMember");
+    window.setView?.("om");
+  });
+  await page.waitForTimeout(250);
   await page.evaluate(() => window.setOmTab?.("quoteConfirm"));
   await page.waitForTimeout(250);
   await assertTableHasRows(page, ".om-quote-result-table", "OM Quote Result / Monitor table");

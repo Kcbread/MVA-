@@ -14,14 +14,13 @@ const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
 const sapPoRawImporter = require("../app-modules/sap-po-raw-importer.js");
 const materialCoding = require("../app-modules/material-coding.js");
 
-
-test("quote validity uses 10-day warning threshold", () => {
+test("quote validity uses 7-day warning threshold", () => {
   const today = new Date("2026-06-01T00:00:00");
   assert.equal(quote.quoteValidity("", today), "Missing Valid Until");
   assert.equal(quote.quoteValidity("2026-05-31", today), "Expired / Requote Required");
-  assert.equal(quote.quoteValidity("2026-06-11", today), "Expiring Soon");
+  assert.equal(quote.quoteValidity("2026-06-08", today), "Expiring Soon");
   assert.equal(quote.quoteValidity("2026-06-01", today), "Expiring Soon");
-  assert.equal(quote.quoteValidity("2026-06-12", today), "Valid");
+  assert.equal(quote.quoteValidity("2026-06-09", today), "Valid");
 });
 
 test("currency display converts canonical VND to USD without changing source amount", () => {
@@ -415,7 +414,7 @@ test("OM quote status separates reusable quote from waiting and expired quote", 
   assert.equal(quote.omQuoteStatus({
     pasDemandNo: "AIDB-1",
     quoteCompletionReadyAt: "2026-05-20T00:00:00",
-    quoteValidUntil: "2026-06-10",
+    quoteValidUntil: "2026-06-08",
   }, today), "Expiring Soon");
   assert.equal(quote.omQuoteStatus({
     pasDemandNo: "AIDB-1",

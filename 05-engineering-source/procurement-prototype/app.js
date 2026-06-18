@@ -264,7 +264,7 @@ let projectConfigs = mergeCanonicalProjectConfigs(Array.isArray(globalThis.REAL_
 ]);
 let PROJECTS = projectConfigs.map((project) => project.code);
 const DEMAND_STAGE_ORDER = ["p0", ...STAGES];
-const QUOTE_EXPIRING_SOON_DAYS = 10;
+const QUOTE_EXPIRING_SOON_DAYS = 7;
 
 const LEGACY_CATEGORY_SOURCE = `
 生產設備與工具	設備工程工具	輔助工具
@@ -539,11 +539,11 @@ const roleWorkspaceConfigs = {
   omLeader: {
     mainViews: ["om", "projectStatus"],
     defaultOmTab: "submission",
-    omTabs: ["submission", "pasRequest", "quoteConfirm", "finalExport"],
+    omTabs: ["submission", "pasRequest", "quoteExpiry", "finalExport"],
     omTabLabels: {
       submission: "OM Leader Console",
       pasRequest: "PAS Demand No",
-      quoteConfirm: "Quote Result / Monitor",
+      quoteExpiry: "Quote Expiry Watch",
       finalExport: "Export Package",
     },
     showOmRateUtility: true,
@@ -554,10 +554,11 @@ const roleWorkspaceConfigs = {
   omMember: {
     mainViews: ["om", "projectStatus"],
     defaultOmTab: "pasRequest",
-    omTabs: ["pasRequest", "quoteConfirm", "finalExport"],
+    omTabs: ["pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"],
     omTabLabels: {
       pasRequest: "My Intake",
       quoteConfirm: "My Quote Result / Monitor",
+      quoteExpiry: "My Quote Expiry Watch",
       finalExport: "My Exports",
     },
     showOmRateUtility: true,
@@ -672,7 +673,7 @@ function syncManagerWorkspaceUi(role = currentRole) {
 
 function syncOmWorkspaceUi(role = currentRole) {
   const config = workspaceConfigForRole(role);
-  const visibleTabs = new Set(config.omTabs || ["submission", "pasRequest", "quoteConfirm", "finalExport"]);
+  const visibleTabs = new Set(config.omTabs || ["submission", "pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"]);
   document.querySelectorAll("[data-om-tab]").forEach((tab) => {
     const label = config.omTabLabels?.[tab.dataset.omTab];
     if (label) tab.textContent = label;
@@ -1060,7 +1061,6 @@ const expandedManagerQuantityRows = new Set();
 const expandedDemandEditorCarryoverRows = new Set();
 let currentHandoffTab = "queue";
 let currentOmTab = "submission";
-let currentOmSubmissionPivotMode = "project";
 let currentOmStageFilter = "all";
 let currentOmCategoryFilter = "";
 let currentPriceReviewTab = "pending";
@@ -2352,6 +2352,7 @@ function omTabLabel(tab = currentOmTab) {
     submission: "OM Leader Console",
     pasRequest: "PAS Demand No",
     quoteConfirm: "Quote Result / Monitor",
+    quoteExpiry: "Quote Expiry Watch",
     finalExport: "Export Package",
   };
   return labels[tab] || tab || "OM";
@@ -2816,10 +2817,12 @@ function projectStatusStageSummaryForUnit(demandRows = [], unit = "") {
       return (priority[left.tone] ?? 9) - (priority[right.tone] ?? 9);
     });
   const status = statuses[0] || {};
-  const stageOwner = status.blockedAtOwner && status.blockedAtOwner !== "Closed"
-    ? status.blockedAtOwner
-    : status.nextOwner || "";
-  const stageLabel = stageOwner === "Cost Manager" ? "Cost Review" : stageOwner;
+  const stageOwner = status.nextOwner && status.nextOwner !== "Closed"
+    ? status.nextOwner
+    : status.blockedAtOwner && status.blockedAtOwner !== "Closed"
+      ? status.blockedAtOwner
+      : "";
+  const stageLabel = stageOwner === "Cost Manager" ? "Cost Manager Review" : stageOwner;
   const label = stageLabel || status.decisionStatus || "";
   return { label, tone: status.tone || "pending" };
 }
@@ -9159,7 +9162,7 @@ function seedOmDemoData() {
       updatedPrice: validRecord.unitPrice || 95,
       pasDemandNo: "AIDB260512-OM004",
       pasMaterialNo: "PAS-MAT-OM004",
-      procurementRemark: "PAS quote is ready and within the 10-day expiry warning window.",
+      procurementRemark: "PAS quote is ready and within the 7-day expiry warning window.",
       decidedAt: "2026-05-12T09:30:00.000Z",
       sentToOmAt: "2026-05-12T10:00:00.000Z",
       pasResultReceivedAt: "2026-05-12T10:30:00.000Z",
@@ -15095,6 +15098,27 @@ function omBuyerHandoffStatus(row = {}) {
   return omProgressModule().buyerHandoffStatus?.(row) || "Buyer owns PR-PO";
 }
 
+function omSubmissionPackageId(row = {}) {
+  return row.requestPackageId || row.requestId || row.id || "-";
+}
+
+function omSubmissionPackageLabel(row = {}) {
+  return row.requestPackageLabel || omSubmissionPackageId(row);
+}
+
+function omSubmissionRowKey(row, filters = {}) {
+  return [
+    "item",
+    managerProgressYearProject(row),
+    managerProgressProject(row),
+    omSubmissionPackageId(row),
+    row.id || row.requestId || omSubmissionItemKey(row),
+    managerProgressStage(row),
+    row.department || "-",
+    filters.requestType || "all",
+  ].join("::");
+}
+
 function omSubmissionFilterState() {
   return {
     stage: currentOmStageFilter || "all",
@@ -15176,7 +15200,7 @@ function omProductProgressRows() {
     const project = managerProgressProject(row);
     const phase = currentPhaseLabelForProject(project);
     const item = omSubmissionItemKey(row);
-    const key = [category.path, item, project, phase].join("::");
+    const key = omSubmissionRowKey(row);
     if (!groups.has(key)) {
       groups.set(key, {
         key,
@@ -15187,6 +15211,8 @@ function omProductProgressRows() {
         project,
         phase,
         yearProject: managerProgressYearProject(row),
+        requestPackageId: omSubmissionPackageId(row),
+        requestPackageLabel: omSubmissionPackageLabel(row),
         department: row.department || "-",
         quantity: 0,
         estimatedAmountUsd: 0,
@@ -15395,6 +15421,29 @@ function omSubmittedReceivedCell(group) {
       <span>Submitted</span>
       <strong>${receivedAt ? compactDateTime(receivedAt) : "-"}</strong>
       <span>OM received</span>
+    </div>`;
+}
+
+function omSubmissionPackageRows(row = {}) {
+  const packageId = omSubmissionPackageId(row);
+  return omInternalRows().map(applyOmResponsibility)
+    .filter((item) => omSubmissionPackageId(item) === packageId)
+    .sort((left, right) => `${omSubmissionItemKey(left)} ${left.id || ""}`.localeCompare(`${omSubmissionItemKey(right)} ${right.id || ""}`));
+}
+
+function omRequestIdCell(group) {
+  const rows = group.rows || [];
+  const primaryRow = rows[0] || {};
+  const packageRows = omSubmissionPackageRows(primaryRow);
+  const ordinal = Math.max(1, packageRows.findIndex((item) => item === primaryRow || item.id === primaryRow.id) + 1);
+  const packageId = omSubmissionPackageId(primaryRow);
+  const packageLabel = omSubmissionPackageLabel(primaryRow);
+  const ids = [...new Set(packageRows.map((row) => row.id || row.requestId).filter(Boolean))];
+  const helper = packageRows.length > 1 ? `item ${ordinal}/${packageRows.length}` : "single item";
+  return `
+    <div class="om-request-id-stack" title="${htmlAttr(ids.join(" / ") || packageId)}">
+      <strong>${htmlText(packageId)}</strong>
+      <span>${htmlText(packageLabel === packageId ? helper : `${packageLabel} · ${helper}`)}</span>
     </div>`;
 }
 
@@ -15609,11 +15658,13 @@ function renderOmSubmission() {
       { label: "Overdue", value: overSla, helper: "Row highlight + remark", variant: overSla ? "warning" : "" },
     ]);
   }
+  renderOmSubmissionTriage(rows);
   const body = document.getElementById("omSubmissionRows");
   if (!body) return;
   const headRow = body.closest("table")?.querySelector("thead tr");
   if (headRow) {
     headRow.innerHTML = `
+      <th>Request ID</th>
       <th>Category</th>
       <th>Item / Spec</th>
       <th>Project / Phase</th>
@@ -15631,7 +15682,8 @@ function renderOmSubmission() {
     ? rows.map((row) => {
       const sla = row.sla;
       return `
-      <tr class="${sla.isOverdue ? "om-row-overdue" : ""}">
+      <tr class="${sla.isOverdue ? "om-row-overdue" : ""}" data-om-submission-row="${htmlAttr(row.keyId)}">
+        <td>${omRequestIdCell(row)}</td>
         <td>${omProgressCategoryCell(row)}</td>
         <td>${omProgressItemCell(row)}</td>
         <td>${omProgressProjectCell(row)}</td>
@@ -15646,7 +15698,7 @@ function renderOmSubmission() {
         <td><button class="mini return" data-om-submission-detail="${row.keyId}">Detail</button></td>
       </tr>`;
     }).join("")
-    : `<tr><td colspan="12" class="empty-cell">No OM submission rows match the selected filters.</td></tr>`;
+    : `<tr><td colspan="13" class="empty-cell">No OM submission rows match the selected filters.</td></tr>`;
 }
 
 function openOmSubmissionDetail(groupKeyId) {
@@ -15898,6 +15950,9 @@ function detailSection(title, rows) {
 
 function approvalPipelineDetailHtml(row = {}, role = currentRole) {
   const pipeline = approvalPipelineStatus(row, role);
+  const currentPipelineOwner = pipeline.nextOwner === "Cost Manager"
+    ? "Cost Manager Review"
+    : pipeline.nextOwner || pipeline.blockedAtOwner || "-";
   const omUpdatedAt = latestTimestamp(
     row.sentToOmAt,
     row.pasDemandNoRecordedAt,
@@ -15924,7 +15979,7 @@ function approvalPipelineDetailHtml(row = {}, role = currentRole) {
       note: row.deptDriReviewRejectReason || (row.deptDriSubmissionApprovedAt ? "Sent to Cost Manager." : row.driApprovedAt ? "Sent to Budget Approver." : "Waiting Dept DRI decision."),
     },
     {
-      stage: "Cost Review",
+      stage: "Cost Manager Review",
       owner: "Cost Manager",
       status: row.costManagerAuthorizationStatus || (row.costManagerAuthorizationSubmittedAt ? COST_MANAGER_AUTH_PENDING : "Pending"),
       at: row.costManagerAuthorizedAt || row.costManagerRejectedAt || row.costManagerAuthorizationSubmittedAt || "",
@@ -15949,7 +16004,7 @@ function approvalPipelineDetailHtml(row = {}, role = currentRole) {
     <section class="detail-card-section approval-pipeline-detail">
       <div class="detail-section-head">
         <h4>Approval / Pipeline Detail</h4>
-        <span class="status-pill ${statusClass(pipeline.blockedAtOwner)}">Current Owner: ${htmlText(pipeline.blockedAtOwner || "-")}</span>
+        <span class="status-pill ${statusClass(currentPipelineOwner)}">Current Owner: ${htmlText(currentPipelineOwner)}</span>
       </div>
       <div class="approval-pipeline-summary">
         <span>Sent To <strong>${htmlText(pipeline.nextOwner || "-")}</strong></span>
@@ -15969,7 +16024,7 @@ function approvalPipelineDetailHtml(row = {}, role = currentRole) {
           </thead>
           <tbody>
             ${rows.map((item) => {
-              const isCurrent = item.owner === pipeline.blockedAtOwner || (pipeline.blockedAtOwner || "").includes(item.owner.split(" / ")[0]);
+              const isCurrent = currentPipelineOwner.includes(item.stage) || currentPipelineOwner.includes(item.owner.split(" / ")[0]);
               return `
                 <tr class="${isCurrent ? "approval-pipeline-current" : ""}">
                   <td>${htmlText(item.stage)}</td>
@@ -20726,8 +20781,8 @@ function reviewStatusForRole(row = {}, role = currentRole) {
     return { label: DEMAND_REVIEW_REVISE_REQUIRED, secondary: row.deptDriReviewRejectReason || row.priceEscalationRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "revise", actionable: false };
   }
   if (row.deptDriSubmissionApprovedAt || row.driApprovedAt) {
-    const nextStage = pipeline.nextOwner === "Cost Manager" ? "Cost Review" : (pipeline.nextOwner || "next owner");
-    return { label: DEMAND_REVIEW_APPROVED, secondary: `Sent to ${nextStage}`, owner: pipeline.blockedAtOwner || pipeline.nextOwner || "-", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
+    const nextStage = pipeline.nextOwner === "Cost Manager" ? "Cost Manager Review" : (pipeline.nextOwner || "next owner");
+    return { label: DEMAND_REVIEW_APPROVED, secondary: `Sent to ${nextStage}`, owner: nextStage, nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
   }
   if (isDeptDriSubmissionPending(row) || row.priceDecisionStatus === PRICE_ESCALATION_REQUIRED || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_DRI) {
     return { label: "Pending Dept DRI", secondary: pipeline.nextStep || "Waiting review", owner: "Dept DRI", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "pending", actionable: true };
@@ -23384,7 +23439,6 @@ document.addEventListener("click", (event) => {
   const managerQuantityExpandButton = event.target.closest("[data-manager-quantity-expand]");
   const contactDriButton = event.target.closest("[data-contact-dri]");
   const omSubmissionDetailButton = event.target.closest("[data-om-submission-detail]");
-  const omSubmissionPivotButton = event.target.closest("[data-om-pivot-mode]");
   const omSubmissionStageButton = event.target.closest("[data-om-stage-filter]");
   const omSubmissionCategoryButton = event.target.closest("[data-om-category-filter]");
   const projectAccessButton = event.target.closest("[data-project-config-access]");
@@ -23459,10 +23513,6 @@ document.addEventListener("click", (event) => {
   }
   if (handoffTab) setHandoffTab(handoffTab.dataset.handoffTab);
   if (omTab) setOmTab(omTab.dataset.omTab);
-  if (omSubmissionPivotButton) {
-    currentOmSubmissionPivotMode = omSubmissionPivotButton.dataset.omPivotMode === "item" ? "item" : "project";
-    renderOmSubmission();
-  }
   if (omSubmissionStageButton) {
     currentOmStageFilter = omSubmissionStageButton.dataset.omStageFilter || "all";
     renderOmSubmission();

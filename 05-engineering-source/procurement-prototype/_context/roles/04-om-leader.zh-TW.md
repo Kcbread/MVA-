@@ -7,7 +7,7 @@ OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、�
 ## 可看資訊
 
 - 所有 OM rows 與 assignment。
-- Submission Dashboard / Quote Result / Monitor / Export Package 的高階進度。
+- Submission Dashboard / Quote Expiry Watch / Export Package 的高階進度。
 - monthly locked exchange rate 狀態。
 - Giang / Linh 的 assigned workload。
 
@@ -28,7 +28,7 @@ OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、�
 - OM Submission Dashboard
 - Assignment Control
 - Exchange Rate Utility
-- Quote Result / Monitor
+- Quote Expiry Watch
 
 ## 資料輸入 / 輸出
 

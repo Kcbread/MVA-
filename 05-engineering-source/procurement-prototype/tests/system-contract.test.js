@@ -950,13 +950,21 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(omView, /OM Leader Console/);
   assert.match(omView, /PAS Demand No/);
   assert.match(omView, /Quote Result \/ Monitor/);
+  assert.match(omView, /Quote Expiry Watch/);
   assert.match(omView, /Export Package/);
   assert.doesNotMatch(omView, /data-om-tab="uatFeedback"/);
   assert.doesNotMatch(omView, /data-om-panel="uatFeedback"/);
-  assert.doesNotMatch(omView, /data-om-tab="quoteExpiry"/);
-  assert.doesNotMatch(omView, /data-om-panel="quoteExpiry"/);
+  assert.match(omView, /data-om-tab="quoteExpiry"/);
+  assert.match(omView, /data-om-panel="quoteExpiry"/);
   assert.match(omView, /data-om-tab="quoteConfirm"/);
   assert.match(omView, /data-om-panel="quoteConfirm"/);
+  assert.match(app, /const QUOTE_EXPIRING_SOON_DAYS = 7/);
+  const omWorkspaceConfigs = between(app, "const roleWorkspaceConfigs = {", "function approvalReviewSurfaceModule()");
+  const omLeaderConfig = between(omWorkspaceConfigs, "  omLeader: {", "  omMember: {");
+  assert.match(omLeaderConfig, /omTabs: \["submission", "pasRequest", "quoteExpiry", "finalExport"\]/);
+  assert.doesNotMatch(omLeaderConfig, /quoteConfirm/);
+  const omMemberConfig = between(omWorkspaceConfigs, "  omMember: {", "  dri: {");
+  assert.match(omMemberConfig, /omTabs: \["pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"\]/);
   assert.match(omView, /class="mini approve om-rate-save"/);
   assert.match(omView, /om-rate-utility/);
   assert.match(omView, /Monthly locked and globally applied/);
@@ -973,9 +981,17 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.doesNotMatch(omView, /id="omSubmissionProcessFilter"/);
   assert.doesNotMatch(omView, /id="omSubmissionStageFilter"/);
   assert.doesNotMatch(omView, /id="omSubmissionDepartmentFilter"/);
+  const submissionTable = between(omView, '<table class="data-table manager-cost-table om-submission-workbench-table" id="omSubmissionTable">', "</table>");
+  assert.match(submissionTable, /<th>Request ID<\/th>\s*<th>Category<\/th>\s*<th>Item \/ Spec<\/th>\s*<th>Project \/ Phase<\/th>/);
   assert.match(app, /function omStageSlaStatus/);
   assert.match(app, /function omProductCategory/);
   assert.match(app, /function omProductProgressRows/);
+  assert.match(app, /function omSubmissionRowKey/);
+  assert.match(app, /function omSubmissionPackageRows/);
+  assert.match(app, /function omRequestIdCell/);
+  assert.match(app, /item \$\{ordinal\}\/\$\{packageRows\.length\}/);
+  assert.doesNotMatch(omView, /data-om-pivot-mode=/);
+  assert.match(app, /function omSubmissionScopeLabel/);
   assert.match(app, /OM_PAS_DEMAND_SLA_DAYS\s*=\s*2/);
   assert.match(app, /OM_BIDDING_RESULT_SLA_DAYS\s*=\s*14/);
   assert.match(omView, /Category/);
@@ -1005,8 +1021,10 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /workflowStatusForRow\(row, "om"\)\.pendingOwner/);
   assert.match(app, /function isOmLeaderSupervisorMode/);
   assert.match(app, /function omLeaderSupervisorNote/);
+  assert.match(app, /function omRequestIdCell/);
   assert.match(app, /om-row-overdue/);
   assert.match(styles, /\.om-row-overdue td/);
+  assert.doesNotMatch(styles, /\.om-pivot-toggle/);
   assert.doesNotMatch(between(app, "function omNextActionForGroup", "function renderOmSubmissionExpiryMonitor"), /Downstream/);
   const pasDemandTable = between(omView, 'data-om-panel="pasRequest"', 'data-om-panel="quoteConfirm"');
   assert.match(pasDemandTable, /om-pas-demand-table/);
@@ -1019,8 +1037,9 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /data-om-field="pasDemandNo"/);
   assert.match(app, /Enter PAS Demand No first/);
   assert.match(app, /updateOmField\(requestId, "pasDemandNo", typedDemandNo\)/);
-  const quoteTable = between(omView, 'data-om-panel="quoteConfirm"', 'data-om-panel="finalExport"');
-  assert.match(quoteTable, /Quote Monitor Summary/);
+  const quoteTable = between(omView, 'data-om-panel="quoteConfirm"', 'data-om-panel="quoteExpiry"');
+  const quoteExpiryTable = between(omView, 'data-om-panel="quoteExpiry"', 'data-om-panel="finalExport"');
+  assert.match(quoteExpiryTable, /Quote Expiry Watch/);
   [
     "Waiting PAS Reply",
     "Missing Valid Until",
@@ -1028,7 +1047,18 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
     "Expired / Requote",
     "Waiting Requester",
     "Ready to Export",
-  ].forEach((label) => assert.match(quoteTable, new RegExp(label.replace("/", "\\/"))));
+  ].forEach((label) => assert.match(quoteExpiryTable, new RegExp(label.replace("/", "\\/"))));
+  [
+    "PAS Demand No",
+    "PAS Material No",
+    "Quote Date",
+    "Valid Until",
+    "Days Left",
+    "Expiry Status",
+    "Assigned To",
+    "Pending Action",
+    "Detail",
+  ].forEach((label) => assert.match(quoteExpiryTable, new RegExp(`<th[^>]*>${label.replace("/", "\\/")}<\\/th>`)));
   assert.match(quoteTable, /om-quote-result-table/);
   assert.match(quoteTable, /om-quote-col-project/);
   assert.match(quoteTable, /om-quote-col-material/);

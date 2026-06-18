@@ -87,7 +87,7 @@ OM guardrails:
 - OM Purchasing can operate assigned rows only.
 - Quote result requires screenshot/image attachment and Excel attachment.
 - Quote date and quote received date are the same business date in v1.
-- Quote expiry warning threshold is 10 days.
+- Quote expiry warning threshold is 7 days.
 - `quote_unit_price_usd - history_unit_price_usd > 0.40` triggers price exception.
 - No history price, new item, and Temporary Budget always trigger exception.
 - `purchase_route = local_buy` -> FTV Not Required.

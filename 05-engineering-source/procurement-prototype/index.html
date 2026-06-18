@@ -1035,6 +1035,7 @@
             <button class="inner-tab active" data-om-tab="submission">OM Leader Console</button>
             <button class="inner-tab" data-om-tab="pasRequest">PAS Demand No</button>
             <button class="inner-tab" data-om-tab="quoteConfirm">Quote Result / Monitor</button>
+            <button class="inner-tab" data-om-tab="quoteExpiry">Quote Expiry Watch</button>
             <button class="inner-tab" data-om-tab="finalExport">Export Package</button>
           </div>
 
@@ -1075,6 +1076,7 @@
               <table class="data-table manager-cost-table om-submission-workbench-table" id="omSubmissionTable">
                 <thead>
                   <tr>
+                    <th>Request ID</th>
                     <th>Category</th>
                     <th>Item / Spec</th>
                     <th>Project / Phase</th>
@@ -1162,22 +1164,6 @@
               </div>
             </div>
             <div class="summary-grid" id="omSummary"></div>
-            <section class="work-panel om-quote-monitor-panel">
-              <div class="panel-title section-head-tight">
-                <div>
-                  <h3>Quote Monitor Summary</h3>
-                  <p class="panel-subcopy">Track where each quote is blocked, how long it has been there, and who owns the next step.</p>
-                </div>
-              </div>
-              <div class="summary-grid om-quote-monitor-summary" id="omQuoteExpirySummary">
-                <article class="summary-card"><span>Waiting PAS Reply</span><strong>0</strong></article>
-                <article class="summary-card"><span>Missing Valid Until</span><strong>0</strong></article>
-                <article class="summary-card"><span>Expiring Soon</span><strong>0</strong></article>
-                <article class="summary-card"><span>Expired / Requote</span><strong>0</strong></article>
-                <article class="summary-card"><span>Waiting Requester</span><strong>0</strong></article>
-                <article class="summary-card"><span>Ready to Export</span><strong>0</strong></article>
-              </div>
-            </section>
             <div class="table-wrap om-table-wrap om-quote-result-wrap">
               <table class="data-table om-quote-result-table form-table" data-layout-managed="manual">
                 <colgroup>
@@ -1227,6 +1213,77 @@
                   </tr>
                 </thead>
                 <tbody id="omWorkbenchRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="om-panel" data-om-panel="quoteExpiry">
+            <div class="om-workbench-bar">
+              <div class="om-action-group om-context-group">
+                <span class="toolbar-label">Quote Expiry Watch</span>
+                <label>
+                  Project Package
+                  <select id="omQuoteExpiryProjectFilter"></select>
+                </label>
+                <label>
+                  Expiry Status
+                  <select id="omQuoteExpiryStatusFilter">
+                    <option value="">All statuses</option>
+                    <option value="missing">Missing Valid Until</option>
+                    <option value="expiring">Expiring Soon</option>
+                    <option value="expired">Expired / Requote</option>
+                    <option value="valid">Valid</option>
+                  </select>
+                </label>
+                <label>
+                  Assigned To
+                  <select id="omQuoteExpiryAssigneeFilter"></select>
+                </label>
+                <span class="record-count" id="omQuoteExpiryCount">0 rows</span>
+              </div>
+              <div class="om-action-group om-primary-actions">
+                <div class="om-toolbar-hint" id="omQuoteExpiryHint"></div>
+              </div>
+            </div>
+            <div class="summary-grid om-quote-monitor-summary" id="omQuoteExpirySummary">
+              <article class="summary-card"><span>Waiting PAS Reply</span><strong>0</strong></article>
+              <article class="summary-card"><span>Missing Valid Until</span><strong>0</strong></article>
+              <article class="summary-card"><span>Expiring Soon</span><strong>0</strong></article>
+              <article class="summary-card"><span>Expired / Requote</span><strong>0</strong></article>
+              <article class="summary-card"><span>Waiting Requester</span><strong>0</strong></article>
+              <article class="summary-card"><span>Ready to Export</span><strong>0</strong></article>
+            </div>
+            <div class="table-wrap om-table-wrap">
+              <table class="data-table workflow-table om-expiry-table">
+                <colgroup>
+                  <col class="om-expiry-col-project" />
+                  <col class="om-expiry-col-item" />
+                  <col class="om-expiry-col-demand" />
+                  <col class="om-expiry-col-material" />
+                  <col class="om-expiry-col-date" />
+                  <col class="om-expiry-col-date" />
+                  <col class="om-expiry-col-days" />
+                  <col class="om-expiry-col-status" />
+                  <col class="om-expiry-col-assignee" />
+                  <col class="om-expiry-col-action" />
+                  <col class="om-expiry-col-detail" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Item</th>
+                    <th>PAS Demand No</th>
+                    <th>PAS Material No</th>
+                    <th>Quote Date</th>
+                    <th>Valid Until</th>
+                    <th>Days Left</th>
+                    <th>Expiry Status</th>
+                    <th>Assigned To</th>
+                    <th>Pending Action</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="omQuoteExpiryRows"></tbody>
               </table>
             </div>
           </section>

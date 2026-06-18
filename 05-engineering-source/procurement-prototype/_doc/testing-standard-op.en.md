@@ -33,7 +33,7 @@ Run all available checks from the prototype root:
 
 - Manager B tabs must stay `Approval / Demand Analysis / Progress Tracking / Project Setup`.
 - Manager `Demand Analysis` must start with `Cost Dashboard` and use `Station Matrix` as the drilldown layer.
-- OM Purchasing tabs must stay `Submission Dashboard / PAS Demand No / Quote Result / Monitor / Export Package`.
+- OM Purchasing tabs must stay `Submission Dashboard / PAS Demand No / Quote Result / Monitor / Quote Expiry Watch / Export Package`; OM Leader/Mai must not see the operational `Quote Result / Monitor` tab.
 - Contact must stay a topbar popup utility, not a top-level tab.
 - Temporary Budget input must render only inside OPM/User A `New Request`.
 - UI quality review standards live in `_doc/ui-quality-review.zh-TW.md` and `_doc/ui-quality-review.en.md`.

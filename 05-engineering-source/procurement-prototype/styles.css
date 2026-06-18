@@ -1277,11 +1277,11 @@ a {
 }
 
 .om-submission-toolbar {
-  grid-template-columns: minmax(170px, max-content) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(170px, max-content) minmax(0, 1fr);
   grid-template-areas:
-    "title pivot actions"
-    "filters filters filters"
-    "scope scope scope";
+    "title actions"
+    "filters filters"
+    "scope scope";
   align-items: center;
   gap: 10px 12px;
   margin-bottom: 12px;
@@ -1386,11 +1386,6 @@ a {
 .om-submission-toolbar > .toolbar-label {
   grid-area: title;
   align-self: center;
-}
-
-.om-submission-toolbar > .om-pivot-toggle {
-  grid-area: pivot;
-  justify-self: start;
 }
 
 .om-submission-toolbar > .manager-progress-controls {
@@ -9112,32 +9107,6 @@ tr.approval-pipeline-current td {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
-}
-
-.om-pivot-toggle {
-  display: inline-flex;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #eef4f7;
-}
-
-.om-pivot-toggle .segment {
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  min-height: 30px;
-  padding: 0 10px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.om-pivot-toggle .segment.active {
-  background: #fff;
-  color: var(--text);
-  box-shadow: 0 1px 4px rgba(11, 36, 54, 0.12);
 }
 
 @media (max-width: 760px) {
