@@ -12,7 +12,7 @@ Latest review: 2026-06-15.
 | Dept DRI | First scoped business review | Approve/reject requester submissions, unit-owned warehouse/carryover candidate, price exception first review, audited quantity direct edit | Submission context, quantity evidence, price exception summary |
 | Cost Manager | Final cost authorization after Dept DRI | Authorize/reject, audited quantity direct edit | Cost Review evidence, Demand Cost Dashboard, Station Matrix, review history |
 | OM Leader | OM work management | Assignment, reassignment, exchange rate, OM orchestration | All OM rows and workload status |
-| OM Purchasing | Assigned OM execution | PAS Demand No, PAS Quote Result, quote screenshot/image, quote Excel, quote validity, Export Package | Assigned row context, quote expiry, export readiness |
+| OM Purchasing | Assigned OM execution | PAS Demand No, Quote Result / Monitor, quote screenshot/image, quote Excel, quote validity, Export Package | Assigned row context, quote expiry, export readiness |
 | Budget Approver | Final price/budget exception approval | Final approve/reject after Dept DRI price review, audited quantity direct edit | Budget exception evidence and quantity review |
 | Admin | System setup and governance | Users, roles, requester mapping, thresholds, approval chains, OM setup, audit/feedback setup | Setup/audit state |
 | Buyer Handoff | Post-OM-export PR/PO stage | Future PR/PO/arrival feedback | Exported package metadata and handoff status |
@@ -23,7 +23,7 @@ Latest review: 2026-06-15.
 2. Dept DRI reviews submitted requester package.
 3. Cost Manager performs final cost authorization.
 4. OM Leader assigns OM work.
-5. OM Purchasing records PAS Demand No and PAS Quote Result.
+5. OM Purchasing records PAS Demand No and Quote Result / Monitor; the quote screen maps to the PAS Quote Result workflow stage.
 6. System price decision auto-clears when USD delta is `<= 0.40`.
 7. Price exceptions route Dept DRI -> Budget Approver.
 8. OM Export Package marks the package exported.
@@ -39,7 +39,7 @@ Latest review: 2026-06-15.
 | Budget Review | Dashboard / MFG Station Detail / Non-MFG Department Detail | Budget Approver final decision and quantity edit | Only for price/budget exceptions |
 | OM Submission Dashboard | OM stage aging table | OM Leader / OM Purchasing | Tracks OM pending owner, stage, quote expiry |
 | OM PAS Demand No | PAS demand table | OM Purchasing | PAS Demand No only |
-| OM PAS Quote Result | Quote result card/table | OM Purchasing | PAS Material No, vendor, price, quote date, valid until, screenshot/image, Excel |
+| OM Quote Result / Monitor | Quote result card/table | OM Purchasing | PAS Material No, vendor, price, quote date, valid until, screenshot/image, Excel |
 | OM Export Package | Export package table | OM Purchasing | Uses quote package and effective qty |
 | Buyer Handoff | Handoff status / future PR-PO table | Buyer Handoff / future Buyer | Starts only after OM export |
 

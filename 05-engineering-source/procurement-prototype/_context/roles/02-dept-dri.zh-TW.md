@@ -11,7 +11,7 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 - price exception 摘要：history price、quote price、USD delta、threshold、Temporary Budget 標記。
 - Cost Manager 與 Budget Approver 所需的下一站狀態。
 - 使用與 Cost Manager 同殼的 `Dept Review`：上方是角色 queue / approve-reject action，下方是同一套 dashboard-first evidence。
-- `Dept Review` 主表與 Dashboard / MFG Station Detail / Non-MFG Department Detail 的第一欄固定為 `Review Status`，只顯示審批鏈狀態，不取代或混用 project status。
+- `Dept Review` 主表與 Dashboard / MFG Station Detail / Non-MFG Department Detail 的第一欄固定為 `Review Status`，只顯示審批鏈狀態，不取代或混用 `P1.0`、`EVT` 這類 project/phase status。
 - Dashboard 顯示 active project 全品項 MFG aggregate 與 Non-MFG department totals；queue row / item click 只切換 active item 並回 Dashboard overview；MFG Station Detail / Non-MFG Department Detail 才展開 selected item 明細。
 - 審批動作只在 `Dept Review` pending row；已 approve / reject / 派往下一站的 row 仍留在主 evidence，可 drilldown，但以 `You approved` / `Rejected by Dept DRI` / current owner 標示並改為 read-only。`Review History` 保留 audit log，不作為找 approved item 的主要入口。
 

@@ -43,7 +43,7 @@ Use these definitions for PM, QA, engineering, and IT handoff.
 | Module | Code/document maintenance boundary | `quote-validity.js`; OM quote table; workflow status model |
 | Role | Persona or responsibility owner | OM Leader; OM Purchasing; Cost Manager |
 | Permission | Action-level authorization | view, edit, approve, assign, export, maintain, override |
-| Workflow Status | Current process state with owner and aging | Waiting PAS Reply; Waiting Requester; Buyer Handoff |
+| Workflow Status | Current process state for a request id, with owner and aging | Waiting PAS Reply; Waiting Requester; Buyer Handoff |
 
 ## Feature Catalog
 
@@ -56,7 +56,8 @@ Use these definitions for PM, QA, engineering, and IT handoff.
 | Dept Review | Scoped first review for requester submissions and related evidence | Dept DRI | Current | `roles/02-dept-dri.zh-TW.md`; `approval-review-surface.js` |
 | Cost Review | Cost Manager authorization with protected quantity/cost evidence | Cost Manager | Current | `roles/03-cost-manager.zh-TW.md`; `demand-cost-dashboard.js` |
 | Budget Review | Final approval for price/budget exceptions | Budget Approver | Current | `roles/06-budget-approver.zh-TW.md`; `price-decision.js` |
-| Project Status | Read-only dashboard/matrix status view across roles | requester/approvers/OM/buyer/admin | Current | `index.html`; `tests/system-contract.test.js` |
+| Request Tracking | Per request cross-role read-only progress table after Requester submits demand; role permissions control visible columns/actions; legacy technical id may remain `projectStatus` until moduleization | requester/approvers/OM/buyer/admin | Current | `index.html`; `tests/system-contract.test.js` |
+| Project Status | Project current phase/status label such as `P1.0 / EVT / DVT / PVT / MP`; not a request tracking module or tab | requester/approvers/OM/buyer/admin | Naming lock | Project config/current phase fields |
 | OM Submission Dashboard | OM Leader/Purchasing monitor by project/item pivot and stage aging | OM Leader; OM Purchasing | Current after patch | `PROJECT_DECISIONS.md`; `index.html`; `app.js` |
 | PAS Demand No | OM records PAS demand number after PAS generates it | OM Purchasing | Current | `PROJECT_DECISIONS.md`; `index.html` |
 | Quote Result / Monitor | OM records quote result and monitors blocker, stage, aging, validity | OM Purchasing; OM Leader | Current after patch | `PROJECT_DECISIONS.md`; `quote-validity.js`; `workflow-status.js` |
@@ -72,12 +73,13 @@ Use these definitions for PM, QA, engineering, and IT handoff.
 | Feature | Functions | Notes |
 | --- | --- | --- |
 | Request Workspace | Save Draft; Submit current line + current worksheet; edit MFG station qty; edit Non-MFG department qty; set need date | Submit requires current worksheet need date and qty > 0 |
-| Add Item / Source Picker | Add Catalog; Reuse Item; Copy Demand; create New Item Request | Reuse Item starts qty at 0; Copy Demand copies source trace but target qty starts at 0 unless explicitly retargeted by feature |
+| Add Item / Source Picker | Add Catalog; Reuse Item; Copy Demand; create New Item Request | Catalog is DB catalog data; Reuse Item uses DB items already used by projects; Copy Demand copies MFG / Non-MFG item/spec trace into the current demand with target qty = 0 |
 | Warehouse Inventory | Stock In; Create Use Candidate; Owner Lock; Owner Reject; ledger trace | Pending candidate is evidence; locked use affects cost |
 | Dept Review | Approve; reject; direct quantity edit with audit; review history | Dept DRI approve routes to Cost Manager |
 | Cost Review | Authorize; reject; direct quantity edit with audit; inspect Demand Cost Dashboard / Station Matrix | Authorization routes to OM Leader intake |
 | Budget Review | Final approve; reject; direct quantity edit with audit | Handles price/budget exceptions after Dept DRI |
-| Project Status | Review read-only dashboard; drill into MFG station detail; drill into Non-MFG department detail | No business actions |
+| Request Tracking | Review per request cross-role progress; drill into MFG station detail; drill into Non-MFG department detail | No business actions; technical ids may still use legacy `projectStatus`; Project Status means project current phase label such as `EVT` or `P1.0` |
+| Project Status | Show or filter project current phase/status such as `EVT`, `P1.0`, `PVT` | Must not be used as the top-level cross-role tracking table name |
 | OM Submission Dashboard | Project View; Item View; scope label; assignment visibility; stage aging | Budget/PR/PO/shipping are not primary columns |
 | PAS Demand No | Enter PAS Demand No; Move to Quote; Reject to DRI; Detail | Does not upload quote evidence |
 | Quote Result / Monitor | Save Quote Info; enter PAS Material No/vendor/price/date/validity; upload quote screenshot and Excel; send to User A; reject to DRI; show blocker/stage/days/next action | Quote validity is not a separate tab |
@@ -105,7 +107,7 @@ Use these definitions for PM, QA, engineering, and IT handoff.
 | `price-decision.js` | quote vs history threshold and estimate comparison | price exception flow |
 | `ftv-code.js` | purchase route, FTV status, export blocking rules | Export Package / customs audit |
 | `lead-time.js` | ETA / lead-time helper | downstream timing estimates |
-| `project-status-dashboard.js` | project status aggregation helper | Project Status; currently not loaded by `index.html` per system contract |
+| `project-status-dashboard.js` | legacy-named request tracking aggregation helper | Request Tracking; currently not loaded by `index.html` per system contract |
 | `horizontal-table-navigator.js` | stable horizontal navigation for wide tables | dashboards and matrix tables |
 | `role-queue-config.js` | approval role/queue metadata | shared approval review surface |
 | `shared-formatters.js` | money/currency formatting helpers | cross-module formatting |
@@ -126,7 +128,7 @@ Legend: `V` view, `C` create, `E` edit, `A` approve/authorize, `R` reject/return
 | Dept Review | - | V/A/R/E direct qty | V next-stage evidence | - | - | V if price exception later | V setup/audit | - |
 | Cost Review | - | V prior decision | V/A/R/E direct qty | - | - | V exception evidence | V setup/audit | - |
 | Budget Review | - | V prior decision | V cost context | - | - | V/A/R/E direct qty | V setup/audit | - |
-| Project Status | V scoped | V scoped | V scoped | V OM scope | V assigned scope | V scoped | V all | V handoff scope |
+| Request Tracking | V scoped | V scoped | V scoped | V OM scope | V assigned scope | V scoped | V all | V handoff scope |
 | OM Submission Dashboard | - | V only if routed context | V after authorize context | V all/S | V assigned V | V if budget exception context | V all | V after export |
 | PAS Demand No | - | - | - | V all | V/E assigned | - | V all | - |
 | Quote Result / Monitor | V quote amount/status only through Action Required / Status | V price exception summary | V cost context | V all monitor | V/E assigned quote rows | V price/budget exception | V all | V after export metadata |

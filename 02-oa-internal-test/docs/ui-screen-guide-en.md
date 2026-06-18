@@ -74,7 +74,7 @@ Tabs:
 | --- | --- |
 | Submission Dashboard | OM stage, pending owner, quote expiry overview. |
 | PAS Demand No | Enter PAS Demand No and move rows to quote result. |
-| PAS Quote Result | Enter PAS Material No, quote info, validity, attachments, and price decision. |
+| Quote Result / Monitor | Enter PAS Quote Result fields, quote info, validity, attachments, and price decision; monitor quote expiry in context. |
 | Export Package | Prepare CFA/ECS package and mark exported. |
 
 ## 5. Shared Detail / Privacy

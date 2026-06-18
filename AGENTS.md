@@ -86,6 +86,22 @@ The only exception is a tiny task with no product, role, flow, UI, API, DB, test
 - If `06-deployment/mac-mini/deploy.sh` remains `AA` or any path is unmerged, resolve that index conflict before staging or committing unrelated changes.
 - Treat large archive, handoff package, 07-review-and-artifacts/review-output, screenshot, and generated-artifact deletions as high-risk until explicitly confirmed. Do not commit those deletions with feature work.
 
+## Feature / Function / Module Boundary Discipline
+
+- Discuss and plan project work with Kai using `feature`, `function`, and `module` as explicit boundary labels.
+- `Feature` means a user-visible capability or workflow outcome, usually owned by one or more roles and validated by acceptance criteria. Examples: Dept DRI quantity review, OM assignment, Buyer Handoff export.
+- `Function` means a specific business operation, rule, screen behavior, API contract, calculation, or state transition inside a feature. Examples: audited direct edit, aggregate quantity calculation, role queue filtering, export status transition.
+- `Module` means the implementation or documentation ownership boundary that should change together: source file, app module, DB migration, role/flow/module context doc, IT handoff doc, test file, or deployment script.
+- Before material product planning, review, implementation, subagent dispatch, or handoff, provide a compact boundary map:
+  - `Feature`: user-facing scope and role owner.
+  - `Function`: exact behavior/rule/API/data transition being changed.
+  - `Module`: files, docs, tests, or scripts expected to change.
+  - `Non-scope`: adjacent features/functions/modules intentionally excluded.
+  - `Validation`: tests, rendered checks, docs checks, or evidence needed for that boundary.
+- If a requested change blurs feature, function, or module boundaries, pause and discuss the boundary with Kai before editing behavior. Do not let a module-level convenience silently expand feature scope or redefine role ownership.
+- Prefer plans, commits, PRs, handoffs, and subagent prompts that keep one coherent feature/function/module boundary per workstream. Split independent boundaries into separate tasks or commits when feasible.
+- When a bug is reported by screen name only, translate it into feature/function/module terms before changing code, then load the relevant role, flow, and module context files.
+
 ## Source And Runtime Discipline
 
 - Treat Git working copies as the only editable source of truth. Do not make product, code, UI, test, API, DB schema, or deploy-script changes directly in a Mac mini runtime directory or running container.

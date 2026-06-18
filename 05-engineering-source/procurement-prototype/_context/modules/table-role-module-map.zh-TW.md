@@ -29,7 +29,7 @@
 
 ### Workflow Status Table
 
-用途：Requester Request Status、Cost Manager Review History、OM Submission Dashboard。
+用途：Request Tracking、Requester Request Status、Cost Manager Review History、OM Submission Dashboard。
 
 共用模型：`WorkflowStatusModule`。
 
@@ -85,6 +85,7 @@
 使用者：
 
 - Requester Request Status
+- Request Tracking（top-level cross-role per request progress，依 role visibility 顯示欄位）
 - Cost Manager Review History
 - OM Submission Dashboard
 

@@ -11,7 +11,7 @@ Budget Approver 是 quote 後價格/預算例外的最終核准者。它只處�
 - history price、quote price、USD delta、threshold、estimated vs quote、reason。
 - item/spec、requester、project/stage/unit scope、need date。
 - 使用與 Cost Manager 同殼的 `Budget Review`：上方是 Budget Exception queue / Final Approve-Reject action，下方是同一套 dashboard-first evidence。
-- `Budget Review` 主表與 Dashboard / MFG Station Detail / Non-MFG Department Detail 的第一欄固定為 `Review Status`，只顯示審批鏈狀態，不取代或混用 project status。
+- `Budget Review` 主表與 Dashboard / MFG Station Detail / Non-MFG Department Detail 的第一欄固定為 `Review Status`，只顯示審批鏈狀態，不取代或混用 `P1.0`、`EVT` 這類 project/phase status。
 - Dashboard 是不需 selected row 的 MFG aggregate + Non-MFG department 全域總覽；MFG Station Detail / Non-MFG Department Detail 才使用 selected row 或 dashboard cell drill-in scope。
 - 已 final approve / reject / in-pipeline 的 budget exception rows 仍留在主 evidence，可 drilldown，但以 `Final approved` / `Rejected by Budget Approver` / current owner 標示並改為 read-only。`Review History` 保留 audit log，不作為找 approved item 的主要入口。
 

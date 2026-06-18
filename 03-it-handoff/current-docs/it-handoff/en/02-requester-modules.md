@@ -7,7 +7,7 @@ This is the locked 2026-06-08 version. Older references to `Source Panel`, `Add 
 | Field | Definition |
 | --- | --- |
 | Business Owner | Requester |
-| Purpose | Build a demand package inside the current Project / Line scope by choosing item/spec, entering all-phase station/unit quantities, saving draft, or submitting. |
+| Purpose | Build a demand package inside the current Project / Line / MFG-Non-MFG scope by choosing item/spec, entering all-phase station/unit quantities, saving draft, or submitting. |
 | Input Data | Project list, requester persona, OM catalog, purchase/history records, Lv123 taxonomy, warehouse/carryover evidence. |
 | Output / Mutation | Creates/updates `Draft` request rows; every non-zero qty cell writes one long-form `stationBreakdown` row. |
 | Next Consumers | Cost Manager Approval, Cost Manager Demand Analysis, OM Purchasing, Buyer Handoff. |
@@ -17,7 +17,7 @@ This is the locked 2026-06-08 version. Older references to `Source Panel`, `Add 
 - Request Workspace is a full-page Excel-like worksheet. It does not use `Source Panel + Demand Matrix`.
 - Top scope controls: `MFG / Non-MFG` tab, Project, Line, Need Date, Save Draft, Submit.
 - `MFG / Non-MFG` are separate input tabs; one line is edited at a time.
-- Need Date is package-level.
+- Need Date is scoped by `project + line + demandType`; MFG and Non-MFG may have different Need Dates and must not overwrite each other.
 - One worksheet row means one `Item / Spec`, not one phase.
 
 ### Worksheet Columns
@@ -58,10 +58,18 @@ Row Total / Hint / Action
 
 ### Data Mapping
 
+Formal submitted request item rows use a server-generated immutable request ID:
+
+```text
+REQ-{YYMMDD}-{DEPT}-{YEARPROJECT}-{PROJECT}-{NNNN}
+```
+
+The ID is a creation/submission snapshot. It does not include line, MFG/Non-MFG, phase, station, or demand unit; those dimensions belong in the quantity identity below.
+
 Each worksheet qty cell maps to one long-form demand row:
 
 ```text
-requestId + project + requestLine + demandType + phase + station/demandUnit + qty
+requestId + yearProject + projectCode + requestLine + demandType + phase + station/demandUnit + qty
 ```
 
 Implementation field:
@@ -72,6 +80,8 @@ stationBreakdown[]
 
 Rules:
 
+- Draft rows may use temporary IDs and can be physically removed before submit.
+- After submit, `requestId` is immutable. Edits use revision/status/audit events; delete-like actions become cancel / amendment / void transitions.
 - `MFG` cells write `station`.
 - `Non-MFG` cells write `demandUnit`.
 - All phase/station/unit qty starts at `0` when item/spec is added.
@@ -151,7 +161,7 @@ Requester worksheet, Add Item popup, and Requester detail must not show:
 | Action | Rule |
 | --- | --- |
 | Save Draft | Saves current-line worksheet rows; Need Date is not required. |
-| Submit | Requires package-level Need Date and at least one qty cell > 0. |
+| Submit | Requires the current `project + line + demandType` scope Need Date and at least one qty cell > 0. |
 | Remove | Removes the worksheet row immediately without a second confirmation; only the item row in the current line/mode draft scope is removed. |
 
 ## Carryover / Warehouse Suggestion

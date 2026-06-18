@@ -224,7 +224,7 @@
 - Demand source picker has three official modes:
   - `Catalog`: adds a catalog item identity/spec into the current demand scope with quantity 0.
   - `Reuse Item`: reuses one approved item identity/spec into the current demand scope with quantity 0. It does not copy source qty by default.
-  - `Copy Demand`: previews/imports a completed reusable demand package/history group into the current demand scope and copies source qty retargeted to the current project / line / stage.
+  - `Copy Demand`: previews/imports item/spec/source trace from another project or demand package into the current demand scope; all target MFG / Non-MFG qty starts at 0 and source qty remains reference-only.
 - Reuse Item `Source Project` is only a history/package filter. New reused items always enter the current OPM target project.
 - Project-package import is not submit: imported items remain editable Draft Items so OPM can delete, revise spec, or edit demand rows before submitting.
 - OPM draft carryover is item-level, not only row-level: `Add Item`, `Create New Item`, and `Reuse Item > Add` reuse `lastRequestProject`, `lastRequestPhase`, and `lastDemandType` unless the user changes Project Type / Project.
@@ -244,6 +244,9 @@
 - Request Workspace input is a full-page All-Phase Excel worksheet, not `Add Demand Lines` modal and not `Source Panel + Demand Matrix`.
 - `MFG / Non-MFG` are worksheet input tabs. A worksheet row means `Item / Spec`.
 - Line is selected in the top scope selector; the user edits one line at a time.
+- Formal `requestId` uses `REQ-{YYMMDD}-{DEPT}-{YEARPROJECT}-{PROJECT}-{NNNN}`. It is a server-generated creation/submission snapshot and does not include line, MFG/Non-MFG, phase, station, or demand unit.
+- Draft rows may use temporary IDs and may be physically removed before submit. After submit, `requestId` is immutable; edits use `revisionNo`, workflow status transitions, and audit events. Delete-like behavior after submit becomes cancel / amendment / void, not hard delete.
+- If yearProject / projectCode / department was fundamentally wrong, cancel/void the original request and create a new `requestId`.
 - Worksheet headers are two-row phase groups: `P1.0 / P1.1 / EVT / DVT / PVT / MP`, with station/department qty columns repeated under every phase.
 - MFG phase group columns are `CG / BG / FATP / Test / Hybrid / Auto / ENG Pack / Zombie / Laser_pico / Rework / Repair / WH`.
 - Non-MFG phase group columns are `FATP TE / FATP IQC / FATP PQE / WH / Q-LAB / REL / ENG1 / ENG2 / ENG3 / IT / FAC`.
