@@ -7,11 +7,13 @@ const priceDecision = require("../app-modules/price-decision.js");
 const leadTime = require("../app-modules/lead-time.js");
 const workflowStatus = require("../app-modules/workflow-status.js");
 const workflowStatusTable = require("../app-modules/workflow-status-table.js");
+const omProgress = require("../app-modules/om-progress.js");
 const ftvCode = require("../app-modules/ftv-code.js");
 const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
 const sapPoRawImporter = require("../app-modules/sap-po-raw-importer.js");
 const materialCoding = require("../app-modules/material-coding.js");
+
 
 test("quote validity uses 10-day warning threshold", () => {
   const today = new Date("2026-06-01T00:00:00");
@@ -62,36 +64,62 @@ test("workflow status maps core ownership stages across roles", () => {
   assert.equal(buyer.nextAction, "Buyer owns PR / PO after OM export");
 });
 
-test("workflow status measures OM days pending from the current stage start", () => {
-  const today = new Date("2026-06-18T00:00:00Z");
+test("workflow status exposes OM high-history quote decision owner", () => {
+  const status = workflowStatus.buildWorkflowStatus({
+    priceDecisionStatus: "High History Quote Review",
+    omStage: "pasResult",
+    quoteChoiceRequired: true,
+    quoteUnitPriceSnapshotUsd: 110.01,
+    historyUnitPriceSnapshotUsd: 100,
+  }, { role: "omMember", today: new Date("2026-06-17T00:00:00Z") });
+  assert.equal(status.pendingOwner, "OM Purchasing");
+  assert.equal(status.currentStage, "OM High Quote Decision");
+  assert.equal(status.nextAction, "Choose confirm send out or ask Requester confirmation");
+});
 
-  const pasDemand = workflowStatus.buildWorkflowStatus({
-    status: "Approved",
-    submittedAt: "2026-05-01T00:00:00Z",
-    sentToOmAt: "2026-06-10T00:00:00Z",
-  }, { role: "om", today });
-  assert.equal(pasDemand.currentStage, "PAS Demand No");
-  assert.equal(pasDemand.stageStartAt, "2026-06-10T00:00:00Z");
-  assert.equal(pasDemand.daysPending, 8);
+test("workflow status exposes requester quote confirmation before Dept DRI submission", () => {
+  const status = workflowStatus.buildWorkflowStatus({
+    priceDecisionStatus: "Requester Quote Confirmation Required",
+    omStage: "userConfirm",
+    userAQuoteDecisionStatus: "Waiting User A Confirmation",
+  }, { role: "requester", today: new Date("2026-06-17T00:00:00Z") });
+  assert.equal(status.pendingOwner, "Requester");
+  assert.equal(status.currentStage, "Requester Quote Confirmation");
+  assert.equal(status.nextAction, "Requester confirm quote, then submit to Dept DRI");
+});
 
-  const quoteResult = workflowStatus.buildWorkflowStatus({
-    status: "Approved",
-    submittedAt: "2026-05-01T00:00:00Z",
-    sentToOmAt: "2026-06-01T00:00:00Z",
-    pasDemandNo: "AIDB-1",
-    pasDemandNoRecordedAt: "2026-06-15T00:00:00Z",
-  }, { role: "om", today });
-  assert.equal(quoteResult.currentStage, "PAS Quote Result");
-  assert.equal(quoteResult.stageStartAt, "2026-06-15T00:00:00Z");
-  assert.equal(quoteResult.daysPending, 3);
+test("workflow status exposes quote-confirmed requester submit before Dept DRI", () => {
+  const status = workflowStatus.buildWorkflowStatus({
+    quoteConfirmedBeforeApproval: true,
+    quoteConfirmedBeforeApprovalAt: "2026-06-15T00:00:00Z",
+  }, { role: "requester", today: new Date("2026-06-17T00:00:00Z") });
+  assert.equal(status.pendingOwner, "Requester");
+  assert.equal(status.currentStage, "Requester Submit");
+  assert.equal(status.stageStartAt, "2026-06-15T00:00:00Z");
+  assert.equal(status.daysPending, 2);
+  assert.equal(status.nextAction, "Submit quote-confirmed request to Dept DRI");
+});
 
-  const waitingRequester = workflowStatus.buildWorkflowStatus({
-    userAQuoteDecisionStatus: "Waiting Requester Confirmation",
-    sentToUserAAt: "2026-06-16T00:00:00Z",
-  }, { role: "om", today });
-  assert.equal(waitingRequester.currentStage, "Waiting Requester");
-  assert.equal(waitingRequester.stageStartAt, "2026-06-16T00:00:00Z");
-  assert.equal(waitingRequester.daysPending, 2);
+test("workflow group status prioritizes quote routing stages", () => {
+  const group = workflowStatus.buildWorkflowGroupStatus({
+    rows: [
+      {
+        status: "Approved",
+        sentToOmAt: "2026-06-10T00:00:00Z",
+      },
+      {
+        priceDecisionStatus: "High History Quote Review",
+        quoteChoiceRequired: true,
+        quoteChoiceRequestedAt: "2026-06-16T00:00:00Z",
+        omStage: "pasResult",
+      },
+    ],
+  }, { role: "omMember", today: new Date("2026-06-17T00:00:00Z") });
+
+  assert.equal(group.pendingOwner, "OM Purchasing");
+  assert.equal(group.currentStage, "OM High Quote Decision");
+  assert.equal(group.stageStartAt, "2026-06-16T00:00:00Z");
+  assert.equal(group.daysPending, 1);
 });
 
 test("workflow status role visibility hides internal OM fields from requester", () => {
@@ -275,6 +303,64 @@ test("role guards separate OM leader controls from assigned member work", () => 
   assert.equal(roleGuards.canOperateOmRow({ role: "omMember", assignment: { assignedToUserId: "giang" }, currentUserId: "giang" }), true);
   assert.equal(roleGuards.canOperateOmRow({ role: "omMember", assignment: { assignedToUserId: "linh" }, currentUserId: "giang" }), false);
   assert.equal(roleGuards.canOperateOmRow({ role: "omLeader", assignment: null, currentUserId: "mai" }), false);
+});
+
+test("OM progress SLA tracks PAS Demand No within 2 days", () => {
+  const overdue = omProgress.omStageSlaStatus({
+    sentToOmAt: "2026-06-17T09:00:00Z",
+  }, { today: new Date("2026-06-20T09:00:00Z") });
+
+  assert.equal(overdue.stageKey, "pendingPasDemand");
+  assert.equal(overdue.stageLabel, "Pending PAS Demand");
+  assert.equal(overdue.status, "Overdue");
+  assert.equal(overdue.slaDays, 2);
+  assert.equal(overdue.daysInStage, 3);
+  assert.equal(overdue.overdueDays, 1);
+  assert.match(overdue.remark, /PAS Demand No SLA 2d/);
+
+  const onTrack = omProgress.omStageSlaStatus({
+    sentToOmAt: "2026-06-17T09:00:00Z",
+    pasDemandNo: "AIDB260618",
+    pasDemandNoRecordedAt: "2026-06-18T09:00:00Z",
+  }, { today: new Date("2026-06-20T09:00:00Z") });
+
+  assert.equal(onTrack.stageKey, "pendingBiddingResult");
+  assert.equal(onTrack.previousStageStatus, "Done");
+  assert.equal(onTrack.status, "On Track");
+});
+
+test("OM progress SLA tracks bidding result within 14 days", () => {
+  const overdue = omProgress.omStageSlaStatus({
+    sentToOmAt: "2026-06-17T09:00:00Z",
+    pasDemandNo: "AIDB260617",
+    pasDemandNoRecordedAt: "2026-06-17T10:00:00Z",
+  }, { today: new Date("2026-07-02T10:00:00Z") });
+
+  assert.equal(overdue.stageKey, "pendingBiddingResult");
+  assert.equal(overdue.stageLabel, "Pending Bidding Result");
+  assert.equal(overdue.status, "Overdue");
+  assert.equal(overdue.slaDays, 14);
+  assert.equal(overdue.daysInStage, 15);
+  assert.equal(overdue.overdueDays, 1);
+  assert.match(overdue.remark, /Bidding Result SLA 14d/);
+});
+
+test("OM product category uses Lv2 to Lv3 and falls back to classification-needed", () => {
+  const categorized = omProgress.omProductCategory({
+    omCategoryLevel2: "Barcode equipment",
+    omCategoryLevel3: "Scanner",
+  });
+
+  assert.equal(categorized.level2, "Barcode equipment");
+  assert.equal(categorized.level3, "Scanner");
+  assert.equal(categorized.path, "Barcode equipment / Scanner");
+  assert.equal(categorized.status, "Classified");
+
+  const fallback = omProgress.omProductCategory({ name: "Unmapped item" });
+  assert.equal(fallback.level2, "Need OM Classification");
+  assert.equal(fallback.level3, "Unclassified");
+  assert.equal(fallback.path, "Need OM Classification / Unclassified");
+  assert.equal(fallback.status, "Need OM Classification");
 });
 
 test("role guards hide internal procurement fields from requester and cost owner", () => {
@@ -488,27 +574,60 @@ test("demand cost dashboard filters carryover rows by exact project scope", () =
   assert.deepEqual(dashboard.filterCarryoverRows(rows, { project: "OR6" }), [rows[1]]);
 });
 
-test("price decision uses rounded USD delta threshold", () => {
-  assert.equal(priceDecision.compareQuoteToHistory({
+test("price decision uses rounded 110 percent history threshold", () => {
+  const exactThreshold = priceDecision.compareQuoteToHistory({
     category: "Computer",
-    quoteUnitPriceUsd: 10.4,
-    historyUnitPriceUsd: 10,
-  }).status, priceDecision.STATUS_AUTO_CLEARED);
+    quoteUnitPriceUsd: 10.406,
+    historyUnitPriceUsd: 9.46,
+  });
+  assert.equal(exactThreshold.status, priceDecision.STATUS_AUTO_CLEARED);
+  assert.equal(exactThreshold.thresholdUnitPriceUsd, 10.41);
+
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "Computer",
     quoteUnitPriceUsd: 10.41,
-    historyUnitPriceUsd: 10,
-  }).status, priceDecision.STATUS_ESCALATION_REQUIRED);
+    historyUnitPriceUsd: 9.46,
+  }).status, priceDecision.STATUS_HIGH_HISTORY_QUOTE_REVIEW);
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "MFG",
-    quoteUnitPriceUsd: 10.404,
-    historyUnitPriceUsd: 10,
+    quoteUnitPriceUsd: 110,
+    historyUnitPriceUsd: 100,
   }).status, priceDecision.STATUS_AUTO_CLEARED);
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "MFG",
-    quoteUnitPriceUsd: 10.405,
-    historyUnitPriceUsd: 10,
-  }).status, priceDecision.STATUS_ESCALATION_REQUIRED);
+    quoteUnitPriceUsd: 110.01,
+    historyUnitPriceUsd: 100,
+  }).status, priceDecision.STATUS_HIGH_HISTORY_QUOTE_REVIEW);
+});
+
+test("price decision uses 110 percent history multiplier for quoted history items", () => {
+  const atThreshold = priceDecision.compareQuoteToHistory({
+    quoteUnitPriceUsd: 110,
+    historyUnitPriceUsd: 100,
+    isTemporaryBudget: false,
+  });
+  assert.equal(atThreshold.status, "Auto Cleared");
+  assert.equal(atThreshold.multiplierThreshold, 1.1);
+  assert.equal(atThreshold.thresholdUnitPriceUsd, 110);
+
+  const aboveThreshold = priceDecision.compareQuoteToHistory({
+    quoteUnitPriceUsd: 110.01,
+    historyUnitPriceUsd: 100,
+    isTemporaryBudget: false,
+  });
+  assert.equal(aboveThreshold.status, "High History Quote Review");
+  assert.equal(aboveThreshold.reason, "Quote 110.01 USD is higher than 110% of history price 100.00 USD");
+});
+
+test("price decision routes no-history item to requester quote confirmation", () => {
+  const result = priceDecision.compareQuoteToHistory({
+    quoteUnitPriceUsd: 80,
+    historyUnitPriceUsd: 0,
+    isTemporaryBudget: false,
+    isNewItemRequest: true,
+  });
+  assert.equal(result.status, "Requester Quote Confirmation Required");
+  assert.equal(result.reason, "No reusable history price; requester must confirm OM quote before Dept DRI submission");
 });
 
 test("price decision requires escalation for no history and temporary budget", () => {
@@ -516,7 +635,7 @@ test("price decision requires escalation for no history and temporary budget", (
     category: "Computer",
     quoteUnitPriceUsd: 100,
     historyUnitPriceUsd: 0,
-  }).status, priceDecision.STATUS_ESCALATION_REQUIRED);
+  }).status, priceDecision.STATUS_REQUESTER_QUOTE_CONFIRMATION_REQUIRED);
   assert.equal(priceDecision.compareQuoteToHistory({
     category: "Computer",
     quoteUnitPriceUsd: 100,
