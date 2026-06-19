@@ -977,7 +977,16 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(omView, /data-om-stage-filter="readyToExport"/);
   assert.match(omView, /data-om-stage-filter="buyerHandoff"/);
   assert.match(omView, /data-om-stage-filter="overdue"/);
-  assert.doesNotMatch(omView, /id="omSubmissionItemFilter"/);
+  assert.match(omView, /id="omSubmissionYearFilter"/);
+  assert.match(omView, /id="omSubmissionProjectFilter"/);
+  assert.match(omView, /id="omSubmissionPhaseFilter"/);
+  assert.match(omView, /id="omSubmissionLevel1Filter"/);
+  assert.match(omView, /id="omSubmissionLevel2Filter"/);
+  assert.match(omView, /id="omSubmissionLevel3Filter"/);
+  assert.match(omView, /id="omSubmissionItemFilter"/);
+  assert.doesNotMatch(omView, /id="omCategoryFilterRows"/);
+  assert.doesNotMatch(omView, /data-om-category-filter/);
+  assert.doesNotMatch(styles, /\.om-category-filter-button/);
   assert.doesNotMatch(omView, /id="omSubmissionProcessFilter"/);
   assert.doesNotMatch(omView, /id="omSubmissionStageFilter"/);
   assert.doesNotMatch(omView, /id="omSubmissionDepartmentFilter"/);
@@ -991,7 +1000,9 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /function omRequestIdCell/);
   assert.match(app, /item \$\{ordinal\}\/\$\{packageRows\.length\}/);
   assert.doesNotMatch(omView, /data-om-pivot-mode=/);
+  assert.match(app, /function syncOmSubmissionScopeControls/);
   assert.match(app, /function omSubmissionScopeLabel/);
+  assert.match(app, /managerProgressStage\(row\)/);
   assert.match(app, /OM_PAS_DEMAND_SLA_DAYS\s*=\s*2/);
   assert.match(app, /OM_BIDDING_RESULT_SLA_DAYS\s*=\s*14/);
   assert.match(omView, /Category/);

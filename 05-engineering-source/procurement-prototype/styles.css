@@ -1277,71 +1277,80 @@ a {
 }
 
 .om-submission-toolbar {
-  grid-template-columns: minmax(170px, max-content) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "title actions"
-    "filters filters"
-    "scope scope";
-  align-items: center;
+    "title"
+    "filters"
+    "status"
+    "scope";
   gap: 10px 12px;
   margin-bottom: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
 }
 
 .om-submission-toolbar .toolbar-label,
-.om-submission-toolbar .scope-label,
-.om-category-filter-rail {
+.om-submission-toolbar .scope-label {
   grid-column: 1 / -1;
+}
+
+.om-submission-filter-grid {
+  grid-area: filters;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.om-status-filter-row {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  flex-wrap: wrap;
 }
 
 .om-stage-filter {
   justify-content: flex-start;
   flex-wrap: wrap;
+  flex: 1 1 520px;
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #edf3f7;
 }
 
-.om-category-filter-rail {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 2px 0 4px;
+.om-stage-filter .segment {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #304355;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.om-stage-filter .segment:hover {
+  background: #fff;
+}
+
+.om-stage-filter .segment.active {
+  background: #fff;
+  color: var(--navy);
+  box-shadow: 0 0 0 1px #b8c8d6;
 }
 
 .om-submission-toolbar [data-action="clearOmSubmissionFilters"] {
   justify-self: end;
   width: auto;
   min-width: 118px;
-}
-
-.om-category-filter-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 850;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.om-category-filter-button strong {
-  min-width: 24px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #eef3f6;
-  color: #344250;
-  font-size: 11px;
-}
-
-.om-category-filter-button.active {
-  border-color: #355c7d;
-  background: #eef6fb;
-  color: #18354f;
+  flex: 0 0 auto;
 }
 
 .om-category-cell,

@@ -1062,7 +1062,13 @@ const expandedDemandEditorCarryoverRows = new Set();
 let currentHandoffTab = "queue";
 let currentOmTab = "submission";
 let currentOmStageFilter = "all";
-let currentOmCategoryFilter = "";
+let currentOmYearProjectFilter = "";
+let currentOmProjectFilter = "";
+let currentOmPhaseFilter = "";
+let currentOmLevel1Filter = "";
+let currentOmLevel2Filter = "";
+let currentOmLevel3Filter = "";
+let currentOmItemFilter = "";
 let currentPriceReviewTab = "pending";
 let currentPriceReviewQueue = "submission";
 let selectedProjectStatusScope = { requestId: "", unit: "", mode: "mfg" };
@@ -15082,6 +15088,18 @@ function omProductCategory(row = {}) {
   };
 }
 
+function omSubmissionLevels(row = {}) {
+  const category = omProductCategory(row);
+  const level1 = row.omCategoryLevel1 || row.level1 || row.categoryLevel1 || "";
+  const level2 = row.omCategoryLevel2 || row.level2 || row.categoryLevel2 || category.level2 || "";
+  const level3 = row.omCategoryLevel3 || row.level3 || row.categoryLevel3 || category.level3 || "";
+  return {
+    level1,
+    level2,
+    level3,
+  };
+}
+
 const OM_PAS_DEMAND_SLA_DAYS = 2;
 const OM_BIDDING_RESULT_SLA_DAYS = 14;
 const OM_INTERNAL_SLA_DAYS = 7;
@@ -15122,7 +15140,13 @@ function omSubmissionRowKey(row, filters = {}) {
 function omSubmissionFilterState() {
   return {
     stage: currentOmStageFilter || "all",
-    category: currentOmCategoryFilter || "",
+    yearProject: currentOmYearProjectFilter || "",
+    project: currentOmProjectFilter || "",
+    phase: currentOmPhaseFilter || "",
+    level1: currentOmLevel1Filter || "",
+    level2: currentOmLevel2Filter || "",
+    level3: currentOmLevel3Filter || "",
+    item: currentOmItemFilter || "",
   };
 }
 
@@ -15135,44 +15159,149 @@ function omSubmissionScopeLabel(filters = omSubmissionFilterState()) {
     buyerHandoff: "Buyer Handoff / PR",
     overdue: "Overdue",
   };
-  return `Lv2 → Lv3 · ${filters.category || "All categories"} · ${stageLabels[filters.stage] || stageLabels.all}`;
+  const lvPath = [filters.level1, filters.level2, filters.level3].filter(Boolean).join(" / ");
+  return [
+    filters.yearProject || "All year projects",
+    filters.project || "All projects",
+    filters.phase ? STAGE_LABELS[filters.phase] || filters.phase : "All phases",
+    lvPath || "All LV123",
+    filters.item || "All items",
+    stageLabels[filters.stage] || stageLabels.all,
+  ].join(" · ");
 }
 
 function omSubmissionMatchesFilters(group, filters) {
-  if (filters.category && group.category.level2 !== filters.category) return false;
+  if (filters.yearProject && group.yearProject !== filters.yearProject) return false;
+  if (filters.project && group.project !== filters.project) return false;
+  if (filters.phase && group.phaseKey !== filters.phase) return false;
+  if (filters.level1 && group.level1 !== filters.level1) return false;
+  if (filters.level2 && group.level2 !== filters.level2) return false;
+  if (filters.level3 && group.level3 !== filters.level3) return false;
+  if (filters.item && group.item !== filters.item) return false;
   if (filters.stage === "all") return true;
   if (filters.stage === "overdue") return group.sla.isOverdue;
   return group.sla.stageKey === filters.stage;
 }
 
-function syncOmSubmissionFilters() {
+function omSubmissionUniqueOptions(rows, getter) {
+  return [...new Set(rows.map(getter).filter(Boolean))]
+    .sort((left, right) => String(left).localeCompare(String(right)));
+}
+
+function omSubmissionSetSelectOptions(select, options, placeholder, selectedValue = "", labelForOption = (option) => option) {
+  if (!select) return "";
+  const optionSet = new Set(options);
+  const nextValue = optionSet.has(selectedValue) ? selectedValue : "";
+  select.innerHTML = [
+    `<option value="">${htmlText(placeholder)}</option>`,
+    ...options.map((option) => `<option value="${htmlAttr(option)}">${htmlText(labelForOption(option))}</option>`),
+  ].join("");
+  select.value = nextValue;
+  return nextValue;
+}
+
+function omSubmissionRowsMatchingScope(rows, filters = {}, keys = []) {
+  return rows.filter((row) => {
+    const levels = omSubmissionLevels(row);
+    return keys.every((key) => {
+      const value = filters[key] || "";
+      if (!value) return true;
+      if (key === "yearProject") return managerProgressYearProject(row) === value;
+      if (key === "project") return managerProgressProject(row) === value;
+      if (key === "phase") return managerProgressStage(row) === value;
+      if (key === "level1") return levels.level1 === value;
+      if (key === "level2") return levels.level2 === value;
+      if (key === "level3") return levels.level3 === value;
+      if (key === "item") return omSubmissionItemKey(row) === value;
+      return true;
+    });
+  });
+}
+
+function syncOmSubmissionScopeControls() {
+  const controls = {
+    yearProject: document.getElementById("omSubmissionYearFilter"),
+    project: document.getElementById("omSubmissionProjectFilter"),
+    phase: document.getElementById("omSubmissionPhaseFilter"),
+    level1: document.getElementById("omSubmissionLevel1Filter"),
+    level2: document.getElementById("omSubmissionLevel2Filter"),
+    level3: document.getElementById("omSubmissionLevel3Filter"),
+    item: document.getElementById("omSubmissionItemFilter"),
+  };
+  if (!controls.yearProject) return;
   const rows = omInternalRows().map(applyOmResponsibility);
-  const categoryCounts = rows.reduce((map, row) => {
-    const category = omProductCategory(row);
-    map.set(category.level2, (map.get(category.level2) || 0) + 1);
-    return map;
-  }, new Map());
-  const categories = [...categoryCounts.entries()].sort((left, right) => left[0].localeCompare(right[0]));
-  if (currentOmCategoryFilter && !categoryCounts.has(currentOmCategoryFilter)) currentOmCategoryFilter = "";
+  currentOmYearProjectFilter = omSubmissionSetSelectOptions(
+    controls.yearProject,
+    omSubmissionUniqueOptions(rows, managerProgressYearProject),
+    "All year projects",
+    currentOmYearProjectFilter
+  );
+  currentOmProjectFilter = omSubmissionSetSelectOptions(
+    controls.project,
+    omSubmissionUniqueOptions(omSubmissionRowsMatchingScope(rows, omSubmissionFilterState(), ["yearProject"]), managerProgressProject),
+    "All projects",
+    currentOmProjectFilter
+  );
+  currentOmPhaseFilter = omSubmissionSetSelectOptions(
+    controls.phase,
+    STAGES.filter((stage) => omSubmissionRowsMatchingScope(rows, omSubmissionFilterState(), ["yearProject", "project"])
+      .some((row) => managerProgressStage(row) === stage)),
+    "All phases",
+    currentOmPhaseFilter,
+    (stage) => STAGE_LABELS[stage] || stage
+  );
+  const levelBaseRows = omSubmissionRowsMatchingScope(rows, omSubmissionFilterState(), ["yearProject", "project", "phase"]);
+  currentOmLevel1Filter = omSubmissionSetSelectOptions(
+    controls.level1,
+    omSubmissionUniqueOptions(levelBaseRows, (row) => omSubmissionLevels(row).level1),
+    "All LV1",
+    currentOmLevel1Filter
+  );
+  currentOmLevel2Filter = omSubmissionSetSelectOptions(
+    controls.level2,
+    currentOmLevel1Filter
+      ? omSubmissionUniqueOptions(omSubmissionRowsMatchingScope(levelBaseRows, omSubmissionFilterState(), ["level1"]), (row) => omSubmissionLevels(row).level2)
+      : [],
+    currentOmLevel1Filter ? "All LV2" : "Select LV1 first",
+    currentOmLevel2Filter
+  );
+  controls.level2.disabled = !currentOmLevel1Filter;
+  currentOmLevel3Filter = omSubmissionSetSelectOptions(
+    controls.level3,
+    currentOmLevel2Filter
+      ? omSubmissionUniqueOptions(omSubmissionRowsMatchingScope(levelBaseRows, omSubmissionFilterState(), ["level1", "level2"]), (row) => omSubmissionLevels(row).level3)
+      : [],
+    currentOmLevel2Filter ? "All LV3" : "Select LV2 first",
+    currentOmLevel3Filter
+  );
+  controls.level3.disabled = !currentOmLevel2Filter;
+  currentOmItemFilter = omSubmissionSetSelectOptions(
+    controls.item,
+    currentOmLevel3Filter
+      ? omSubmissionUniqueOptions(omSubmissionRowsMatchingScope(levelBaseRows, omSubmissionFilterState(), ["level1", "level2", "level3"]), omSubmissionItemKey)
+      : [],
+    currentOmLevel3Filter ? "All items" : "Select LV123 first",
+    currentOmItemFilter
+  );
+  controls.item.disabled = !currentOmLevel3Filter;
+}
+
+function syncOmSubmissionFilters() {
+  syncOmSubmissionScopeControls();
   document.querySelectorAll("[data-om-stage-filter]").forEach((button) => {
     button.classList.toggle("active", button.dataset.omStageFilter === (currentOmStageFilter || "all"));
   });
-  const rail = document.getElementById("omCategoryFilterRows");
-  if (rail) {
-    rail.innerHTML = `
-      <button class="om-category-filter-button ${currentOmCategoryFilter ? "" : "active"}" type="button" data-om-category-filter="">
-        <span>All Lv2</span><strong>${rows.length}</strong>
-      </button>
-      ${categories.map(([category, count]) => `
-        <button class="om-category-filter-button ${category === currentOmCategoryFilter ? "active" : ""}" type="button" data-om-category-filter="${htmlAttr(category)}">
-          <span>${htmlText(category)}</span><strong>${count}</strong>
-        </button>`).join("")}`;
-  }
 }
 
 function clearOmSubmissionFilters() {
   currentOmStageFilter = "all";
-  currentOmCategoryFilter = "";
+  currentOmYearProjectFilter = "";
+  currentOmProjectFilter = "";
+  currentOmPhaseFilter = "";
+  currentOmLevel1Filter = "";
+  currentOmLevel2Filter = "";
+  currentOmLevel3Filter = "";
+  currentOmItemFilter = "";
   renderOmSubmission();
 }
 
@@ -15197,8 +15326,10 @@ function omProductProgressRows() {
   const groups = new Map();
   omInternalRows().map(applyOmResponsibility).forEach((row) => {
     const category = omProductCategory(row);
+    const levels = omSubmissionLevels(row);
     const project = managerProgressProject(row);
-    const phase = currentPhaseLabelForProject(project);
+    const phaseKey = managerProgressStage(row);
+    const phase = STAGE_LABELS[phaseKey] || phaseKey || "-";
     const item = omSubmissionItemKey(row);
     const key = omSubmissionRowKey(row);
     if (!groups.has(key)) {
@@ -15210,6 +15341,10 @@ function omProductProgressRows() {
         spec: itemDetail(row) || row.spec || row.detail || "",
         project,
         phase,
+        phaseKey,
+        level1: levels.level1,
+        level2: levels.level2,
+        level3: levels.level3,
         yearProject: managerProgressYearProject(row),
         requestPackageId: omSubmissionPackageId(row),
         requestPackageLabel: omSubmissionPackageLabel(row),
@@ -23440,7 +23575,6 @@ document.addEventListener("click", (event) => {
   const contactDriButton = event.target.closest("[data-contact-dri]");
   const omSubmissionDetailButton = event.target.closest("[data-om-submission-detail]");
   const omSubmissionStageButton = event.target.closest("[data-om-stage-filter]");
-  const omSubmissionCategoryButton = event.target.closest("[data-om-category-filter]");
   const projectAccessButton = event.target.closest("[data-project-config-access]");
   const omRowButton = event.target.closest("[data-om-row-button]");
   const rfqGroupButton = event.target.closest("[data-rfq-group-action]");
@@ -23515,10 +23649,6 @@ document.addEventListener("click", (event) => {
   if (omTab) setOmTab(omTab.dataset.omTab);
   if (omSubmissionStageButton) {
     currentOmStageFilter = omSubmissionStageButton.dataset.omStageFilter || "all";
-    renderOmSubmission();
-  }
-  if (omSubmissionCategoryButton) {
-    currentOmCategoryFilter = omSubmissionCategoryButton.dataset.omCategoryFilter || "";
     renderOmSubmission();
   }
   if (action === "logout") {
@@ -23942,15 +24072,52 @@ document.addEventListener("change", async (event) => {
   if ([
     "omSubmissionYearFilter",
     "omSubmissionProjectFilter",
+    "omSubmissionPhaseFilter",
+    "omSubmissionLevel1Filter",
+    "omSubmissionLevel2Filter",
+    "omSubmissionLevel3Filter",
     "omSubmissionItemFilter",
-    "omSubmissionProcessFilter",
-    "omSubmissionStageFilter",
-    "omSubmissionDepartmentFilter",
-    "omSubmissionRequestTypeFilter",
-    "omSubmissionQuoteValidityFilter",
-    "omSubmissionLateOnly",
-    "omSubmissionPendingOnly",
-  ].includes(event.target.id)) renderOmSubmission();
+  ].includes(event.target.id)) {
+    currentOmYearProjectFilter = document.getElementById("omSubmissionYearFilter")?.value || "";
+    currentOmProjectFilter = document.getElementById("omSubmissionProjectFilter")?.value || "";
+    currentOmPhaseFilter = document.getElementById("omSubmissionPhaseFilter")?.value || "";
+    currentOmLevel1Filter = document.getElementById("omSubmissionLevel1Filter")?.value || "";
+    currentOmLevel2Filter = document.getElementById("omSubmissionLevel2Filter")?.value || "";
+    currentOmLevel3Filter = document.getElementById("omSubmissionLevel3Filter")?.value || "";
+    currentOmItemFilter = document.getElementById("omSubmissionItemFilter")?.value || "";
+    if (event.target.id === "omSubmissionYearFilter") {
+      currentOmProjectFilter = "";
+      currentOmPhaseFilter = "";
+      currentOmLevel1Filter = "";
+      currentOmLevel2Filter = "";
+      currentOmLevel3Filter = "";
+      currentOmItemFilter = "";
+    }
+    if (event.target.id === "omSubmissionProjectFilter") {
+      currentOmPhaseFilter = "";
+      currentOmLevel1Filter = "";
+      currentOmLevel2Filter = "";
+      currentOmLevel3Filter = "";
+      currentOmItemFilter = "";
+    }
+    if (event.target.id === "omSubmissionPhaseFilter") {
+      currentOmLevel1Filter = "";
+      currentOmLevel2Filter = "";
+      currentOmLevel3Filter = "";
+      currentOmItemFilter = "";
+    }
+    if (event.target.id === "omSubmissionLevel1Filter") {
+      currentOmLevel2Filter = "";
+      currentOmLevel3Filter = "";
+      currentOmItemFilter = "";
+    }
+    if (event.target.id === "omSubmissionLevel2Filter") {
+      currentOmLevel3Filter = "";
+      currentOmItemFilter = "";
+    }
+    if (event.target.id === "omSubmissionLevel3Filter") currentOmItemFilter = "";
+    renderOmSubmission();
+  }
   if (event.target.id === "currencyDisplaySelect") {
     currencyDisplay = event.target.value === "USD" ? "USD" : "VND";
     const previousProjectStatusScope = { ...selectedProjectStatusScope };

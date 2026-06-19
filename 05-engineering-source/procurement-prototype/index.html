@@ -1058,17 +1058,62 @@
             </section>
             <div class="manager-progress-toolbar om-submission-toolbar">
               <div class="toolbar-label">OM Purchasing · OM Leader Console</div>
-              <div class="segmented-control om-stage-filter" role="group" aria-label="OM stage filter">
-                <button class="segment active" type="button" data-om-stage-filter="all">All</button>
-                <button class="segment" type="button" data-om-stage-filter="pendingPasDemand">Pending PAS Demand</button>
-                <button class="segment" type="button" data-om-stage-filter="pendingBiddingResult">Pending Bidding Result</button>
-                <button class="segment" type="button" data-om-stage-filter="readyToExport">Ready to Export</button>
-                <button class="segment" type="button" data-om-stage-filter="buyerHandoff">Buyer Handoff / PR</button>
-                <button class="segment" type="button" data-om-stage-filter="overdue">Overdue</button>
+              <div class="manager-progress-controls om-submission-filter-grid" aria-label="OM submission scope filters">
+                <label>
+                  Year Project
+                  <select id="omSubmissionYearFilter">
+                    <option value="">All year projects</option>
+                  </select>
+                </label>
+                <label>
+                  Project
+                  <select id="omSubmissionProjectFilter">
+                    <option value="">All projects</option>
+                  </select>
+                </label>
+                <label>
+                  Phase
+                  <select id="omSubmissionPhaseFilter">
+                    <option value="">All phases</option>
+                  </select>
+                </label>
+                <label>
+                  LV1
+                  <select id="omSubmissionLevel1Filter">
+                    <option value="">All LV1</option>
+                  </select>
+                </label>
+                <label>
+                  LV2
+                  <select id="omSubmissionLevel2Filter" disabled>
+                    <option value="">Select LV1 first</option>
+                  </select>
+                </label>
+                <label>
+                  LV3
+                  <select id="omSubmissionLevel3Filter" disabled>
+                    <option value="">Select LV2 first</option>
+                  </select>
+                </label>
+                <label>
+                  Item
+                  <select id="omSubmissionItemFilter" disabled>
+                    <option value="">Select LV123 first</option>
+                  </select>
+                </label>
               </div>
-              <div class="om-category-filter-rail" id="omCategoryFilterRows" aria-label="OM Lv2 category filters"></div>
-              <button class="ghost" type="button" data-action="clearOmSubmissionFilters">Clear Filters</button>
-              <div class="scope-label" id="omSubmissionScopeLabel">Lv2 → Lv3 · All categories · All active OM stages</div>
+              <div class="om-status-filter-row">
+                <div class="segmented-control om-stage-filter" role="group" aria-label="OM status filter">
+                  <button class="segment active" type="button" data-om-stage-filter="all">All</button>
+                  <button class="segment" type="button" data-om-stage-filter="pendingPasDemand">Pending PAS Demand</button>
+                  <button class="segment" type="button" data-om-stage-filter="pendingBiddingResult">Pending Bidding Result</button>
+                  <button class="segment" type="button" data-om-stage-filter="readyToExport">Ready to Export</button>
+                  <button class="segment" type="button" data-om-stage-filter="buyerHandoff">Buyer Handoff / PR</button>
+                  <button class="segment" type="button" data-om-stage-filter="overdue">Overdue</button>
+                </div>
+                <button class="ghost" type="button" data-action="clearOmSubmissionFilters">Clear Filters</button>
+              </div>
+              <div class="scope-label" id="omSubmissionScopeLabel">All year projects · All projects · All phases · All LV123 · All items · All active OM stages</div>
             </div>
             <div class="summary-grid" id="omSubmissionSummary"></div>
             <div id="omSubmissionTriage" class="queue-triage-strip"></div>
