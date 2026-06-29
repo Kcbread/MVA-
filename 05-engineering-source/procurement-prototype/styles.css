@@ -6826,7 +6826,7 @@ tr.approval-pipeline-current td {
 }
 
 .om-quote-result-table {
-  min-width: 2320px;
+  min-width: 2510px;
   table-layout: fixed;
 }
 
@@ -6848,6 +6848,7 @@ tr.approval-pipeline-current td {
 .om-quote-result-table col.om-quote-col-item { width: 280px; }
 .om-quote-result-table col.om-quote-col-qty { width: 72px; }
 .om-quote-result-table col.om-quote-col-demand { width: 150px; }
+.om-quote-result-table col.om-quote-col-group { width: 190px; }
 .om-quote-result-table col.om-quote-col-material { width: 160px; }
 .om-quote-result-table col.om-quote-col-vendor { width: 160px; }
 .om-quote-result-table col.om-quote-col-vendor-code { width: 130px; }
@@ -6923,11 +6924,61 @@ tr.approval-pipeline-current td {
 }
 
 .om-quote-file-stack,
+.pas-excel-group-cell,
 .om-quote-completion-cell,
 .om-quote-action-stack {
   display: grid;
   gap: 5px;
   min-width: 0;
+}
+
+.pas-demand-group-suggestion,
+.pas-excel-group-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pas-demand-group-suggestion {
+  padding: 4px 6px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.pas-demand-group-suggestion span {
+  color: #475569;
+}
+
+.segmented-mini {
+  display: grid;
+  gap: 4px;
+}
+
+.segmented-mini label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 3px 6px;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.segmented-mini input[type="radio"] {
+  margin: 0;
+  flex: 0 0 auto;
+  width: 13px;
+  min-width: 13px;
+  height: 13px;
+  min-height: 13px;
 }
 
 .om-quote-file-stack .mini {
@@ -12451,6 +12502,36 @@ tr.approval-pipeline-current td {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 8px;
+}
+
+.om-quote-db-card,
+.om-purpose-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.om-quote-db-card {
+  border-top: 1px solid #dbe7ee;
+}
+
+.om-quote-db-card.compact {
+  gap: 3px;
+}
+
+.om-quote-db-card.compact .reason-text,
+.om-quote-db-card.compact .om-cell-helper {
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.compact-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  white-space: nowrap;
 }
 
 @media (max-width: 760px) {

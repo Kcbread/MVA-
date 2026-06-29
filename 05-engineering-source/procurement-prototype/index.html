@@ -3,11 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="mva-local-preview-version" content="20260629-local-preview-v1" />
     <title>FIH Equipment Management Handoff System</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./layout-contract.css?v=20260604-role-routing-v2" />
-    <link rel="stylesheet" href="./carryover-extension.css?v=20260604-role-routing-v2" />
-    <link rel="stylesheet" href="./styles.css?v=20260615-unified-manager-v1" />
+    <link rel="stylesheet" href="./layout-contract.css?v=20260629-local-preview-v1" />
+    <link rel="stylesheet" href="./carryover-extension.css?v=20260629-local-preview-v1" />
+    <link rel="stylesheet" href="./styles.css?v=20260629-local-preview-v1" />
   </head>
   <body>
     <main id="app">
@@ -1223,6 +1224,7 @@
                   <col class="om-quote-col-item" />
                   <col class="om-quote-col-qty" />
                   <col class="om-quote-col-demand" />
+                  <col class="om-quote-col-group" />
                   <col class="om-quote-col-material" />
                   <col class="om-quote-col-vendor" />
                   <col class="om-quote-col-vendor-code" />
@@ -1246,6 +1248,7 @@
                     <th>Item / Spec</th>
                     <th>Qty</th>
                     <th>PAS Demand No</th>
+                    <th>PAS Excel Group</th>
                     <th>PAS Material No</th>
                     <th>Vendor</th>
                     <th>Vendor Code</th>
@@ -1363,6 +1366,7 @@
                   <col class="om-export-col-qty" />
                   <col class="om-export-col-assignee" />
                   <col class="om-export-col-package" />
+                  <col class="om-export-col-purpose" />
                   <col class="om-export-col-pas" />
                   <col class="om-export-col-attachments" />
                   <col class="om-export-col-decision" />
@@ -1380,7 +1384,8 @@
                     <th>Item</th>
                     <th>Qty</th>
                     <th>Assigned To</th>
-                    <th>Package Code</th>
+                    <th>Export Package / Budget Code</th>
+                    <th>Purpose Location</th>
                     <th>PAS Context</th>
                     <th>Quote Attachments</th>
                     <th>Requester Decision</th>
@@ -1523,6 +1528,24 @@
                       </tr>
                     </thead>
                     <tbody id="adminOmAssignmentRuleRows"></tbody>
+                  </table>
+                </div>
+              </section>
+              <section class="admin-setup-card">
+                <h4>PAS Demand Requirement Master</h4>
+                <div class="table-wrap">
+                  <table class="data-table workflow-table">
+                    <thead>
+                      <tr>
+                        <th>Item Category</th>
+                        <th>Match Keywords</th>
+                        <th>PAS Demand ID</th>
+                        <th>Status</th>
+                        <th>Owner</th>
+                        <th>Note</th>
+                      </tr>
+                    </thead>
+                    <tbody id="adminPasDemandRequirementMasterRows"></tbody>
                   </table>
                 </div>
               </section>
@@ -2256,27 +2279,28 @@
         </section>
       </div>
     </main>
-    <script src="./real-data-seeds.js?v=20260604-role-routing-v2"></script>
-    <script src="./requester-responsibility-data.js?v=20260604-requester-login"></script>
-    <script src="./app-modules/shared-formatters.js?v=20260605-clean-code-v1"></script>
-    <script src="./app-modules/role-guards.js?v=20260605-clean-code-v1"></script>
-    <script src="./app-modules/quote-validity.js?v=20260604-role-routing-v2"></script>
-    <script src="./app-modules/demand-cost-dashboard.js?v=20260604-role-routing-v2"></script>
-    <script src="./app-modules/price-decision.js?v=20260605-usd-delta-v1"></script>
-    <script src="./app-modules/lead-time.js?v=20260605-usd-delta-v1"></script>
-    <script src="./app-modules/workflow-status.js?v=20260615-unified-manager-v1"></script>
-    <script src="./app-modules/workflow-status-table.js?v=20260606-workflow-status-v1"></script>
-    <script src="./app-modules/material-coding.js?v=20260617-lv123-coding-v1"></script>
-    <script src="./app-modules/sap-po-raw-contract.js?v=20260613-sap-po-raw-v1"></script>
-    <script src="./app-modules/horizontal-table-navigator.js?v=20260610-evidence-navigator-v2"></script>
-    <script src="./app-modules/request-worksheet-matrix.js?v=20260609-approval-workbench-v1"></script>
-    <script src="./app-modules/approval-workbench.js?v=20260609-approval-workbench-v1"></script>
-    <script src="./app-modules/approval-quantity-review.js?v=20260610-direct-quantity-review-v1"></script>
-    <script src="./app-modules/approval-review-surface.js?v=20260615-unified-manager-v1"></script>
-    <script src="./app-modules/role-queue-config.js?v=20260615-unified-manager-v1"></script>
-    <script src="./app.js?v=20260615-unified-manager-v1"></script>
-    <script src="./user-a-flow.js?v=20260604-role-routing-v2"></script>
-  <script src="carryover-extension.js?v=20260604-role-routing-v2"></script>
-  <script src="layout-contract.js?v=20260604-role-routing-v2"></script>
+    <script src="./real-data-seeds.js?v=20260629-local-preview-v1"></script>
+    <script src="./requester-responsibility-data.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/shared-formatters.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/role-guards.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/quote-validity.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/om-business-flow.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/demand-cost-dashboard.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/price-decision.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/lead-time.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/workflow-status.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/workflow-status-table.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/material-coding.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/sap-po-raw-contract.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/horizontal-table-navigator.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/request-worksheet-matrix.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/approval-workbench.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/approval-quantity-review.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/approval-review-surface.js?v=20260629-local-preview-v1"></script>
+    <script src="./app-modules/role-queue-config.js?v=20260629-local-preview-v1"></script>
+    <script src="./app.js?v=20260629-local-preview-v1"></script>
+    <script src="./user-a-flow.js?v=20260629-local-preview-v1"></script>
+  <script src="carryover-extension.js?v=20260629-local-preview-v1"></script>
+  <script src="layout-contract.js?v=20260629-local-preview-v1"></script>
 </body>
 </html>

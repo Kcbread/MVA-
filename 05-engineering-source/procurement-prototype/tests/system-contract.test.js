@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { execSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -17,6 +18,9 @@ const workflowStatusModule = fs.readFileSync("app-modules/workflow-status.js", "
 const approvalReviewSurfaceModule = fs.readFileSync("app-modules/approval-review-surface.js", "utf8");
 const sapPoRawContractModule = fs.readFileSync("app-modules/sap-po-raw-contract.js", "utf8");
 const materialCodingModule = fs.readFileSync("app-modules/material-coding.js", "utf8");
+const omBusinessFlowModule = fs.existsSync("app-modules/om-business-flow.js")
+  ? fs.readFileSync("app-modules/om-business-flow.js", "utf8")
+  : "";
 const styles = fs.readFileSync("styles.css", "utf8");
 const server = fs.existsSync("server.js") ? fs.readFileSync("server.js", "utf8") : "";
 const schema = fs.existsSync("db/schema.sql") ? fs.readFileSync("db/schema.sql", "utf8") : "";
@@ -46,6 +50,57 @@ function between(source, start, end) {
   assert.notEqual(endIndex, -1, `Missing end marker: ${end}`);
   return source.slice(startIndex, endIndex);
 }
+
+function localPreviewAssetVersionValue(source = html) {
+  const match = source.match(/<meta name="mva-local-preview-version" content="([^"]+)" \/>/);
+  return match?.[1] || null;
+}
+
+function localPreviewAssetVersion(source = html) {
+  const match = localPreviewAssetVersionValue(source);
+  assert.ok(match, "index.html must declare mva-local-preview-version so local preview assets cannot silently use stale cache keys");
+  return match;
+}
+
+function runtimeAssetRefs(source = html) {
+  return [...source.matchAll(/(?:src|href)="\.?\/([^"#?]+\.(?:js|css))\?v=([^"]+)"/g)].map((match) => ({
+    asset: match[1],
+    version: match[2],
+  }));
+}
+
+test("local preview asset cache keys stay in sync with runtime changes", () => {
+  const currentVersion = localPreviewAssetVersion();
+  const assets = runtimeAssetRefs();
+  assert.ok(assets.length > 0, "index.html must include versioned local runtime assets");
+  assets.forEach(({ asset, version }) => {
+    assert.equal(version, currentVersion, `${asset} must use the shared local preview asset version`);
+  });
+
+  let status = "";
+  try {
+    status = execSync("git status --short -- 05-engineering-source/procurement-prototype/index.html 05-engineering-source/procurement-prototype/app.js 05-engineering-source/procurement-prototype/styles.css 05-engineering-source/procurement-prototype/app-modules 05-engineering-source/procurement-prototype/*.js 05-engineering-source/procurement-prototype/*.css", {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+  } catch {
+    return;
+  }
+  const changedRuntimeAsset = status.split(/\r?\n/).some((line) => /05-engineering-source\/procurement-prototype\/(app\.js|styles\.css|app-modules\/|[^/]+\.(?:js|css))$/.test(line.trim()));
+  if (!changedRuntimeAsset) return;
+
+  let headHtml = "";
+  try {
+    headHtml = execSync("git show HEAD:05-engineering-source/procurement-prototype/index.html", {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+  } catch {
+    return;
+  }
+  const previousVersion = localPreviewAssetVersionValue(headHtml);
+  assert.notEqual(currentVersion, previousVersion, "frontend runtime assets changed; bump mva-local-preview-version in index.html before handing off local preview");
+});
 
 test("Docker runtime does not expose private source and workflow schema is migration-owned", () => {
   assert.match(server, /PUBLIC_ROOT_FILES/);
@@ -958,6 +1013,14 @@ test("Need Date and DRI price review layer are wired", () => {
 
 test("OM tabs and PAS quote result contract are consolidated", () => {
   const omView = between(html, '<section class="view" data-view="om">', '<section class="view" data-view="buyer">');
+  assert.match(html, /app-modules\/om-business-flow\.js/);
+  assert.match(omBusinessFlowModule, /PAS_DEMAND_REQUIREMENT_MASTER/);
+  assert.match(omBusinessFlowModule, /function pasDemandRequirementMasterMatch/);
+  assert.match(omBusinessFlowModule, /PAS Demand ID Required/);
+  assert.match(omBusinessFlowModule, /PAS Demand ID Optional/);
+  assert.match(omBusinessFlowModule, /Valid - Need Central IT Check/);
+  assert.match(omBusinessFlowModule, /quoteDbCandidateId/);
+  assert.match(omBusinessFlowModule, /function groupRowsByPasDemandId/);
   assert.match(omView, /Submission Dashboard/);
   assert.match(omView, /PAS Demand No/);
   assert.match(omView, /Quote Result \/ Monitor/);
@@ -1068,7 +1131,13 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.doesNotMatch(pasDemandTable, /<th>Level 2 \/ Level 3<\/th>/);
   assert.match(app, /function pasDemandNoEntryHtml/);
   assert.match(app, /data-om-field="pasDemandNo"/);
-  assert.match(app, /Enter PAS Demand No first/);
+  assert.match(app, /pasDemandRequirementMaster/);
+  assert.match(app, /adminApprovalSetup\.pasDemandRequirementMaster/);
+  assert.match(app, /PAS Demand ID Required/);
+  assert.match(app, /PAS Demand ID is required for Hard Item/);
+  assert.match(app, /function omPasDemandGroupSuggestionHtml/);
+  assert.match(app, /Same PAS Demand No group/);
+  assert.match(app, /data-pas-group-id/);
   assert.match(app, /updateOmField\(requestId, "pasDemandNo", typedDemandNo\)/);
   const quoteTable = between(omView, 'data-om-panel="quoteConfirm"', 'data-om-panel="quoteExpiry"');
   const quoteExpiryTable = between(omView, 'data-om-panel="quoteExpiry"', 'data-om-panel="finalExport"');
@@ -1129,6 +1198,14 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /data-om-price-currency/);
   assert.match(app, /title="Save Quote Info"/);
   assert.match(app, /title="Send to User A"/);
+  assert.match(omView, /PAS Excel Group/);
+  assert.match(app, /function omPasExcelGroupDecisionCell/);
+  assert.match(app, /data-om-pas-excel-group/);
+  assert.match(app, /Merge for one PAS Excel/);
+  assert.match(app, /Keep separate/);
+  assert.match(app, /Central IT Checked/);
+  assert.match(app, /centralItCheckedAt/);
+  assert.match(app, /centralItCheckedBy/);
   assert.match(app, /omQuoteResultReadOnlyReason/);
   assert.doesNotMatch(app, /Upload PDF/);
   assert.doesNotMatch(app, /Quote PDF/);
@@ -1140,8 +1217,27 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.doesNotMatch(app, />Export Excel<\/button>/);
   assert.doesNotMatch(app, />Export Quote PDF Package<\/button>/);
   assert.match(app, /Export Package/);
+  assert.match(app, /Budget Code/);
+  assert.match(app, /purposeLocations/);
+  assert.match(app, /purposeProjectBuildKey/);
+  assert.match(app, /groupRowsByPasDemandId/);
+  assert.match(app, /function createPasExcelSystemFileRecord/);
+  assert.match(app, /groupRowsForPasExcelExport/);
+  assert.match(app, /pasExcelSystemFileName/);
+  assert.match(app, /PAS Excel system file created/);
   assert.match(app, /Expense → ECS \/ Capex → CFA/);
   assert.match(app, /editableMaterialNo: false/);
+});
+
+test("Admin setup exposes PAS Demand Requirement Master data", () => {
+  const adminView = between(html, '<section class="view" data-view="adminSetup">', '<section class="view" data-view="buyer">');
+  assert.match(adminView, /PAS Demand Requirement Master/);
+  assert.match(adminView, /adminPasDemandRequirementMasterRows/);
+  assert.match(adminView, /<th>Item Category<\/th>/);
+  assert.match(adminView, /<th>Match Keywords<\/th>/);
+  assert.match(adminView, /<th>PAS Demand ID<\/th>/);
+  assert.match(app, /function renderAdminPasDemandRequirementMaster/);
+  assert.match(app, /PAS_DEMAND_REQUIREMENT_MASTER/);
 });
 
 test("OM monthly exchange-rate owner and deferred export contract are explicit", () => {

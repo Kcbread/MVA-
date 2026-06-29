@@ -12,6 +12,7 @@ const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
 const sapPoRawImporter = require("../app-modules/sap-po-raw-importer.js");
 const materialCoding = require("../app-modules/material-coding.js");
+const omBusinessFlow = require("../app-modules/om-business-flow.js");
 
 test("quote validity uses 7-day warning threshold", () => {
   const today = new Date("2026-06-01T00:00:00");
@@ -20,6 +21,157 @@ test("quote validity uses 7-day warning threshold", () => {
   assert.equal(quote.quoteValidity("2026-06-08", today), "Expiring Soon");
   assert.equal(quote.quoteValidity("2026-06-01", today), "Expiring Soon");
   assert.equal(quote.quoteValidity("2026-06-09", today), "Valid");
+});
+
+test("OM hard item normalized name and spec match requires PAS Demand ID", () => {
+  const hardItem = {
+    name: "Mini PC",
+    spec: "Industrial IPC, Intel i5, 16GB RAM",
+  };
+  const requirement = omBusinessFlow.pasDemandRequirement(hardItem);
+
+  assert.equal(requirement.required, true);
+  assert.equal(requirement.label, "PAS Demand ID Required");
+  assert.match(requirement.reason, /Hard Item/);
+});
+
+test("OM non-hard request does not require PAS Demand ID", () => {
+  const otherRequest = {
+    name: "Office Chair",
+    spec: "Ergonomic chair for meeting room",
+  };
+
+  assert.equal(omBusinessFlow.pasDemandRequirement(otherRequest).required, false);
+  assert.equal(omBusinessFlow.pasDemandRequirement(otherRequest).label, "PAS Demand ID Optional");
+});
+
+test("OM PAS Demand requirement is driven by active master data records", () => {
+  const pasDemandRequirementMaster = [
+    {
+      id: "pas-master-docking",
+      itemCategory: "Docking Station",
+      matchKeywords: ["docking station", "usb c dock"],
+      pasDemandRequired: true,
+      active: true,
+      ownerRole: "OM Purchasing",
+      note: "Hard landing hardware accessory.",
+    },
+    {
+      id: "pas-master-chair-inactive",
+      itemCategory: "Chair",
+      matchKeywords: ["chair"],
+      pasDemandRequired: true,
+      active: false,
+      ownerRole: "OM Purchasing",
+      note: "Inactive rule should not block quote flow.",
+    },
+  ];
+
+  const dockingRequirement = omBusinessFlow.pasDemandRequirement({
+    name: "USB-C Dock",
+    spec: "Docking Station for engineering laptop",
+  }, pasDemandRequirementMaster);
+  const inactiveRequirement = omBusinessFlow.pasDemandRequirement({
+    name: "Office Chair",
+    spec: "Meeting room",
+  }, pasDemandRequirementMaster);
+
+  assert.equal(dockingRequirement.required, true);
+  assert.equal(dockingRequirement.masterRecordId, "pas-master-docking");
+  assert.equal(dockingRequirement.label, "PAS Demand ID Required");
+  assert.equal(inactiveRequirement.required, false);
+  assert.equal(inactiveRequirement.masterRecordId, "");
+});
+
+test("OM Quote DB uses valid-until date as hard stop and Central IT check for reuse", () => {
+  const row = {
+    name: "Mini PC",
+    spec: "Industrial IPC, Intel i5, 16GB RAM",
+    qty: 999,
+  };
+  const validCandidate = {
+    id: "Q-VALID",
+    normalizedNameSpecKey: omBusinessFlow.normalizedNameSpecKey(row),
+    quoteValidUntil: "2026-07-01",
+    referenceQty: 100,
+  };
+  const expiredCandidate = {
+    id: "Q-EXPIRED",
+    normalizedNameSpecKey: omBusinessFlow.normalizedNameSpecKey(row),
+    quoteValidUntil: "2026-05-31",
+    referenceQty: 500,
+  };
+  const today = new Date("2026-06-18T00:00:00Z");
+
+  assert.equal(omBusinessFlow.quoteDbCandidateStatus(expiredCandidate, row, today).status, "Expired");
+  assert.equal(omBusinessFlow.quoteDbCandidateStatus(validCandidate, row, today).status, "Valid - Need Central IT Check");
+  assert.equal(omBusinessFlow.quoteDbCandidateStatus(validCandidate, {
+    ...row,
+    quoteDbCandidateId: "Q-VALID",
+    centralItCheckedAt: "2026-06-18T08:00:00Z",
+  }, today).status, "Reusable");
+  assert.equal(omBusinessFlow.quoteDbCandidateStatus(validCandidate, row, today).quantityBlocksReuse, false);
+});
+
+test("OM purpose project build shares Budget Code across different PAS IDs and items", () => {
+  const rows = [
+    { pasDemandNo: "PAS-A", name: "Mini PC", project: "4CS4", stage: "EVT", purposeLocations: ["SMT", "FATP"] },
+    { pasDemandNo: "PAS-B", name: "Monitor", project: "4CS4", stage: "EVT", purposeLocations: ["FATP", "SMT"] },
+  ];
+
+  assert.equal(omBusinessFlow.purposeProjectBuildKey(rows[0]), omBusinessFlow.purposeProjectBuildKey(rows[1]));
+  assert.equal(omBusinessFlow.budgetCodeForRow(rows[0]), omBusinessFlow.budgetCodeForRow(rows[1]));
+});
+
+test("OM PAS Excel grouping combines items by PAS Demand ID", () => {
+  const groups = omBusinessFlow.groupRowsByPasDemandId([
+    { id: 1, pasDemandNo: "PAS-100", name: "Mini PC" },
+    { id: 2, pasDemandNo: "PAS-100", name: "Monitor" },
+    { id: 3, pasDemandNo: "PAS-200", name: "Barcode Scanner" },
+  ]);
+
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups.map((group) => group.pasDemandId), ["PAS-100", "PAS-200"]);
+  assert.deepEqual(groups[0].rows.map((row) => row.name), ["Mini PC", "Monitor"]);
+});
+
+test("OM PAS Excel grouping normalizes PAS Demand No and exposes merge suggestions", () => {
+  const rows = [
+    { id: "REQ-1", pasDemandNo: " PAS-100 ", name: "Mini PC" },
+    { id: "REQ-2", pasDemandNo: "pas-100", name: "Monitor" },
+    { id: "REQ-3", pasDemandNo: "PAS-200", name: "Barcode Scanner" },
+    { id: "REQ-4", pasDemandNo: "", name: "Keyboard" },
+  ];
+
+  assert.equal(omBusinessFlow.normalizePasDemandNo(" PAS-100 "), "PAS-100");
+  assert.equal(omBusinessFlow.normalizePasDemandNo("pas-100"), "PAS-100");
+
+  const suggestion = omBusinessFlow.pasDemandGroupSuggestion(rows[0], rows);
+  assert.equal(suggestion.hasGroup, true);
+  assert.equal(suggestion.pasDemandId, "PAS-100");
+  assert.deepEqual(suggestion.rowIds, ["REQ-1", "REQ-2"]);
+  assert.equal(suggestion.message, "Same PAS Demand No group: 2 items");
+
+  const noSuggestion = omBusinessFlow.pasDemandGroupSuggestion(rows[2], rows);
+  assert.equal(noSuggestion.hasGroup, false);
+  assert.equal(noSuggestion.message, "No same-demand group");
+});
+
+test("OM PAS Excel export grouping follows OM merge decisions", () => {
+  const rows = [
+    { id: "REQ-1", pasDemandNo: "PAS-100", pasExcelMergeDecision: "merge", name: "Mini PC" },
+    { id: "REQ-2", pasDemandNo: "PAS-100", pasExcelMergeDecision: "merge", name: "Monitor" },
+    { id: "REQ-3", pasDemandNo: "PAS-100", pasExcelMergeDecision: "separate", name: "Dock" },
+    { id: "REQ-4", pasDemandNo: "PAS-200", name: "Barcode Scanner" },
+  ];
+
+  const groups = omBusinessFlow.groupRowsForPasExcelExport(rows);
+
+  assert.deepEqual(groups.map((group) => group.pasDemandId), ["PAS-100", "PAS-100__REQ-3", "PAS-200"]);
+  assert.deepEqual(groups[0].rows.map((row) => row.id), ["REQ-1", "REQ-2"]);
+  assert.deepEqual(groups[1].rows.map((row) => row.id), ["REQ-3"]);
+  assert.equal(groups[0].mergeDecision, "merge");
+  assert.equal(groups[1].mergeDecision, "separate");
 });
 
 test("currency display converts canonical VND to USD without changing source amount", () => {
