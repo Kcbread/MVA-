@@ -22,6 +22,7 @@ echo "== Syntax checks =="
 "$NODE_BIN" --check app-modules/sap-po-raw-importer.js
 "$NODE_BIN" --check scripts/commit-sap-po-raw-import.js
 "$NODE_BIN" --check app-modules/workflow-status-table.js
+"$NODE_BIN" --check app-modules/om-progress.js
 "$NODE_BIN" --check tests/accessibility-smoke.js
 "$NODE_BIN" --check tests/layout-smoke.js
 "$NODE_BIN" --check tests/price-routing-smoke.js

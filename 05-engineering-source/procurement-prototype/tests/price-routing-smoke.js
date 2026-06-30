@@ -428,22 +428,87 @@ function assertRoute(condition, message, payload) {
     assertRoute(route.afterBudget.userAQuoteDecisionStatus === "User Confirmation Not Required", `${label} Budget approval should not require Requester confirmation`, route);
   }
 
-  await assertEscalationRoute({
-    id: "TEST-OVER-THRESHOLD",
-    name: "Fixture over threshold",
-    detail: "Production fixture",
-    unitPriceUsd: 100,
-    updatedPriceUsd: 100.41,
-  }, "Over-threshold standard quote");
+  const highHistoryQuoteRoute = await page.evaluate(async () => {
+    const row = {
+      id: "TEST-HIGH-HISTORY-QUOTE",
+      project: "P26",
+      name: "Fixture high history quote",
+      detail: "Production fixture",
+      requestType: "Standard Demand",
+      status: "Approved",
+      needDate: "2026-06-30",
+      stationBreakdown: [{ phase: "mp", demandType: "MFG", station: "CG", qty: 1, remark: "" }],
+      mp: 1,
+      unitPriceUsd: 100,
+      updatedPriceUsd: 110.01,
+      vendor: "Demo Vendor",
+      quoteDate: "2026-06-04",
+      quoteValidUntil: "2026-07-04",
+      quotationPdf: "demo.pdf",
+      quotationExcel: "demo.xlsx",
+      pasMaterialNo: "PAS-HIGH-HISTORY",
+      procurementStatus: "Sent to OM Purchasing",
+      omStage: "pasResult",
+      omAssigneeId: "om-member-giang",
+      omAssigneeName: "Giang",
+    };
+    currentRole = "omMember";
+    requests = [row, ...requests.filter((item) => item.id !== row.id)];
+    await confirmOmQuoteResultRows([row], { requireComplete: true });
+    const updated = requests.find((item) => item.id === row.id);
+    return {
+      priceDecisionStatus: updated.priceDecisionStatus,
+      quoteChoiceRequired: updated.quoteChoiceRequired,
+      omStage: updated.omStage,
+      userAQuoteDecisionStatus: updated.userAQuoteDecisionStatus,
+    };
+  });
 
-  await assertEscalationRoute({
-    id: "TEST-NO-HISTORY",
-    name: "Fixture no history",
-    detail: "Production fixture",
-    unitPriceUsd: 0,
-    unitPrice: 0,
-    updatedPriceUsd: 100,
-  }, "No-history standard quote");
+  assertRoute(highHistoryQuoteRoute.priceDecisionStatus === "High History Quote Review", "High history quote should require OM decision", highHistoryQuoteRoute);
+  assertRoute(highHistoryQuoteRoute.quoteChoiceRequired === true, "High history quote should require quote choice", highHistoryQuoteRoute);
+  assertRoute(highHistoryQuoteRoute.omStage === "pasResult", "High history quote should stay in PAS Quote Result", highHistoryQuoteRoute);
+  assertRoute(!highHistoryQuoteRoute.userAQuoteDecisionStatus, "High history quote should not send Requester confirmation automatically", highHistoryQuoteRoute);
+
+  const newItemQuoteFirstRoute = await page.evaluate(() => {
+    const row = {
+      id: "TEST-NEW-ITEM-QUOTE-FIRST",
+      project: "P26",
+      name: "Fixture no history new item",
+      detail: "Production fixture",
+      requestType: "New Item Request",
+      status: "Approved",
+      needDate: "2026-06-30",
+      stationBreakdown: [{ phase: "mp", demandType: "MFG", station: "CG", qty: 1, remark: "" }],
+      mp: 1,
+      unitPriceUsd: 0,
+      unitPrice: 0,
+      updatedPriceUsd: 100,
+      quoteBeforeApprovalRequired: true,
+      vendor: "Demo Vendor",
+      quoteDate: "2026-06-04",
+      quoteValidUntil: "2026-07-04",
+      quotationPdf: "demo.pdf",
+      quotationExcel: "demo.xlsx",
+      pasMaterialNo: "PAS-NEW-ITEM",
+      procurementStatus: "Sent to OM Purchasing",
+      omStage: "pasResult",
+      omAssigneeId: "om-member-giang",
+      omAssigneeName: "Giang",
+    };
+    currentRole = "omMember";
+    requests = [row, ...requests.filter((item) => item.id !== row.id)];
+    saveOmQuoteInfoRows([row], { requireComplete: true });
+    const updated = requests.find((item) => item.id === row.id);
+    return {
+      priceDecisionStatus: updated.priceDecisionStatus,
+      omStage: updated.omStage,
+      userAQuoteDecisionStatus: updated.userAQuoteDecisionStatus,
+    };
+  });
+
+  assertRoute(newItemQuoteFirstRoute.priceDecisionStatus === "Requester Quote Confirmation Required", "New item quote should require Requester confirmation", newItemQuoteFirstRoute);
+  assertRoute(newItemQuoteFirstRoute.omStage === "userConfirm", "New item quote should move to Requester confirmation", newItemQuoteFirstRoute);
+  assertRoute(newItemQuoteFirstRoute.userAQuoteDecisionStatus === "Waiting User A Confirmation", "New item quote should wait User A confirmation", newItemQuoteFirstRoute);
 
   const omPermissionRoute = await page.evaluate(() => {
     const row = {

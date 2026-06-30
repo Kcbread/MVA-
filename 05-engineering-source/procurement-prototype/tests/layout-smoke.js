@@ -438,6 +438,108 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   assertNoPageErrors(pageErrors, "OM Purchasing shell");
   await assertNoPageOverflow(page, "OM Purchasing shell");
   await assertButtonsStayInsideCells(page, ".om-rate-utility button", "OM exchange rate utility");
+  const omSubmissionFilterAudit = await page.evaluate(() => {
+    const ids = [
+      "omSubmissionYearFilter",
+      "omSubmissionProjectFilter",
+      "omSubmissionPhaseFilter",
+      "omSubmissionLevel1Filter",
+      "omSubmissionLevel2Filter",
+      "omSubmissionLevel3Filter",
+      "omSubmissionItemFilter",
+    ];
+    const missing = ids.filter((id) => !document.getElementById(id));
+    const valueOptions = (select) => Array.from(select?.options || []).filter((option) => option.value);
+    const change = (select, value) => {
+      select.value = value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    if (missing.length) return { missing };
+    const project = document.getElementById("omSubmissionProjectFilter");
+    const phase = document.getElementById("omSubmissionPhaseFilter");
+    const level1 = document.getElementById("omSubmissionLevel1Filter");
+    const level2 = document.getElementById("omSubmissionLevel2Filter");
+    const level3 = document.getElementById("omSubmissionLevel3Filter");
+    const item = document.getElementById("omSubmissionItemFilter");
+    const statusButton = document.querySelector('[data-om-stage-filter="pendingPasDemand"]');
+    statusButton?.click();
+    const statusOnly = {
+      active: statusButton?.classList.contains("active"),
+      label: document.getElementById("omSubmissionScopeLabel")?.textContent || "",
+    };
+    const projectOption = valueOptions(project)[0]?.value || "";
+    const phaseOption = valueOptions(phase)[0]?.value || "";
+    if (projectOption) change(project, projectOption);
+    if (phaseOption) change(phase, phaseOption);
+    const scopedStatus = document.getElementById("omSubmissionScopeLabel")?.textContent || "";
+    const lv2DisabledBefore = level2.disabled;
+    const lv1Option = valueOptions(level1)[0]?.value || "";
+    if (lv1Option) change(level1, lv1Option);
+    const lv2EnabledAfterLv1 = !level2.disabled;
+    const lv2Option = valueOptions(level2)[0]?.value || "";
+    if (lv2Option) change(level2, lv2Option);
+    const lv3EnabledAfterLv2 = !level3.disabled;
+    const lv3Option = valueOptions(level3)[0]?.value || "";
+    if (lv3Option) change(level3, lv3Option);
+    const itemEnabledAfterLv3 = !item.disabled;
+    document.querySelector('[data-action="clearOmSubmissionFilters"]')?.click();
+    const clearState = {
+      project: project.value,
+      phase: phase.value,
+      level1: level1.value,
+      level2: level2.value,
+      level3: level3.value,
+      item: item.value,
+      activeAll: document.querySelector('[data-om-stage-filter="all"]')?.classList.contains("active"),
+      label: document.getElementById("omSubmissionScopeLabel")?.textContent || "",
+    };
+    return {
+      missing,
+      hasCategoryRail: Boolean(document.getElementById("omCategoryFilterRows")),
+      hasCategoryButtons: Boolean(document.querySelector("[data-om-category-filter]")),
+      statusOnly,
+      projectOption,
+      phaseOption,
+      scopedStatus,
+      lv2DisabledBefore,
+      lv1Option,
+      lv2EnabledAfterLv1,
+      lv2Option,
+      lv3EnabledAfterLv2,
+      lv3Option,
+      itemEnabledAfterLv3,
+      clearState,
+    };
+  });
+  if (omSubmissionFilterAudit.missing?.length) {
+    throw new Error(`OM submission toolbar missing controls: ${omSubmissionFilterAudit.missing.join(", ")}`);
+  }
+  if (omSubmissionFilterAudit.hasCategoryRail || omSubmissionFilterAudit.hasCategoryButtons) {
+    throw new Error(`OM submission toolbar still renders category chip rail: ${JSON.stringify(omSubmissionFilterAudit)}`);
+  }
+  if (!omSubmissionFilterAudit.statusOnly.active || !/Pending PAS Demand/.test(omSubmissionFilterAudit.statusOnly.label)) {
+    throw new Error(`OM status-only filter did not activate globally: ${JSON.stringify(omSubmissionFilterAudit.statusOnly)}`);
+  }
+  if (!omSubmissionFilterAudit.projectOption || !omSubmissionFilterAudit.phaseOption || !/Pending PAS Demand/.test(omSubmissionFilterAudit.scopedStatus)) {
+    throw new Error(`OM Project + Phase + status filter did not produce a scoped label: ${JSON.stringify(omSubmissionFilterAudit)}`);
+  }
+  if (!omSubmissionFilterAudit.lv2DisabledBefore || !omSubmissionFilterAudit.lv1Option || !omSubmissionFilterAudit.lv2Option || !omSubmissionFilterAudit.lv3Option) {
+    throw new Error(`OM LV cascade smoke did not find a complete LV123 path: ${JSON.stringify(omSubmissionFilterAudit)}`);
+  }
+  if (!omSubmissionFilterAudit.lv2EnabledAfterLv1 || !omSubmissionFilterAudit.lv3EnabledAfterLv2 || !omSubmissionFilterAudit.itemEnabledAfterLv3) {
+    throw new Error(`OM LV cascade did not enable children in order: ${JSON.stringify(omSubmissionFilterAudit)}`);
+  }
+  if (
+    omSubmissionFilterAudit.clearState.project
+    || omSubmissionFilterAudit.clearState.phase
+    || omSubmissionFilterAudit.clearState.level1
+    || omSubmissionFilterAudit.clearState.level2
+    || omSubmissionFilterAudit.clearState.level3
+    || omSubmissionFilterAudit.clearState.item
+    || !omSubmissionFilterAudit.clearState.activeAll
+  ) {
+    throw new Error(`OM Clear Filters did not reset toolbar state: ${JSON.stringify(omSubmissionFilterAudit.clearState)}`);
+  }
   await page.evaluate(() => window.setOmTab?.("quoteExpiry"));
   await page.waitForTimeout(250);
   await assertTableHasRows(page, ".om-expiry-table", "OM Leader Quotation DB table");

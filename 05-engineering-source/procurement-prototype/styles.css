@@ -1248,6 +1248,14 @@ a {
   margin-bottom: 2px;
 }
 
+.workspace-inline-title {
+  margin: 0 0 10px;
+  color: #344250;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
 .manager-filters label {
   display: grid;
   gap: 8px;
@@ -1269,14 +1277,119 @@ a {
 }
 
 .om-submission-toolbar {
-  grid-template-columns: minmax(170px, max-content) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "title actions"
-    "filters filters"
-    "scope scope";
-  align-items: center;
+    "title"
+    "filters"
+    "status"
+    "scope";
   gap: 10px 12px;
   margin-bottom: 12px;
+  align-items: start;
+}
+
+.om-submission-toolbar .toolbar-label,
+.om-submission-toolbar .scope-label {
+  grid-column: 1 / -1;
+}
+
+.om-submission-filter-grid {
+  grid-area: filters;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.om-status-filter-row {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.om-stage-filter {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  flex: 1 1 520px;
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #edf3f7;
+}
+
+.om-stage-filter .segment {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #304355;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.om-stage-filter .segment:hover {
+  background: #fff;
+}
+
+.om-stage-filter .segment.active {
+  background: #fff;
+  color: var(--navy);
+  box-shadow: 0 0 0 1px #b8c8d6;
+}
+
+.om-submission-toolbar [data-action="clearOmSubmissionFilters"] {
+  justify-self: end;
+  width: auto;
+  min-width: 118px;
+  flex: 0 0 auto;
+}
+
+.om-category-cell,
+.om-estimate-cell,
+.om-sla-cell,
+.om-readonly-action {
+  display: grid;
+  gap: 4px;
+}
+
+.om-category-cell strong,
+.om-estimate-cell strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.om-category-cell span,
+.om-category-cell small,
+.om-estimate-cell span,
+.om-sla-cell small {
+  color: #5c6770;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.om-row-overdue td {
+  background: #fff4e8;
+  box-shadow: inset 3px 0 0 #d26f26;
+}
+
+.om-progress-remark {
+  max-width: 240px;
+  color: #8a3f15;
+  font-weight: 800;
+}
+
+.om-readonly-action {
+  min-width: 150px;
+  max-width: 210px;
 }
 
 .om-submission-toolbar > .toolbar-label {

@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="mva-local-preview-version" content="20260629-local-preview-v11" />
+    <meta name="mva-local-preview-version" content="20260629-local-preview-v12" />
     <title>FIH Equipment Management Handoff System</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./layout-contract.css?v=20260629-local-preview-v11" />
-    <link rel="stylesheet" href="./carryover-extension.css?v=20260629-local-preview-v11" />
-    <link rel="stylesheet" href="./styles.css?v=20260629-local-preview-v11" />
+    <link rel="stylesheet" href="./layout-contract.css?v=20260629-local-preview-v12" />
+    <link rel="stylesheet" href="./carryover-extension.css?v=20260629-local-preview-v12" />
+    <link rel="stylesheet" href="./styles.css?v=20260629-local-preview-v12" />
   </head>
   <body>
     <main id="app">
@@ -97,7 +97,7 @@
         <section class="view" data-view="projectStatus">
           <div class="section-head-tight">
             <h2>Request Tracking</h2>
-            <p class="muted">Read-only per-request cross-role progress overview using the manager-accepted Demand Cost Dashboard and station matrices.</p>
+            <p class="muted">Read-only line-opening cost overview using the manager-accepted Demand Cost Dashboard and station matrices.</p>
           </div>
           <div class="page-toolbar compact-toolbar">
             <label>
@@ -1034,8 +1034,9 @@
         </section>
 
         <section class="view" data-view="om">
+          <div class="workspace-inline-title">OM Purchasing</div>
           <div class="inner-tabs om-tabs" aria-label="OM purchasing sections">
-            <button class="inner-tab active" data-om-tab="submission">Submission Dashboard</button>
+            <button class="inner-tab active" data-om-tab="submission">OM Leader Console</button>
             <button class="inner-tab" data-om-tab="pasRequest">PAS Demand No</button>
             <button class="inner-tab" data-om-tab="quoteConfirm">Quote Result</button>
             <button class="inner-tab" data-om-tab="quoteExpiry">Quotation DB</button>
@@ -1108,8 +1109,8 @@
               </div>
             </section>
             <div class="manager-progress-toolbar om-submission-toolbar">
-              <div class="toolbar-label">Submission Status Scope</div>
-              <div class="manager-progress-controls">
+              <div class="toolbar-label">OM Purchasing · OM Leader Console</div>
+              <div class="manager-progress-controls om-submission-filter-grid" aria-label="OM submission scope filters">
                 <label>
                   Year Project
                   <select id="omSubmissionYearFilter">
@@ -1122,61 +1123,49 @@
                     <option value="">All projects</option>
                   </select>
                 </label>
-                <label data-om-item-scope>
+                <label>
+                  Phase
+                  <select id="omSubmissionPhaseFilter">
+                    <option value="">All phases</option>
+                  </select>
+                </label>
+                <label>
                   LV1
                   <select id="omSubmissionLevel1Filter">
                     <option value="">All LV1</option>
                   </select>
                 </label>
-                <label data-om-item-scope>
+                <label>
                   LV2
                   <select id="omSubmissionLevel2Filter" disabled>
                     <option value="">Select LV1 first</option>
                   </select>
                 </label>
-                <label data-om-item-scope>
+                <label>
                   LV3
                   <select id="omSubmissionLevel3Filter" disabled>
                     <option value="">Select LV2 first</option>
                   </select>
                 </label>
-                <label data-om-item-scope>
+                <label>
                   Item
                   <select id="omSubmissionItemFilter" disabled>
                     <option value="">Select LV123 first</option>
                   </select>
                 </label>
-                <label>
-                  Process
-                  <select id="omSubmissionProcessFilter">
-                    <option value="">All process</option>
-                  </select>
-                </label>
-                <label>
-                  Stage
-                  <select id="omSubmissionStageFilter">
-                    <option value="">All stage</option>
-                  </select>
-                </label>
-                <label>
-                  Department
-                  <select id="omSubmissionDepartmentFilter">
-                    <option value="">All departments</option>
-                  </select>
-                </label>
               </div>
-              <div class="manager-risk-controls" aria-label="OM submission risk filters">
-                <label class="risk-toggle">
-                  <input id="omSubmissionLateOnly" type="checkbox" />
-                  <span>Late only</span>
-                </label>
-                <label class="risk-toggle">
-                  <input id="omSubmissionPendingOnly" type="checkbox" />
-                  <span>Pending only</span>
-                </label>
+              <div class="om-status-filter-row">
+                <div class="segmented-control om-stage-filter" role="group" aria-label="OM status filter">
+                  <button class="segment active" type="button" data-om-stage-filter="all">All</button>
+                  <button class="segment" type="button" data-om-stage-filter="pendingPasDemand">Pending PAS Demand</button>
+                  <button class="segment" type="button" data-om-stage-filter="pendingBiddingResult">Pending Bidding Result</button>
+                  <button class="segment" type="button" data-om-stage-filter="readyToExport">Ready to Export</button>
+                  <button class="segment" type="button" data-om-stage-filter="buyerHandoff">Buyer Handoff / PR</button>
+                  <button class="segment" type="button" data-om-stage-filter="overdue">Overdue</button>
+                </div>
                 <button class="ghost" type="button" data-action="clearOmSubmissionFilters">Clear Filters</button>
               </div>
-              <div class="scope-label" id="omSubmissionScopeLabel">Project View · All projects pending</div>
+              <div class="scope-label" id="omSubmissionScopeLabel">All year projects · All projects · All phases · All LV123 · All items · All active OM stages</div>
             </div>
             <div class="summary-grid" id="omSubmissionSummary"></div>
             <div id="omSubmissionTriage" class="queue-triage-strip"></div>
@@ -1185,12 +1174,17 @@
                 <thead>
                   <tr>
                     <th>Request ID</th>
-                    <th>Project</th>
-                    <th>Item</th>
+                    <th>Category</th>
+                    <th>Item / Spec</th>
+                    <th>Project / Phase</th>
                     <th>Qty</th>
-                    <th>Submitted / OM Received</th>
-                    <th>Owner / Stage</th>
-                    <th>Days in Current Stage</th>
+                    <th>Estimated Unit / Amount</th>
+                    <th>Current Stage</th>
+                    <th>Stage Entered</th>
+                    <th>SLA Status</th>
+                    <th>Assignee</th>
+                    <th>Buyer Handoff / PR</th>
+                    <th>Remark</th>
                     <th>Detail</th>
                   </tr>
                 </thead>
@@ -1484,7 +1478,7 @@
               </div>
               <div id="priceReviewWorkspaceBanner" class="decision-explain-strip" hidden></div>
               <div id="priceReviewQueueTabs" class="pending-work-queue-tabs"></div>
-              <p id="priceReviewQueueHelper" class="muted">Select a row for approval actions. Request tracking is available in the top-level Request Tracking tab.</p>
+              <p id="priceReviewQueueHelper" class="muted">Select a row for approval actions. Project tracking is available in the top-level Request Tracking tab.</p>
               <div id="priceReviewPendingWorkspace" class="pending-work-host"></div>
             </section>
           </section>
@@ -2338,29 +2332,30 @@
         </section>
       </div>
     </main>
-    <script src="./real-data-seeds.js?v=20260629-local-preview-v11"></script>
-    <script src="./requester-responsibility-data.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/shared-formatters.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/role-guards.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/quote-validity.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/om-business-flow.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/demand-cost-dashboard.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/price-decision.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/lead-time.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/purpose-date.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/workflow-status.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/workflow-status-table.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/material-coding.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/sap-po-raw-contract.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/horizontal-table-navigator.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/request-worksheet-matrix.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/approval-workbench.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/approval-quantity-review.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/approval-review-surface.js?v=20260629-local-preview-v11"></script>
-    <script src="./app-modules/role-queue-config.js?v=20260629-local-preview-v11"></script>
-    <script src="./app.js?v=20260629-local-preview-v11"></script>
-    <script src="./user-a-flow.js?v=20260629-local-preview-v11"></script>
-  <script src="carryover-extension.js?v=20260629-local-preview-v11"></script>
-  <script src="layout-contract.js?v=20260629-local-preview-v11"></script>
+    <script src="./real-data-seeds.js?v=20260629-local-preview-v12"></script>
+    <script src="./requester-responsibility-data.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/shared-formatters.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/role-guards.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/quote-validity.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/om-business-flow.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/demand-cost-dashboard.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/price-decision.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/lead-time.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/purpose-date.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/workflow-status.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/om-progress.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/workflow-status-table.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/material-coding.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/sap-po-raw-contract.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/horizontal-table-navigator.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/request-worksheet-matrix.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/approval-workbench.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/approval-quantity-review.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/approval-review-surface.js?v=20260629-local-preview-v12"></script>
+    <script src="./app-modules/role-queue-config.js?v=20260629-local-preview-v12"></script>
+    <script src="./app.js?v=20260629-local-preview-v12"></script>
+    <script src="./user-a-flow.js?v=20260629-local-preview-v12"></script>
+  <script src="carryover-extension.js?v=20260629-local-preview-v12"></script>
+  <script src="layout-contract.js?v=20260629-local-preview-v12"></script>
 </body>
 </html>

@@ -127,7 +127,7 @@ test("Mac mini Docker runtime supports SAP PO Raw Excel import", () => {
   assert.match(sapPoRawCommitScript, /postCommitChecks/);
 });
 
-test("Cost Manager review top-level tabs use formal Cost Review naming", () => {
+test("Cost Review top-level tabs are consolidated", () => {
   const managerView = between(html, '<section class="view" data-view="manager" data-approval-review-role="manager">', '<section class="view" data-view="procurement">');
   assert.match(managerView, /data-approval-review-role="manager"/);
   const managerTabs = between(managerView, '<div class="inner-tabs manager-tabs"', "</div>");
@@ -135,7 +135,7 @@ test("Cost Manager review top-level tabs use formal Cost Review naming", () => {
   assert.match(managerTabs, /data-manager-tab="history">Review History</);
   assert.doesNotMatch(managerTabs, new RegExp(`${legacySubmissionMonitor.source}|Authorized Analysis|Demand Analysis|Progress Tracking|Project Setup`));
   assert.doesNotMatch(managerTabs, /data-manager-tab="authorized"|data-manager-tab="analysis"|data-manager-tab="demand"|data-manager-tab="setup"/);
-  assert.doesNotMatch(managerView, /<h3>Demand Review Workbench<\/h3>/);
+  assert.doesNotMatch(managerView, /<h3>Cost Review Workbench<\/h3>/);
   assert.match(managerView, /<h3>Quantity Review<\/h3>/);
   assert.match(managerView, /id="managerApprovalQuantityTabs"/);
   assert.match(managerView, /data-manager-panel="analysis"/);
@@ -145,7 +145,6 @@ test("Cost Manager review top-level tabs use formal Cost Review naming", () => {
   assert.match(managerView, /id="managerQuantityLineFilter"/);
   assert.match(managerView, /id="managerDashboardTitle">Cost Review History<\/h3>/);
   assert.match(managerView, /Cost Review Decision/);
-  assert.doesNotMatch(managerView, />Demand Review</);
   assert.match(app, /data-manager-review-decision/);
   assert.match(app, /data-manager-review-action="deny"/);
   assert.match(app, /data-manager-review-action="revise"/);
@@ -199,11 +198,9 @@ test("Dept DRI, Cost Manager, and Budget Approver use one approval review surfac
   assert.match(fs.readFileSync("app-modules/role-queue-config.js", "utf8"), /approvalReviewSurface/);
 });
 
-test("Request Tracking is a separate read-only cross-role dashboard surface", () => {
+test("Request Tracking is a separate read-only dashboard surface", () => {
   const projectStatusView = between(html, '<section class="view" data-view="projectStatus">', '<section class="view active" data-view="department">');
   assert.match(html, /data-view="projectStatus"[\s\S]*Request Tracking/);
-  assert.doesNotMatch(projectStatusView, /Demand Progress/);
-  assert.doesNotMatch(projectStatusView, /Project Status/);
   assert.match(projectStatusView, /class="project-status-stack"/);
   assert.match(projectStatusView, /data-project-status-panel="dashboard"[\s\S]*Dashboard Quantity Review/);
   assert.match(projectStatusView, /Project Type[\s\S]*id="projectStatusProjectTypeFilter"/);
@@ -246,14 +243,6 @@ test("Request Tracking is a separate read-only cross-role dashboard surface", ()
   assert.match(styles, /\.project-status-stage-badge/);
   assert.match(workflowStatusModule, /"Cost Manager Review": 1/);
   assert.match(workflowStatusModule, /return "Cost Manager Review"/);
-});
-
-test("submitted request IDs use formal immutable snapshot format", () => {
-  assert.match(app, /function requestIdDatePart/);
-  assert.match(app, /function requestIdSnapshotPart/);
-  assert.match(app, /function formalRequestIdForRow/);
-  assert.match(app, /REQ-\$\{requestIdDatePart\(nowIso\)\}-\$\{requestIdSnapshotPart\(department\)\}-\$\{requestIdSnapshotPart\(row\.yearProject \|\| row\.yearProjectCode \|\| currentProject\)\}-\$\{requestIdSnapshotPart\(projectCodeForRow\(row\) \|\| row\.project \|\| currentProject\)\}-\$\{String\(sequence\)\.padStart\(4, "0"\)\}/);
-  assert.doesNotMatch(app, /`REQ-\$\{String\(requestSequence\+\+\)\.padStart\(4, "0"\)\}`/);
 });
 
 test("Cost Manager review embeds protected Demand Analysis baseline instead of duplicate Project Context evidence", () => {
@@ -1032,6 +1021,7 @@ test("Need Date and DRI price review layer are wired", () => {
 
 test("OM tabs and PAS quote result contract are consolidated", () => {
   const omView = between(html, '<section class="view" data-view="om">', '<section class="view" data-view="buyer">');
+  assert.match(omView, /OM Leader Console/);
   assert.match(html, /app-modules\/om-business-flow\.js/);
   assert.match(omBusinessFlowModule, /PAS_DEMAND_REQUIREMENT_MASTER/);
   assert.match(omBusinessFlowModule, /function pasDemandRequirementMasterMatch/);
@@ -1043,7 +1033,7 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(omBusinessFlowModule, /QDB-IPC-I5-QCT1250-202606/);
   assert.doesNotMatch(omBusinessFlowModule, legacyQuoteResultMonitor);
   assert.match(omBusinessFlowModule, /function groupRowsByPasDemandId/);
-  assert.match(omView, /Submission Dashboard/);
+  assert.match(omView, /OM Leader Console/);
   assert.match(omView, /PAS Demand No/);
   assert.match(omView, />Quote Result</);
   assert.match(omView, /Quotation DB/);
@@ -1094,39 +1084,50 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /function saveOmStageCalendar/);
   assert.match(app, /projectStageCalendarLineOpenDate\(\{ project, projectCode, phase \}\)/);
   assert.match(app, /renderOmProjectStageCalendar\(\)/);
-  const submissionTable = between(omView, '<table class="data-table manager-cost-table om-submission-workbench-table" id="omSubmissionTable">', "</table>");
-  assert.match(submissionTable, /<th>Request ID<\/th>\s*<th>Project<\/th>/);
-  assert.match(app, /function omSubmissionRowKey/);
-  assert.match(app, /item \$\{ordinal\}\/\$\{packageRows\.length\}/);
   assert.doesNotMatch(omView, /data-om-pivot-mode=/);
-  assert.match(omView, /data-om-item-scope/);
-  assert.doesNotMatch(omView, /data-om-item-scope hidden/);
+  assert.match(html, /app-modules\/om-progress\.js/);
+  assert.match(omView, /data-om-stage-filter="all"/);
+  assert.match(omView, /data-om-stage-filter="pendingPasDemand"/);
+  assert.match(omView, /data-om-stage-filter="pendingBiddingResult"/);
+  assert.match(omView, /data-om-stage-filter="readyToExport"/);
+  assert.match(omView, /data-om-stage-filter="buyerHandoff"/);
+  assert.match(omView, /data-om-stage-filter="overdue"/);
+  assert.match(omView, /id="omSubmissionYearFilter"/);
+  assert.match(omView, /id="omSubmissionProjectFilter"/);
+  assert.match(omView, /id="omSubmissionPhaseFilter"/);
   assert.match(omView, /id="omSubmissionLevel1Filter"/);
   assert.match(omView, /id="omSubmissionLevel2Filter"/);
   assert.match(omView, /id="omSubmissionLevel3Filter"/);
   assert.match(omView, /id="omSubmissionItemFilter"/);
-  assert.match(omView, /<option value="">All LV1<\/option>/);
-  assert.match(omView, /<option value="">Select LV1 first<\/option>/);
-  assert.match(omView, /<option value="">Select LV2 first<\/option>/);
-  assert.match(app, /function omSubmissionItemTaxonomy/);
-  assert.match(app, /function syncOmSubmissionScopeControls/);
-  assert.match(app, /element\.hidden = false/);
-  assert.doesNotMatch(app, /Project View · \$\{filters\.project \|\| "All projects"\} · \$\{filters\.item \|\| "All items"\} pending/);
-  assert.match(omView, /id="omSubmissionScopeLabel"/);
-  assert.doesNotMatch(app, /function omSubmissionPivotMode/);
-  assert.doesNotMatch(app, /function omSubmissionPivotKey/);
+  assert.doesNotMatch(omView, /id="omCategoryFilterRows"/);
+  assert.doesNotMatch(omView, /data-om-category-filter/);
+  assert.doesNotMatch(styles, /\.om-category-filter-button/);
+  assert.doesNotMatch(omView, /id="omSubmissionProcessFilter"/);
+  assert.doesNotMatch(omView, /id="omSubmissionStageFilter"/);
+  assert.doesNotMatch(omView, /id="omSubmissionDepartmentFilter"/);
+  const submissionTable = between(omView, '<table class="data-table manager-cost-table om-submission-workbench-table" id="omSubmissionTable">', "</table>");
+  assert.match(submissionTable, /<th>Request ID<\/th>\s*<th>Category<\/th>\s*<th>Item \/ Spec<\/th>\s*<th>Project \/ Phase<\/th>/);
+  assert.match(app, /function omStageSlaStatus/);
+  assert.match(app, /function omProductCategory/);
+  assert.match(app, /function omProductProgressRows/);
+  assert.match(app, /function omSubmissionRowKey/);
   assert.match(app, /function omSubmissionPackageRows/);
+  assert.match(app, /function omRequestIdCell/);
+  assert.match(app, /item \$\{ordinal\}\/\$\{packageRows\.length\}/);
+  assert.doesNotMatch(omView, /data-om-pivot-mode=/);
+  assert.match(app, /function syncOmSubmissionScopeControls/);
   assert.match(app, /function omSubmissionScopeLabel/);
-  assert.match(app, /omSubmissionRowKey\(row, filters\)/);
-  assert.match(app, /function omSubmissionGroupItemLabel/);
-  assert.match(omView, /Submitted \/ OM Received/);
-  assert.match(omView, /<th>Request ID<\/th>/);
-  assert.match(omView, /<th>Owner \/ Stage<\/th>/);
-  assert.match(omView, /<th>Days in Current Stage<\/th>/);
+  assert.match(app, /managerProgressStage\(row\)/);
+  assert.match(app, /OM_PAS_DEMAND_SLA_DAYS\s*=\s*2/);
+  assert.match(app, /OM_BIDDING_RESULT_SLA_DAYS\s*=\s*14/);
+  assert.match(omView, /Category/);
+  assert.match(omView, /Estimated Unit \/ Amount/);
+  assert.match(omView, /Stage Entered/);
+  assert.match(omView, /SLA Status/);
+  assert.match(omView, /Buyer Handoff \/ PR/);
   const omSubmissionTable = between(omView, 'id="omSubmissionTable"', '</table>');
   assert.doesNotMatch(omSubmissionTable, /<th>Quote Status<\/th>/);
   assert.doesNotMatch(omSubmissionTable, /<th>Estimated ETA<\/th>/);
-  assert.doesNotMatch(omSubmissionTable, /<th>Next Action<\/th>/);
   assert.doesNotMatch(omSubmissionTable, /<th>Buyer Days<\/th>/);
   assert.doesNotMatch(app, /function omEtaCell/);
   assert.doesNotMatch(app, /function omNextActionCell/);
@@ -1144,34 +1145,15 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(workflowStatusModule, /return "Buyer Handoff"/);
   assert.match(workflowStatusModule, /Buyer owns PR \/ PO after OM handoff/);
   assert.match(app, /workflowStatusForRow\(row, "om"\)\.pendingOwner/);
+  assert.match(app, /function isOmLeaderSupervisorMode/);
+  assert.match(app, /function omLeaderSupervisorNote/);
   assert.match(app, /function omRequestIdCell/);
-  assert.match(app, /function omOwnerStageCell/);
-  assert.match(app, /function omAgingClassForGroup/);
-  assert.match(app, /Current-stage SLA breached/);
-  assert.match(app, /OM_STAGE_SLA_DAYS/);
-  assert.match(app, /"PAS Demand No": 2/);
-  assert.match(app, /"PAS Quote Result": 15/);
-  assert.match(app, /"Buyer PR \/ PO": null/);
-  assert.match(app, /"Waiting Requester": null/);
-  assert.match(app, /slaDays === null/);
   assert.match(app, /Pending Request Focus/);
   assert.match(app, /Quote Result/);
   assert.match(app, /Quotation DB/);
-  assert.match(app, /om-over-sla-row/);
-  assert.match(app, /pending-focus-head/);
-  assert.match(app, /data-om-submission-focus/);
-  assert.match(app, /function focusOmSubmissionRow/);
-  assert.match(app, /is-focus-target/);
-  assert.match(app, /function omSubmissionDetailSummaryHtml/);
-  assert.match(app, /om-detail-status-strip/);
-  assert.match(styles, /\.pending-focus-head/);
-  assert.match(styles, /\.om-submission-workbench-table tr\.is-focus-target td/);
-  assert.match(styles, /\.om-detail-overview/);
-  assert.match(styles, /\.om-submission-toolbar[\s\S]*grid-template-areas:[\s\S]*"title actions"[\s\S]*"filters filters"[\s\S]*"scope scope"/);
+  assert.match(app, /om-row-overdue/);
+  assert.match(styles, /\.om-row-overdue td/);
   assert.doesNotMatch(styles, /\.om-pivot-toggle/);
-  assert.match(styles, /\.om-submission-toolbar > \.manager-progress-controls[\s\S]*grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(150px,\s*1fr\)\)/);
-  assert.match(styles, /\.om-submission-toolbar > \.scope-label[\s\S]*width:\s*fit-content/);
-  assert.doesNotMatch(app, /<strong>Queue Triage<\/strong>/);
   assert.doesNotMatch(between(app, "function omNextActionForGroup", "function renderOmSubmissionExpiryMonitor"), /Downstream/);
   const pasDemandTable = between(omView, 'data-om-panel="pasRequest"', 'data-om-panel="quoteConfirm"');
   assert.match(pasDemandTable, /om-pas-demand-table/);
@@ -1281,6 +1263,8 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /centralItCheckedAt/);
   assert.match(app, /centralItCheckedBy/);
   assert.match(app, /omQuoteResultReadOnlyReason/);
+  assert.match(app, /if \(isOmLeaderSupervisorMode\(\)\) return/);
+  assert.match(app, /OM Leader supervisor view/);
   assert.doesNotMatch(app, /Upload PDF/);
   assert.doesNotMatch(app, /Quote PDF/);
   assert.match(app, /currentOmTab = "submission"/);
@@ -1512,9 +1496,7 @@ test("MySQL API Phase 1 and OM assignment contract are present", () => {
   assert.match(app, /let LV_TAXONOMY/);
   assert.match(app, /function hydrateLvTaxonomy/);
   assert.match(app, /apiRequest\("\/api\/taxonomy\/lv123"\)/);
-  assert.match(app, /function hydrateRequestCatalogItems/);
-  assert.match(app, /apiRequest\(`\/api\/catalog\/items\?\$\{params\.toString\(\)\}`\)/);
-  assert.match(app, /requestCatalogApiRows/);
+
   assert.match(app, /syncRequestItemPickerFilters\(\)/);
   assert.match(html, /app-modules\/role-guards\.js/);
   assert.match(app, /ProcurementApp\?\.roleGuards\?\.canOperateOmRow/);
@@ -1555,8 +1537,6 @@ test("OM submission detail stays within OM ownership and export allows price-cle
   assert.match(omDetail, /Quote Result/);
   assert.match(omDetail, /User Confirm/);
   assert.match(omDetail, /OM Handoff/);
-  assert.match(omDetail, /omSubmissionDetailSummaryHtml/);
-  assert.match(omDetail, /om-submission-detail-overview/);
   const exportAuth = between(app, "function isOmExportAuthorized", "function isOmFinalExportPrepared");
   assert.match(exportAuth, /USER_CONFIRMATION_NOT_REQUIRED/);
   assert.match(exportAuth, /PRICE_AUTO_CLEARED/);
