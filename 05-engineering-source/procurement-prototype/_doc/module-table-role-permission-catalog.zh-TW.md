@@ -27,7 +27,7 @@
 | `Budget Approver` | Project DRI | 最終預算/價格異常核准 | Dept DRI 通過後的 budget / price review rows | 不處理 requester 建單細節；不做 OM 作業 |
 | `Cost Manager` | Manager B / Cost Owner | Dept DRI 後的下一層成本授權者 | Dept DRI approved rows、Quantity Dashboard、Quantity Detail Matrix、Review History | 不提供獨立 Demand Analysis；不做 requester demand / OM export / project setup |
 | `OM Leader` | Mai / OM leader | OM 派工、匯率、全 OM row 操作、UAT OM orchestration | 所有 OM work rows、assignment、exchange rate、OM orchestration | 不取代 Dept DRI / Budget Approver 的 business approval |
-| `OM Purchasing` | Giang / Linh / OM member | 處理被派工的 PAS Demand No、Quote Result / Monitor、Export Package | assigned rows | 不派工；不改匯率；不操作未派工 rows |
+| `OM Purchasing` | Giang / Linh / OM member | 處理被派工的 PAS Demand No、My Quote Result、Export Package | assigned rows | 不派工；不改匯率；不操作未派工 rows |
 | `Admin` | System admin | 使用者、角色、mapping、threshold、approval chain、OM member setup、audit setup | 設定資料與測試資料 | 不做 business approval，除非未來另開 emergency override 並強制 audit |
 | `Buyer Handoff` | downstream / Buyer | OM export 後承接 PR / PO / buyer execution | prototype 內主要是狀態呈現 | 不應被叫作 `Downstream`；畫面文案用 `Buyer Handoff` 或 `Buyer PR / PO` |
 
@@ -62,7 +62,7 @@
 | 表格類型 | 用途 | 典型角色 / 頁面 | 主設計原則 | 可封裝元件 |
 | --- | --- | --- | --- | --- |
 | `form-table` | 輸入、草稿、選品、requester 操作 | Requester Draft Demand Lines、Search Catalog、Reuse Existing Item、Import Demand Package | action 永遠可見；長文字摘要；不塞完整 spec | `FormTable`, `ActionStack`, `SpecSummaryCell`, `IdentityCell` |
-| `workflow-table` | 流程 queue / 操作台 | Dept DRI queue、Budget Approver queue、OM PAS Demand No、Quote Result / Monitor、Export Package | 只顯示當下下一步；action 短文案；狀態清楚 | `WorkflowTable`, `WorkflowActionCell`, `StatusBadge`, `NextActionCell` |
+| `workflow-table` | 流程 queue / 操作台 | Dept DRI queue、Budget Approver queue、OM PAS Demand No、Quote Result、Export Package | 只顯示當下下一步；action 短文案；狀態清楚 | `WorkflowTable`, `WorkflowActionCell`, `StatusBadge`, `NextActionCell` |
 | `status-monitor-table` | 進度追蹤 / submission monitor | Request Tracking、Requester Request Status、Cost Manager Review History、OM Submission Dashboard | pending owner、current stage、days pending、next action；不要 PR/PO 百分比當主欄位 | `WorkflowStatusTable`, `TimelineChips`, `PendingOwnerCell` |
 | `dense-dashboard-table` | 高密度成本/單位總覽 | 三角色 Review Evidence Demand Cost Dashboard | Excel-like，可橫向 scroll；數字意義不可被截斷 | `DemandCostEvidence`, `DepartmentCostCell`, `CostQtyCell` |
 | `matrix-table` | Station Matrix drilldown | 三角色 Review Evidence Station Matrix | 第二層 detail；保留 Excel-like；只在 table shell 內水平捲動 | `StationMatrixTable`, `MatrixHeader`, `StationQtyCell` |
@@ -139,7 +139,8 @@ Budget Approver 只看最終金額、variance、history price delta、temporary 
 | --- | --- | --- | --- |
 | Submission Dashboard | `status-monitor-table` | OM 角度看 pending owner、stage、days pending、quote status、next action | `WorkflowStatusTable(role=om)` |
 | PAS Demand No | `workflow-table` | 輸入 PAS Demand No / move to quote | `OmPasDemandNoTable` |
-| Quote Result / Monitor | `workflow-table` | 輸入 PAS Quote Result stage 的 PAS material、vendor、price、quote date、valid until、metadata attachments | `OmQuoteResultTable` + `QuoteResultCard` |
+| Quote Result | `workflow-table` | 輸入 PAS Quote Result stage 的 PAS material、vendor、price、quote date、valid until、metadata attachments | `OmQuoteResultTable` + `QuoteResultCard` |
+| Quotation DB | `status-monitor-table` | 整合可 reuse 報價紀錄、Central IT confirmation 狀態、quote validity / expiry risk | `OmQuotationDbTable` |
 | Export Package | `workflow-table` | Expense/Capex、CFA/ECS package、export package | `OmExportPackageTable` |
 | Assignment Controls | row action / select | Mai assign / reassign / clear | `AssignmentControl` |
 | Exchange Rate Utility | toolbar utility | OM Leader 維護匯率 | `ExchangeRateUtility` |
@@ -195,7 +196,7 @@ Admin 是設定角色，不是 business approval 角色。
 | `ColumnContract` | 明確 colgroup + cell type，避免 nth-child 猜欄 | Picker、workflow、dashboard、matrix |
 | `ActionStack` | 表格內短按鈕垂直排列 | Draft、Reuse、OM、Admin |
 | `StatusBadge` | Applied / Pending / Rejected / Expiring / Auto Cleared | 全角色 |
-| `TimelineChips` | key milestone chips | Request Status、Submission Monitor |
+| `TimelineChips` | key milestone chips | Request Status、Submission Dashboard |
 | `WorkflowStatusTable` | 同一份 status model，不同角色透明度 | Requester、Cost Owner、OM |
 | `DetailModal` | 完整 spec / source trace / quote / audit | 全角色 |
 | `DemandScopeSelector` | MFG/Non-MFG、line、stage、station/unit | Requester Add Demand |
@@ -324,7 +325,7 @@ workflow rows 仍主要在 prototype 前端資料中。API 化時不要讓 UI �
    - 可作 workflow table + ledger table hybrid 的模板。
 
 8. **OMWorkflowTable**
-   - 先從 PAS Demand No / Export Package 開始，最後才碰 Quote Result / Monitor。
+   - 先從 PAS Demand No / Export Package 開始，最後才碰 Quote Result。
    - 必須保留 assignment guard，不可讓 OM member 操作未派工 rows。
 
 9. **Requester ItemPickerTable**

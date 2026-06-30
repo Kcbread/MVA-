@@ -118,6 +118,45 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   if (carryoverCurrency.unitPriceVnd !== carryoverCurrency.expectedVnd || carryoverCurrency.pendingSavingUsd !== 0 || carryoverCurrency.appliedSavingUsd !== 600) {
     throw new Error(`Carryover currency conversion failed: ${JSON.stringify(carryoverCurrency)}`);
   }
+  const omBusinessFlowAudit = await page.evaluate(() => {
+    const flow = window.ProcurementApp?.modules?.omBusinessFlow;
+    if (!flow) return { missing: true };
+    const hard = flow.pasDemandRequirement({ name: "Mini PC", spec: "Industrial IPC i5" });
+    const optional = flow.pasDemandRequirement({ name: "Office Chair", spec: "Meeting room" });
+    const reusable = flow.quoteDbCandidateStatus(
+      {
+        id: "Q-1",
+        normalizedNameSpecKey: flow.normalizedNameSpecKey({ name: "Mini PC", spec: "Industrial IPC i5" }),
+        quoteValidUntil: "2026-07-01",
+        referenceQty: 1,
+      },
+      {
+        name: "Mini PC",
+        spec: "Industrial IPC i5",
+        quoteDbCandidateId: "Q-1",
+        centralItCheckedAt: "2026-06-18T08:00:00Z",
+        qty: 999,
+      },
+      new Date("2026-06-18T00:00:00Z"),
+    );
+    return {
+      hardRequired: hard.required,
+      hardLabel: hard.label,
+      optionalRequired: optional.required,
+      reusableStatus: reusable.status,
+      quantityBlocksReuse: reusable.quantityBlocksReuse,
+    };
+  });
+  if (
+    omBusinessFlowAudit.missing ||
+    !omBusinessFlowAudit.hardRequired ||
+    omBusinessFlowAudit.hardLabel !== "PAS Demand ID Required" ||
+    omBusinessFlowAudit.optionalRequired ||
+    omBusinessFlowAudit.reusableStatus !== "Reusable" ||
+    omBusinessFlowAudit.quantityBlocksReuse
+  ) {
+    throw new Error(`OM business flow browser module audit failed: ${JSON.stringify(omBusinessFlowAudit)}`);
+  }
 
   await page.evaluate(() => {
     window.setScreen?.("workspace");
@@ -503,28 +542,38 @@ async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}
   }
   await page.evaluate(() => window.setOmTab?.("quoteExpiry"));
   await page.waitForTimeout(250);
-  await assertTableHasRows(page, ".om-expiry-table", "OM Leader Quote Expiry Watch table");
-  await assertNoPageOverflow(page, "OM Leader Quote Expiry Watch shell");
-  await assertVisibleTableCellsDoNotOverlap(page, ".om-expiry-table", "OM Leader Quote Expiry Watch table");
+  await assertTableHasRows(page, ".om-expiry-table", "OM Leader Quotation DB table");
+  await assertNoPageOverflow(page, "OM Leader Quotation DB shell");
+  await assertVisibleTableCellsDoNotOverlap(page, ".om-expiry-table", "OM Leader Quotation DB table");
 
   await page.evaluate(() => {
     window.applyRole?.("omMember");
     window.setView?.("om");
   });
   await page.waitForTimeout(250);
+  await page.evaluate(() => window.setOmTab?.("pasRequest"));
+  await page.waitForTimeout(250);
+  await assertTableHasRows(page, ".om-pas-demand-table", "OM My Intake table");
+  await assertNoPageOverflow(page, "OM My Intake shell");
+  await assertButtonsStayInsideCells(page, ".om-pas-demand-table tbody button", "OM My Intake actions");
+  await assertVisibleTableCellsDoNotOverlap(page, ".om-pas-demand-table", "OM My Intake table");
+  const myIntakeText = await page.locator(".om-pas-demand-table tbody").innerText();
+  if (!myIntakeText.includes("Apply") || (!myIntakeText.includes("VVN0000011") && !myIntakeText.includes("VVN0010445"))) {
+    throw new Error(`OM My Intake should render actionable Quotation DB candidates, saw: ${myIntakeText.slice(0, 500)}`);
+  }
   await page.evaluate(() => window.setOmTab?.("quoteConfirm"));
   await page.waitForTimeout(250);
-  await assertTableHasRows(page, ".om-quote-result-table", "OM Quote Result / Monitor table");
-  await assertNoPageOverflow(page, "OM Quote Result / Monitor shell");
-  await assertButtonsStayInsideCells(page, ".om-quote-result-table tbody button", "OM Quote Result / Monitor actions");
-  await assertVisibleTableCellsDoNotOverlap(page, ".om-quote-result-table", "OM Quote Result / Monitor table");
-  await assertRowHeights(page, ".om-quote-result-table", { min: 34, max: 118 }, "OM Quote Result / Monitor row height");
+  await assertTableHasRows(page, ".om-quote-result-table", "OM Quote Result table");
+  await assertNoPageOverflow(page, "OM Quote Result shell");
+  await assertButtonsStayInsideCells(page, ".om-quote-result-table tbody button", "OM Quote Result actions");
+  await assertVisibleTableCellsDoNotOverlap(page, ".om-quote-result-table", "OM Quote Result table");
+  await assertRowHeights(page, ".om-quote-result-table", { min: 34, max: 118 }, "OM Quote Result row height");
   const quoteScroll = await page.locator(".om-quote-result-wrap").evaluate((wrap) => ({
     scrollWidth: wrap.scrollWidth,
     clientWidth: wrap.clientWidth,
   }));
   if (quoteScroll.scrollWidth <= quoteScroll.clientWidth) {
-    throw new Error(`OM Quote Result / Monitor should scroll inside table shell: ${quoteScroll.scrollWidth} <= ${quoteScroll.clientWidth}`);
+    throw new Error(`OM Quote Result should scroll inside table shell: ${quoteScroll.scrollWidth} <= ${quoteScroll.clientWidth}`);
   }
 
   for (const viewport of [

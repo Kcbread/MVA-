@@ -1614,6 +1614,13 @@ a {
   font-weight: 800;
 }
 
+.phase-jump-chip small {
+  display: block;
+  color: #5c7280;
+  font-size: 9px;
+  line-height: 1;
+}
+
 .phase-jump-chip.active {
   border-color: #2f78a8;
   background: #e8f4fb;
@@ -1835,6 +1842,14 @@ a {
   font-size: 11px;
   text-align: center !important;
   vertical-align: middle !important;
+}
+
+.request-phase-group-head small {
+  display: block;
+  margin-top: 2px;
+  color: #526b7a;
+  font-size: 9px;
+  line-height: 1.1;
 }
 
 .request-stage-head {
@@ -6932,14 +6947,14 @@ tr.approval-pipeline-current td {
   white-space: normal;
 }
 
-/* OM Quote Result / Monitor: Excel-like inline input workbench. */
+/* OM Quote Result: Excel-like inline input workbench. */
 .om-quote-result-wrap {
   max-width: 100%;
   overflow-x: auto;
 }
 
 .om-quote-result-table {
-  min-width: 2320px;
+  min-width: 2510px;
   table-layout: fixed;
 }
 
@@ -6961,6 +6976,7 @@ tr.approval-pipeline-current td {
 .om-quote-result-table col.om-quote-col-item { width: 280px; }
 .om-quote-result-table col.om-quote-col-qty { width: 72px; }
 .om-quote-result-table col.om-quote-col-demand { width: 150px; }
+.om-quote-result-table col.om-quote-col-group { width: 190px; }
 .om-quote-result-table col.om-quote-col-material { width: 160px; }
 .om-quote-result-table col.om-quote-col-vendor { width: 160px; }
 .om-quote-result-table col.om-quote-col-vendor-code { width: 130px; }
@@ -6972,7 +6988,7 @@ tr.approval-pipeline-current td {
 .om-quote-result-table col.om-quote-col-days { width: 124px; }
 .om-quote-result-table col.om-quote-col-action { width: 190px; }
 .om-quote-result-table col.om-quote-col-assignee { width: 170px; }
-.om-quote-result-table col.om-quote-col-actions { width: 112px; }
+.om-quote-result-table col.om-quote-col-actions { width: 156px; }
 .om-quote-result-table col.om-quote-col-detail { width: 80px; }
 
 .om-quote-result-table td:nth-child(1),
@@ -7036,11 +7052,61 @@ tr.approval-pipeline-current td {
 }
 
 .om-quote-file-stack,
+.pas-excel-group-cell,
 .om-quote-completion-cell,
 .om-quote-action-stack {
   display: grid;
   gap: 5px;
   min-width: 0;
+}
+
+.pas-demand-group-suggestion,
+.pas-excel-group-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pas-demand-group-suggestion {
+  padding: 4px 6px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.pas-demand-group-suggestion span {
+  color: #475569;
+}
+
+.segmented-mini {
+  display: grid;
+  gap: 4px;
+}
+
+.segmented-mini label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 3px 6px;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.segmented-mini input[type="radio"] {
+  margin: 0;
+  flex: 0 0 auto;
+  width: 13px;
+  min-width: 13px;
+  height: 13px;
+  min-height: 13px;
 }
 
 .om-quote-file-stack .mini {
@@ -7634,11 +7700,15 @@ tr.approval-pipeline-current td {
 .om-final-export-table col.om-export-col-qty { width: 64px; }
 .om-final-export-table col.om-export-col-assignee { width: 150px; }
 .om-final-export-table col.om-export-col-package { width: 132px; }
+.om-final-export-table col.om-export-col-purpose { width: 120px; }
+.om-final-export-table col.om-export-col-budget { width: 180px; }
 .om-final-export-table col.om-export-col-pas { width: 260px; }
 .om-final-export-table col.om-export-col-attachments { width: 146px; }
 .om-final-export-table col.om-export-col-decision { width: 120px; }
 .om-final-export-table col.om-export-col-target { width: 132px; }
 .om-final-export-table col.om-export-col-status { width: 150px; }
+.om-final-export-table col.om-export-col-procurement { width: 220px; }
+.om-final-export-table col.om-export-col-arrival { width: 180px; }
 .om-final-export-table col.om-export-col-date { width: 96px; }
 .om-final-export-table col.om-export-col-actions { width: 112px; }
 .om-final-export-table col.om-export-col-contact { width: 84px; }
@@ -9118,6 +9188,68 @@ tr.approval-pipeline-current td {
   line-height: 1.35;
 }
 
+.om-stage-calendar-utility {
+  margin: 0 0 10px;
+  padding: 8px;
+  border: 1px solid #d7e1e8;
+  background: #f8fbfd;
+}
+
+.om-stage-calendar-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.om-stage-calendar-head > strong {
+  color: #24445c;
+  font-size: 13px;
+}
+
+.om-stage-calendar-grid {
+  display: grid;
+  grid-template-columns: minmax(132px, 1fr) minmax(132px, 1fr) minmax(104px, 0.8fr) minmax(132px, 0.9fr) max-content;
+  gap: 8px;
+  align-items: end;
+}
+
+.om-stage-calendar-grid label {
+  display: grid;
+  gap: 4px;
+  color: #52616a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.om-stage-calendar-grid select,
+.om-stage-calendar-grid input {
+  min-height: 30px;
+  padding: 4px 6px;
+  border: 1px solid #c9d6de;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.om-stage-calendar-save {
+  width: auto !important;
+  min-width: 84px !important;
+  min-height: 30px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.om-stage-calendar-wrap {
+  max-height: 190px;
+  margin-top: 8px;
+  overflow: auto;
+}
+
+.om-stage-calendar-table {
+  min-width: 760px;
+}
+
 @media (max-width: 760px) {
   .item-picker-card {
     width: calc(100vw - 18px);
@@ -9126,7 +9258,8 @@ tr.approval-pipeline-current td {
 
   .item-picker-section .filter-bar,
   .history-filter,
-  .om-rate-utility .om-rate-grid {
+  .om-rate-utility .om-rate-grid,
+  .om-stage-calendar-grid {
     grid-template-columns: 1fr;
   }
 
@@ -9370,6 +9503,28 @@ tr.approval-pipeline-current td {
   min-width: 0;
 }
 
+.request-required-delivery-control {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: #52616a;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.request-required-delivery-control input {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 2px 4px;
+  border: 1px solid #c9d6de;
+  border-radius: 6px;
+  background: #fff;
+  color: #152935;
+  font-size: 10px;
+}
+
 .request-action-label {
   color: #52616a;
   font-size: 9px;
@@ -9583,10 +9738,10 @@ tr.approval-pipeline-current td {
   max-width: 100%;
 }
 
-/* OM PAS Demand No workbench: this tab is for entering demand numbers only. */
+/* OM PAS Demand No workbench: demand intake plus Quotation DB candidate apply. */
 .om-pas-demand-table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 1810px;
   table-layout: fixed !important;
 }
 
@@ -9608,6 +9763,10 @@ tr.approval-pipeline-current td {
 
 .om-pas-demand-table col.om-pas-col-demand {
   width: 230px;
+}
+
+.om-pas-demand-table col.om-pas-col-quote-db {
+  width: 260px;
 }
 
 .om-pas-demand-table col.om-pas-col-owner {
@@ -12564,6 +12723,81 @@ tr.approval-pipeline-current td {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 8px;
+}
+
+.om-quote-db-card,
+.om-purpose-cell,
+.om-procurement-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.om-procurement-cell label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.om-procurement-cell label span {
+  color: #47606b;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.om-procurement-cell input,
+.om-procurement-cell select {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 3px 6px;
+  border: 1px solid #c8d8e0;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--navy);
+  font-size: 12px;
+}
+
+.om-quote-db-card {
+  border-top: 1px solid #dbe7ee;
+}
+
+.om-quote-db-card.compact {
+  gap: 3px;
+}
+
+.om-quote-db-card-dense {
+  align-items: center;
+  border-top: 0;
+  gap: 2px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-top: 1px;
+}
+
+.om-quote-db-card-dense .om-cell-helper {
+  grid-column: 1 / -1;
+}
+
+.om-quote-db-card.compact .reason-text,
+.om-quote-db-card.compact .om-cell-helper {
+  display: block;
+  font-size: 10px;
+  line-height: 1.15;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  white-space: nowrap;
 }
 
 @media (max-width: 760px) {

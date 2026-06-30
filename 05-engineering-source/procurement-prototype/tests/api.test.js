@@ -461,6 +461,43 @@ test("attachments persist metadata, download bytes, and guard OM-internal files"
     assert.equal(omDownload.status, 200);
     assert.equal(await omDownload.text(), "quote excel bytes");
 
+    const systemUpload = await uploadFile(baseUrl, "/api/attachments", {
+      cookie: giang.cookie,
+      fields: {
+        linkedEntityType: "om_pas_excel_group",
+        linkedEntityId: "PAS-100",
+        attachmentKind: "om_pas_tracking_system_excel",
+        visibilityScope: "om_internal",
+        metadata: JSON.stringify({
+          source: "system_generated_pas_excel",
+          pasDemandNo: "PAS-100",
+          mergeDecision: "merge",
+          rowIds: ["REQ-1", "REQ-2"],
+          rowCount: 2,
+          createdAt: "2026-06-29T08:00:00.000Z",
+        }),
+      },
+      file: {
+        name: "PAS-100-PAS-Tracking.xlsx",
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        content: "generated pas excel bytes",
+      },
+    });
+    assert.equal(systemUpload.response.status, 201);
+    assert.equal(systemUpload.json.attachment.attachmentKind, "om_pas_tracking_system_excel");
+    assert.equal(systemUpload.json.attachment.linkedEntityType, "om_pas_excel_group");
+
+    const blockedSystemDownload = await fetch(`${baseUrl}${systemUpload.json.attachment.downloadUrl}`, {
+      headers: { Cookie: requester.cookie },
+    });
+    assert.equal(blockedSystemDownload.status, 403);
+
+    const omSystemDownload = await fetch(`${baseUrl}${systemUpload.json.attachment.downloadUrl}`, {
+      headers: { Cookie: giang.cookie },
+    });
+    assert.equal(omSystemDownload.status, 200);
+    assert.equal(await omSystemDownload.text(), "generated pas excel bytes");
+
     assert.ok(memoryStore.auditEvents.some((event) => event.event_type === "attachment.uploaded"));
     assert.ok(memoryStore.auditEvents.some((event) => event.event_type === "attachment.downloaded"));
     assert.ok(memoryStore.auditEvents.some((event) => event.event_type === "attachment.download_blocked"));

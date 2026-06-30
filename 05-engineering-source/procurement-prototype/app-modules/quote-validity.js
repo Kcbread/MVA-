@@ -84,12 +84,12 @@
     return Boolean(
       row.quoteReady
       || row.quoteCompletionReadyAt
-      || (row.pasMaterialNo && (row.updatedPrice || row.updatedPriceVnd || row.unitPriceVnd) && row.quoteDate && (row.quotationPdf || row.quotePdf || row.quoteExcel))
+      || (row.pasMaterialNo && (row.updatedPrice || row.updatedPriceVnd || row.unitPriceVnd) && row.quoteDate && (row.quotationPdf || row.quotePdf || row.quoteScreenshot || row.quoteScreenshotFile))
     );
   }
 
   function pendingOwner(row = {}) {
-    if (row.finalExportedAt || ["Exported to CFA", "Exported to ECS"].includes(row.finalExportStatus)) return "OM Complete";
+    if (row.finalExportedAt || ["Handed off to CFA", "Handed off to ECS", "Exported to CFA", "Exported to ECS"].includes(row.finalExportStatus)) return "OM Complete";
     if ((row.userAQuoteDecisionStatus === "Waiting Requester Confirmation" || row.userAQuoteDecisionStatus === "Waiting User A Confirmation" || row.omStage === "userConfirm") && !row.userAQuoteDecisionAt) return "Requester";
     if (row.pasDemandNo && !isQuoteResultReady(row)) return "PAS / Bidding";
     return "OM Purchasing";
@@ -102,6 +102,61 @@
     if (status === "Expiring Soon") return status;
     if (status === "Valid") return "Reusable Quote";
     return "Missing Validity";
+  }
+
+  function quotationDbRetentionMissingFields(row = {}) {
+    const missing = [];
+    if (!row.pasMaterialNo) missing.push("PAS Material No");
+    if (!row.vendor) missing.push("Vendor");
+    if (!(row.updatedPrice || row.updatedPriceUsd || row.updatedPriceVnd || row.unitPriceVnd || row.quoteUnitPrice || row.quoteUnitPriceUsd)) missing.push("Unit Price");
+    if (!row.quoteDate && !row.quoteReceivedAt) missing.push("Quote Date");
+    if (!(row.quoteValidUntil || row.validUntil || row.quoteExpiry)) missing.push("Valid Until");
+    if (!(row.quotationPdf || row.quotePdf || row.quoteScreenshot || row.quoteScreenshotFile)) missing.push("Screenshot");
+    return missing;
+  }
+
+  function quotationDbRetentionDecision(row = {}, today = new Date()) {
+    const missing = quotationDbRetentionMissingFields(row);
+    if (missing.length) {
+      return {
+        eligible: false,
+        status: "Complete quote before Quotation DB",
+        reason: `Missing ${missing.join(", ")}.`,
+        daysRemaining: null,
+      };
+    }
+    const validUntil = row.quoteValidUntil || row.validUntil || row.quoteExpiry;
+    const remaining = daysUntil(validUntil, today);
+    if (remaining === null) {
+      return {
+        eligible: false,
+        status: "Complete quote before Quotation DB",
+        reason: "Missing valid quote expiry date.",
+        daysRemaining: null,
+      };
+    }
+    if (remaining < 0) {
+      return {
+        eligible: false,
+        status: "Requote required before Quotation DB",
+        reason: "Quote is expired and cannot be retained for reuse.",
+        daysRemaining: remaining,
+      };
+    }
+    if (remaining <= EXPIRING_SOON_DAYS) {
+      return {
+        eligible: false,
+        status: "Review before Quotation DB",
+        reason: `Quote expires in ${remaining} day${remaining === 1 ? "" : "s"}; confirm reuse window before retention.`,
+        daysRemaining: remaining,
+      };
+    }
+    return {
+      eligible: true,
+      status: "Ready for Quotation DB",
+      reason: "Complete quote is valid and can be retained as a Quotation DB candidate after governance sync.",
+      daysRemaining: remaining,
+    };
   }
 
   const api = {
@@ -118,6 +173,7 @@
     isQuoteResultReady,
     pendingOwner,
     omQuoteStatus,
+    quotationDbRetentionDecision,
   };
 
   root.ProcurementApp = root.ProcurementApp || {};

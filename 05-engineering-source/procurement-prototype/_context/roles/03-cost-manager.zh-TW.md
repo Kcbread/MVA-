@@ -16,7 +16,7 @@ Cost Manager 是 Dept DRI 後的下一層成本授權者。它不需要獨立 to
 - Cost Manager 自己的 authorize / reject 歷史。
 - 必要的 item/spec、qty、phase、requester、Dept DRI decision context、next owner。
 - `Review Status` 只表示審批鏈：待授權 row 顯示 `Dept DRI approved` / `Pending Cost Manager`，授權後仍留在 Cost Review evidence，顯示 `You authorized` 與目前派往 OM；reject row 顯示 Cost Manager reject reason 並 read-only。
-- Submission Monitor / Progress Tracking 的必要資訊併入 Cost Review queue 與 selected-row detail，不再作獨立入口或重複表格。
+- Legacy submission-monitor / Progress Tracking 的必要資訊併入 Cost Review queue 與 selected-row detail，不再作獨立入口或重複表格。
 - Carryover 只作 selected-row contextual evidence；主 Demand Analysis 不顯示大型 carryover card、line impact strip 或空 ledger。
 
 ## 可操作功能
@@ -31,7 +31,7 @@ Cost Manager 是 Dept DRI 後的下一層成本授權者。它不需要獨立 to
 
 - 不建立 requester demand。
 - 不操作 warehouse lock。
-- 不操作 OM quote、PAS Demand No、Export Package。
+- 不操作 OM quote、PAS Demand No、OM Handoff。
 - 不派工 OM。
 - 不維護 project setup。
 - 不提供獨立 top-level `Demand Analysis` / `Authorized Analysis` tab。

@@ -16,6 +16,7 @@
 - 長 spec 摘要化，完整內容進 Detail。
 - 不顯示內部採購欄位。
 - Non-MFG department/unit 使用 dropdown master，不接受自由文字。
+- Requester scope 可含 Project Year / Project / Purpose；Purpose 只能是 `SMT / FATP`，不得與 phase 欄位混用。Line open date 由 OM Leader Project Stage Calendar 依 Project + Phase metadata 帶入，不是 Requester 表單欄位。
 
 ### Workflow Table
 
@@ -135,7 +136,20 @@
 
 ### OMWorkflowTable
 
-封裝 PAS Demand No、Quote Result / Monitor、Quote Expiry Watch、Export Package 的 shared row layout。Quote validity / expiry 由 `Quote Expiry Watch` standalone tracking tab 追蹤 7 天內到期與已過期風險；`Quote Valid Until` 的資料輸入仍在 `Quote Result / Monitor`。
+封裝 PAS Demand No、Quote Result、Quotation DB、OM Handoff、My Exports tracking 的 shared row layout。My Intake 可顯示 Quotation DB 候選報價，並在 Central IT 確認後套用候選資料進入 My Quote Result；Quotation DB 同時整合可 reuse 報價紀錄與 quote validity / expiry 追蹤；`Quote Valid Until` 的人工輸入與修正仍在 `Quote Result`。My Quote Result 的 row action 使用明確業務語意：`Validate Quote` 執行 quote completeness、price decision、Quotation DB retention decision；`Send to Requester` 送 requester confirmation；`Return to DRI` 退回 DRI/Requester 修正。Validate Quote 在目前 prototype 只標記 `Ready for Quotation DB` / `Review before Quotation DB` / blocked reason，不代表已 real execution 寫入 MySQL `pas_quotes`。My Quote Result 的 `Validate Quote` 確認後，系統會依 PAS Demand No grouping 生成 system PAS Tracking Excel；同 PAS Demand No 預設 merge 成一份，OM 標示 `Keep separate` 時才分開。此 generated Excel 是 OM-internal system attachment metadata，不是 OM upload 欄位。My Exports 由 OM 操作 Budget status/#、PR status/#、PO status/#、ETA (PLAN)、DTA (Actual)、#PUR request NO、Total LT，Purpose 僅 read-only tracking。
+
+### RequesterPurposeDatePlanning
+
+封裝 Requester purpose 與 phase date planning 欄位：
+
+- `Purpose`：Requester input，dropdown `SMT / FATP`；OM tracking only；不是 phase。
+- `Phase`：仍指 project phase，包含 `P1.0 / P1.1 / EVT / DVT / PVT / MP`。
+- `Date of request`：系統在每個品項 submit 時記錄。
+- `Required Delivery Date`：Requester 需求到廠日期；每個 item row 各自輸入；Dept DRI 可在 review detail 更新。
+- `Line open date`：OM Leader Project Stage Calendar input，scope = `Year Project + Project + Phase`；Requester phase header / phase control 只帶 metadata。
+- `Required Delivery Date follow Stage date`：依每個 phase 的 `Line open date - 14 days`。
+- `Given LT`：依每個 phase 的 `Required Delivery Date follow Stage date - Date of request`。
+- `Total lead time`：OM input，通常在 PAS quote / tracking 更新時回覆。
 
 ### AssignmentControl
 

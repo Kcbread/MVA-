@@ -182,7 +182,7 @@
     if (!isPriceException(row)) return "";
     if (!row.driApprovedAt && !row.deptDriSubmissionApprovedAt) return "Dept DRI Price Exception Review";
     if (!row.projectDriApprovedAt) return "Budget Approver";
-    return "OM Export Package";
+    return "OM Handoff";
   }
 
   function stockCarryoverState(row = {}) {

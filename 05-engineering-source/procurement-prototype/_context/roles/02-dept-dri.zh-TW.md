@@ -8,6 +8,8 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 
 - 自己負責 project / department / requester mapping 的 submissions。
 - item/spec、need date、demand scope、qty、warehouse/carryover evidence、exception reason。
+- Requester 輸入的 Purpose（SMT / FATP）、Line open date、Date of request、Required Delivery Date，以及系統計算的 Required Delivery Date follow Stage date / Given LT。
+- OM 後續回填的 Budget status / Budget # 可作為 review detail 參考，但 Dept DRI 不是輸入 owner。
 - price exception 摘要：history price、quote price、USD delta、threshold、Temporary Budget 標記。
 - Cost Manager 與 Budget Approver 所需的下一站狀態。
 - 使用與 Cost Manager 同殼的 `Dept Review`：上方是角色 queue / approve-reject action，下方是同一套 dashboard-first evidence。
@@ -22,13 +24,15 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 - Approve / Reject carryover candidate。
 - Approve / Reject price exception 第一層。
 - 在 Item Quantity Review popup 直接 add/edit/delete 正式需求數量；每次 direct edit 必須寫 audit / revision metadata。
+- 在 review detail 更新 `Required Delivery Date`（requester 需求到廠日期），保留原 requester date 與 audit。
 - Reject 時填原因，回 Requester Action Required。
 
 ## 不可看 / 不可做
 
 - 不手動輸入 carryover workbench。
 - 不代替 OM / MFG warehouse owner lock/reject 其自有庫存。
-- 不操作 OM quote、PAS Demand No、Export Package。
+- 不操作 OM quote、PAS Demand No、OM Handoff。
+- 不輸入 Budget status / Budget #、PR / PO、ETA / DTA、#PUR Request NO、Total LT；這些屬於 OM Purchasing operate。
 - 不做全域成本管理。
 - 不替 Cost Manager 或 Budget Approver 做最終批准。
 
@@ -46,7 +50,7 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 
 ## 資料輸入 / 輸出
 
-- 輸入：approve/reject decision、reason、direct quantity edit note。
+- 輸入：approve/reject decision、reason、direct quantity edit note、Required Delivery Date update。
 - 輸出：
   - requester submission approved -> Cost Manager final authorization。
   - requester submission rejected -> Requester Action Required。
@@ -69,10 +73,11 @@ Dept DRI 是第一層業務確認者，負責自己 scope 內的 requester submi
 - Dept DRI 不顯示獨立全域 `Cost Dashboard` / `Station Matrix` tab，也不顯示獨立 top-level `Project Review`；`Dept Review` 內固定使用 `Dashboard / MFG Station Detail / Non-MFG Department Detail`。
 - Dept DRI approve 後該 row 必須仍在 `Dept Review` 的 Dashboard / MFG / Non-MFG evidence 可見，第一欄顯示 `You approved` 與目前派往 Cost Manager 或 Budget Approver。
 - Item Quantity Review popup 點 quantity / total / item cell 都可開啟，direct edit 後必須同步 total qty 並增加 audit count。
+- Review detail 必須顯示 Requester Purpose/date planning 欄位；Dept DRI 只能更新 Required Delivery Date，不可操作 OM tracking 欄位。
 - Dept DRI 主畫面不顯示大型 carryover card、line impact strip 或空 ledger。
 - Dept DRI 不 lock OM-owned / MFG-owned warehouse candidate。
 - Dept DRI 只看到自己 scope 的 row。
 
 ## Compact Handoff
 
-Dept DRI is the scoped first review gate. It approves/rejects requester submissions, unit-owned stock/carryover candidates, and price exceptions in Dept Review, using the same Cost Manager-style review shell with dashboard-first evidence, Dashboard, MFG Station Detail / Non-MFG Department Detail drill-in, and audited direct quantity edits.
+Dept DRI is the scoped first review gate. It approves/rejects requester submissions, unit-owned stock/carryover candidates, and price exceptions in Dept Review, using the same Cost Manager-style review shell with dashboard-first evidence, Dashboard, MFG Station Detail / Non-MFG Department Detail drill-in, audited direct quantity edits, and requester date planning visibility. Dept DRI may update Required Delivery Date but does not operate OM budget, PR/PO, ETA/DTA, PUR request, or Total LT fields.

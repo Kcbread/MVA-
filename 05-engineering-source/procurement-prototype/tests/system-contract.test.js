@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { execSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -17,6 +18,12 @@ const workflowStatusModule = fs.readFileSync("app-modules/workflow-status.js", "
 const approvalReviewSurfaceModule = fs.readFileSync("app-modules/approval-review-surface.js", "utf8");
 const sapPoRawContractModule = fs.readFileSync("app-modules/sap-po-raw-contract.js", "utf8");
 const materialCodingModule = fs.readFileSync("app-modules/material-coding.js", "utf8");
+const omBusinessFlowModule = fs.existsSync("app-modules/om-business-flow.js")
+  ? fs.readFileSync("app-modules/om-business-flow.js", "utf8")
+  : "";
+const quoteValidityModule = fs.existsSync("app-modules/quote-validity.js")
+  ? fs.readFileSync("app-modules/quote-validity.js", "utf8")
+  : "";
 const styles = fs.readFileSync("styles.css", "utf8");
 const server = fs.existsSync("server.js") ? fs.readFileSync("server.js", "utf8") : "";
 const schema = fs.existsSync("db/schema.sql") ? fs.readFileSync("db/schema.sql", "utf8") : "";
@@ -38,6 +45,9 @@ const namingRulesZh = readIfExists(path.join(repoRoot, "03-it-handoff/current-do
 const dockerfile = fs.existsSync("Dockerfile") ? fs.readFileSync("Dockerfile", "utf8") : "";
 const macMiniCompose = readIfExists(path.join(repoRoot, "06-deployment/mac-mini/docker-compose.yml"));
 const sapPoRawCommitScript = readIfExists("scripts/commit-sap-po-raw-import.js");
+const legacyQuoteResultMonitor = new RegExp(`Quote Result / ${"Monitor"}`);
+const legacyQuoteExpiryWatch = new RegExp(`Quote Expiry ${"Watch"}`);
+const legacySubmissionMonitor = new RegExp(`Submission ${"Monitor"}`);
 
 function between(source, start, end) {
   const startIndex = source.indexOf(start);
@@ -46,6 +56,57 @@ function between(source, start, end) {
   assert.notEqual(endIndex, -1, `Missing end marker: ${end}`);
   return source.slice(startIndex, endIndex);
 }
+
+function localPreviewAssetVersionValue(source = html) {
+  const match = source.match(/<meta name="mva-local-preview-version" content="([^"]+)" \/>/);
+  return match?.[1] || null;
+}
+
+function localPreviewAssetVersion(source = html) {
+  const match = localPreviewAssetVersionValue(source);
+  assert.ok(match, "index.html must declare mva-local-preview-version so local preview assets cannot silently use stale cache keys");
+  return match;
+}
+
+function runtimeAssetRefs(source = html) {
+  return [...source.matchAll(/(?:src|href)="\.?\/([^"#?]+\.(?:js|css))\?v=([^"]+)"/g)].map((match) => ({
+    asset: match[1],
+    version: match[2],
+  }));
+}
+
+test("local preview asset cache keys stay in sync with runtime changes", () => {
+  const currentVersion = localPreviewAssetVersion();
+  const assets = runtimeAssetRefs();
+  assert.ok(assets.length > 0, "index.html must include versioned local runtime assets");
+  assets.forEach(({ asset, version }) => {
+    assert.equal(version, currentVersion, `${asset} must use the shared local preview asset version`);
+  });
+
+  let status = "";
+  try {
+    status = execSync("git status --short -- 05-engineering-source/procurement-prototype/index.html 05-engineering-source/procurement-prototype/app.js 05-engineering-source/procurement-prototype/styles.css 05-engineering-source/procurement-prototype/app-modules 05-engineering-source/procurement-prototype/*.js 05-engineering-source/procurement-prototype/*.css", {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+  } catch {
+    return;
+  }
+  const changedRuntimeAsset = status.split(/\r?\n/).some((line) => /05-engineering-source\/procurement-prototype\/(app\.js|styles\.css|app-modules\/|[^/]+\.(?:js|css))$/.test(line.trim()));
+  if (!changedRuntimeAsset) return;
+
+  let headHtml = "";
+  try {
+    headHtml = execSync("git show HEAD:05-engineering-source/procurement-prototype/index.html", {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+  } catch {
+    return;
+  }
+  const previousVersion = localPreviewAssetVersionValue(headHtml);
+  assert.notEqual(currentVersion, previousVersion, "frontend runtime assets changed; bump mva-local-preview-version in index.html before handing off local preview");
+});
 
 test("Docker runtime does not expose private source and workflow schema is migration-owned", () => {
   assert.match(server, /PUBLIC_ROOT_FILES/);
@@ -72,7 +133,7 @@ test("Cost Review top-level tabs are consolidated", () => {
   const managerTabs = between(managerView, '<div class="inner-tabs manager-tabs"', "</div>");
   assert.match(managerTabs, /data-manager-tab="review">Cost Review</);
   assert.match(managerTabs, /data-manager-tab="history">Review History</);
-  assert.doesNotMatch(managerTabs, /Submission Monitor|Authorized Analysis|Demand Analysis|Progress Tracking|Project Setup/);
+  assert.doesNotMatch(managerTabs, new RegExp(`${legacySubmissionMonitor.source}|Authorized Analysis|Demand Analysis|Progress Tracking|Project Setup`));
   assert.doesNotMatch(managerTabs, /data-manager-tab="authorized"|data-manager-tab="analysis"|data-manager-tab="demand"|data-manager-tab="setup"/);
   assert.doesNotMatch(managerView, /<h3>Cost Review Workbench<\/h3>/);
   assert.match(managerView, /<h3>Quantity Review<\/h3>/);
@@ -453,8 +514,11 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.doesNotMatch(pickerModal, /Supplier/);
   assert.doesNotMatch(pickerModal, /OM Assignee/);
   assert.doesNotMatch(pickerModal, /\bFTV\b/);
-  assert.match(departmentView, /id="requestPackageNeedDate"/);
-  assert.match(departmentView, /id="requestPackageNeedDateLabel"/);
+  assert.doesNotMatch(departmentView, /id="requestPackageNeedDate"/);
+  assert.doesNotMatch(departmentView, /id="requestPackageNeedDateLabel"/);
+  assert.match(app, /function requestWorksheetRequiredDeliveryDateControl/);
+  assert.match(app, /data-request-required-delivery-date/);
+  assert.match(app, /function updateRequestRequiredDeliveryDate\(requestId, value\)[\s\S]*normalizeRequesterDateFields/);
   assert.match(departmentView, /data-action="saveRequesterDraft"/);
   assert.match(departmentView, /data-action="submitRequests"/);
   assert.match(departmentView, /id="requestWorksheetHead"/);
@@ -511,8 +575,8 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.match(app, /compareEstimateToQuote/);
   assert.match(app, /const phases = STAGES/);
   assert.match(app, /requesterPackageRows\(\)/);
-  assert.match(app, /requestNeedDateScopeKey/);
-  assert.match(app, /requestNeedDateByScope/);
+  assert.doesNotMatch(app, /requestNeedDateScopeKey/);
+  assert.doesNotMatch(app, /requestNeedDateByScope/);
   assert.match(app, /requestRowMatchesSubmitScope/);
   assert.match(app, /requesterSubmitScopeAudit/);
   assert.doesNotMatch(app, /requestContextDemandType/);
@@ -534,6 +598,16 @@ test("Requester workspace uses MFG / Non-MFG Excel worksheet input", () => {
   assert.match(app, /data-request-phase-jump/);
   assert.match(html, /id="requestWorksheetPhaseJumpBar"/);
   assert.match(html, /id="requestWorksheetCurrentPhaseIndicator"/);
+  assert.match(departmentView, /id="requestPurposeLocationInput"/);
+  assert.match(departmentView, /<option value="SMT">SMT<\/option>/);
+  assert.match(departmentView, /<option value="FATP">FATP<\/option>/);
+  assert.doesNotMatch(departmentView, /id="requestLineOpenDateInput"/);
+  assert.match(app, /function requestPhaseLineOpenDate/);
+  assert.match(requestWorksheetMatrixModule, /data-request-phase-line-open-date/);
+  assert.match(requestWorksheetMatrixModule, /data-request-phase-line-open-source/);
+  assert.match(app, /let currentPurposeLocation = DEFAULT_PURPOSE_LOCATION/);
+  assert.match(app, /function syncRequestPurposeDateInputs/);
+  assert.doesNotMatch(departmentView, /Phase[\s\S]*<select id="requestPurposeLocationInput"/);
 
   ["CG", "BG", "FATP", "Test", "Hybrid", "Auto", "ENG Pack", "Zombie", "Laser_pico", "Rework", "Repair", "WH"].forEach((label) => {
     assert.match(app, new RegExp(label.replace("/", "\\/")));
@@ -609,7 +683,7 @@ test("Reuse history import carries item identity only and resets target qty", ()
   assert.match(cloneReusableDemandRows, /demandUnit\s*=\s*itemPickerDemandUnit/);
   assert.doesNotMatch(cloneReusableDemandRows, /phase:\s*stationBreakdownPhaseKey\(item\)\s*\|\|\s*targetPhase/);
   const requestFromRecord = between(app, "function requestFromRecord", "function suggestionToRecord");
-  assert.match(requestFromRecord, /const draft = \{/);
+  assert.match(requestFromRecord, /const draft = normalizeRequesterDateFields\(\{/);
   assert.match(requestFromRecord, /normalizeRequestDemandDepartment\(draft, demandDepartment\)/);
   assert.match(requestFromRecord, /requesterDept/);
   assert.match(requestFromRecord, /demandDepartment/);
@@ -859,10 +933,10 @@ test("Need Date and DRI price review layer are wired", () => {
   assert.match(html, /data-action="exportAdminUsers"/);
   assert.doesNotMatch(html, /Computer Threshold %/);
   assert.doesNotMatch(html, /MFG Threshold %/);
-  assert.match(app, /Need Date is required/);
-  assert.match(app, /requestPackageNeedDate/);
-  assert.match(app, /requestPackageNeedDateValue/);
-  assert.match(app, /currentRequestScopeNeedDate/);
+  assert.match(app, /Required Delivery Date is required for each submitted item/);
+  assert.doesNotMatch(app, /requestPackageNeedDate/);
+  assert.doesNotMatch(app, /requestPackageNeedDateValue/);
+  assert.doesNotMatch(app, /currentRequestScopeNeedDate/);
   assert.match(app, /function renderPriceReview/);
   assert.match(app, /function renderPriceReviewAnalysis/);
   assert.match(app, /function renderPriceReviewInlineAnalysis/);
@@ -948,10 +1022,26 @@ test("Need Date and DRI price review layer are wired", () => {
 test("OM tabs and PAS quote result contract are consolidated", () => {
   const omView = between(html, '<section class="view" data-view="om">', '<section class="view" data-view="buyer">');
   assert.match(omView, /OM Leader Console/);
+  assert.match(html, /app-modules\/om-business-flow\.js/);
+  assert.match(omBusinessFlowModule, /PAS_DEMAND_REQUIREMENT_MASTER/);
+  assert.match(omBusinessFlowModule, /function pasDemandRequirementMasterMatch/);
+  assert.match(omBusinessFlowModule, /PAS Demand ID Required/);
+  assert.match(omBusinessFlowModule, /PAS Demand ID Optional/);
+  assert.match(omBusinessFlowModule, /Valid - Need Central IT Check/);
+  assert.match(omBusinessFlowModule, /quoteDbCandidateId/);
+  assert.match(omBusinessFlowModule, /QDB-IPC-I3-QCT1250-202606/);
+  assert.match(omBusinessFlowModule, /QDB-IPC-I5-QCT1250-202606/);
+  assert.doesNotMatch(omBusinessFlowModule, legacyQuoteResultMonitor);
+  assert.match(omBusinessFlowModule, /function groupRowsByPasDemandId/);
+  assert.match(omView, /OM Leader Console/);
   assert.match(omView, /PAS Demand No/);
-  assert.match(omView, /Quote Result \/ Monitor/);
-  assert.match(omView, /Quote Expiry Watch/);
-  assert.match(omView, /Export Package/);
+  assert.match(omView, />Quote Result</);
+  assert.match(omView, /Quotation DB/);
+  assert.match(omView, /OM Handoff/);
+  assert.doesNotMatch(omView, />Export Package</);
+  assert.doesNotMatch(omView, legacyQuoteResultMonitor);
+  assert.doesNotMatch(omView, legacyQuoteExpiryWatch);
+  assert.doesNotMatch(omView, legacySubmissionMonitor);
   assert.doesNotMatch(omView, /data-om-tab="uatFeedback"/);
   assert.doesNotMatch(omView, /data-om-panel="uatFeedback"/);
   assert.match(omView, /data-om-tab="quoteExpiry"/);
@@ -962,14 +1052,39 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   const omWorkspaceConfigs = between(app, "const roleWorkspaceConfigs = {", "function approvalReviewSurfaceModule()");
   const omLeaderConfig = between(omWorkspaceConfigs, "  omLeader: {", "  omMember: {");
   assert.match(omLeaderConfig, /omTabs: \["submission", "pasRequest", "quoteExpiry", "finalExport"\]/);
+  assert.match(omLeaderConfig, /quoteExpiry: "Quotation DB"/);
+  assert.match(omLeaderConfig, /finalExport: "OM Handoff"/);
   assert.doesNotMatch(omLeaderConfig, /quoteConfirm/);
+  assert.doesNotMatch(omLeaderConfig, legacyQuoteResultMonitor);
+  assert.doesNotMatch(omLeaderConfig, legacyQuoteExpiryWatch);
   const omMemberConfig = between(omWorkspaceConfigs, "  omMember: {", "  dri: {");
   assert.match(omMemberConfig, /omTabs: \["pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"\]/);
+  assert.match(omMemberConfig, /quoteConfirm: "My Quote Result"/);
+  assert.match(omMemberConfig, /quoteExpiry: "Quotation DB"/);
+  assert.match(omMemberConfig, /finalExport: "My Exports"/);
+  assert.doesNotMatch(omMemberConfig, new RegExp(`My ${legacyQuoteResultMonitor.source}`));
+  assert.doesNotMatch(omMemberConfig, new RegExp(`My ${legacyQuoteExpiryWatch.source}`));
+  assert.doesNotMatch(omMemberConfig, new RegExp(`My Quotation ${"DB"}`));
   assert.match(omView, /class="mini approve om-rate-save"/);
   assert.match(omView, /om-rate-utility/);
   assert.match(omView, /Monthly locked and globally applied/);
   assert.match(styles, /\.om-rate-grid \.om-rate-save/);
   assert.match(styles, /min-width:\s*84px/);
+  assert.match(omView, /Project Stage Calendar/);
+  assert.match(omView, /id="omStageCalendarYearProject"/);
+  assert.match(omView, /id="omStageCalendarProjectCode"/);
+  assert.match(omView, /id="omStageCalendarPhase"/);
+  assert.match(omView, /id="omStageCalendarLineOpenDate"/);
+  assert.match(omView, /data-action="saveOmStageCalendar"/);
+  assert.match(omView, /id="omStageCalendarRows"/);
+  const omStageCalendar = between(omView, "Project Stage Calendar", '<div class="manager-progress-toolbar om-submission-toolbar">');
+  assert.doesNotMatch(omStageCalendar, /Purpose/);
+  assert.match(app, /function projectStageCalendarLineOpenDate/);
+  assert.match(app, /function renderOmProjectStageCalendar/);
+  assert.match(app, /function saveOmStageCalendar/);
+  assert.match(app, /projectStageCalendarLineOpenDate\(\{ project, projectCode, phase \}\)/);
+  assert.match(app, /renderOmProjectStageCalendar\(\)/);
+  assert.doesNotMatch(omView, /data-om-pivot-mode=/);
   assert.match(html, /app-modules\/om-progress\.js/);
   assert.match(omView, /data-om-stage-filter="all"/);
   assert.match(omView, /data-om-stage-filter="pendingPasDemand"/);
@@ -1028,11 +1143,14 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /function isOmExportAuthorized/);
   assert.match(app, /Only Requester confirmed or price-cleared rows can be prepared/);
   assert.match(workflowStatusModule, /return "Buyer Handoff"/);
-  assert.match(workflowStatusModule, /Buyer owns PR \/ PO after OM export/);
+  assert.match(workflowStatusModule, /Buyer owns PR \/ PO after OM handoff/);
   assert.match(app, /workflowStatusForRow\(row, "om"\)\.pendingOwner/);
   assert.match(app, /function isOmLeaderSupervisorMode/);
   assert.match(app, /function omLeaderSupervisorNote/);
   assert.match(app, /function omRequestIdCell/);
+  assert.match(app, /Pending Request Focus/);
+  assert.match(app, /Quote Result/);
+  assert.match(app, /Quotation DB/);
   assert.match(app, /om-row-overdue/);
   assert.match(styles, /\.om-row-overdue td/);
   assert.doesNotMatch(styles, /\.om-pivot-toggle/);
@@ -1042,22 +1160,36 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(pasDemandTable, /<th>CPD-IEP Owner<\/th>/);
   assert.match(pasDemandTable, /<th>Assigned To<\/th>/);
   assert.match(pasDemandTable, /<th>PAS Demand No<\/th>/);
+  assert.match(pasDemandTable, /<th>Quotation DB<\/th>/);
   assert.doesNotMatch(pasDemandTable, /<th>Item Context<\/th>/);
   assert.doesNotMatch(pasDemandTable, /<th>Level 2 \/ Level 3<\/th>/);
+  assert.match(app, /function omIntakeQuotationDbCell/);
+  assert.match(app, /data-om-row-button-action="applyQuoteDbFromIntake"/);
+  assert.match(app, /Confirm with Central IT and apply this Quotation DB record/);
+  assert.match(app, /Confirm &amp; Apply/);
+  assert.match(app, /Quotation DB: no candidate/);
   assert.match(app, /function pasDemandNoEntryHtml/);
   assert.match(app, /data-om-field="pasDemandNo"/);
-  assert.match(app, /Enter PAS Demand No first/);
+  assert.match(app, /pasDemandRequirementMaster/);
+  assert.match(app, /adminApprovalSetup\.pasDemandRequirementMaster/);
+  assert.match(app, /PAS Demand ID Required/);
+  assert.match(app, /PAS Demand ID is required for Hard Item/);
+  assert.match(app, /function omPasDemandGroupSuggestionHtml/);
+  assert.match(app, /Same PAS Demand No group/);
+  assert.match(app, /data-pas-group-id/);
   assert.match(app, /updateOmField\(requestId, "pasDemandNo", typedDemandNo\)/);
   const quoteTable = between(omView, 'data-om-panel="quoteConfirm"', 'data-om-panel="quoteExpiry"');
   const quoteExpiryTable = between(omView, 'data-om-panel="quoteExpiry"', 'data-om-panel="finalExport"');
-  assert.match(quoteExpiryTable, /Quote Expiry Watch/);
+  assert.match(quoteExpiryTable, /Quotation DB/);
+  assert.match(quoteExpiryTable, /Reuse valid quote records after Central IT confirmation/);
+  assert.doesNotMatch(quoteExpiryTable, legacyQuoteExpiryWatch);
   [
     "Waiting PAS Reply",
     "Missing Valid Until",
     "Expiring Soon",
     "Expired / Requote",
     "Waiting Requester",
-    "Ready to Export",
+    "Ready for Handoff",
   ].forEach((label) => assert.match(quoteExpiryTable, new RegExp(label.replace("/", "\\/"))));
   [
     "PAS Demand No",
@@ -1105,8 +1237,31 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   assert.match(app, /Vendor Name/);
   assert.match(app, /Vendor Code/);
   assert.match(app, /data-om-price-currency/);
-  assert.match(app, /title="Save Quote Info"/);
-  assert.match(app, /title="Send to User A"/);
+  assert.match(app, /title="Validate quote, price decision, and Quotation DB retention"/);
+  assert.match(app, /title="Send quote to Requester confirmation"/);
+  assert.match(app, /title="Return quote row to DRI"/);
+  assert.match(app, /Validate Quote/);
+  assert.match(app, /Send to Requester/);
+  assert.match(app, /Return to DRI/);
+  assert.match(app, /quoteDbRetentionStatus/);
+  assert.match(app, /quoteDbRetentionReason/);
+  assert.match(quoteValidityModule, /Ready for Quotation DB/);
+  assert.match(quoteValidityModule, /Review before Quotation DB/);
+  assert.doesNotMatch(quoteTable, />Save<\/button>/);
+  assert.doesNotMatch(quoteTable, />Send<\/button>/);
+  assert.doesNotMatch(quoteTable, />Reject<\/button>/);
+  assert.match(omView, /PAS Excel Group/);
+  assert.match(app, /function omPasExcelGroupDecisionCell/);
+  assert.match(app, /data-om-pas-excel-group/);
+  assert.match(app, /Merge for one PAS Excel/);
+  assert.match(app, /Keep separate/);
+  assert.match(app, /Central IT Checked/);
+  assert.match(app, /function applyQuoteDbCandidateToOmRow/);
+  assert.match(app, /function applyQuoteDbFromIntake/);
+  assert.match(app, /movePasRowsToQuoteCompletion\(\[latest\]\)/);
+  assert.match(app, /Quote DB candidate applied from My Intake/);
+  assert.match(app, /centralItCheckedAt/);
+  assert.match(app, /centralItCheckedBy/);
   assert.match(app, /omQuoteResultReadOnlyReason/);
   assert.match(app, /if \(isOmLeaderSupervisorMode\(\)\) return/);
   assert.match(app, /OM Leader supervisor view/);
@@ -1117,11 +1272,82 @@ test("OM tabs and PAS quote result contract are consolidated", () => {
   const exportPanel = between(html, 'data-om-panel="finalExport"', '<section class="view" data-view="buyer">');
   assert.match(exportPanel, /<th>Assigned To<\/th>/);
   assert.match(exportPanel, /Cost Type \/ Target/);
+  assert.match(exportPanel, /Handoff Scope \/ Budget Code/);
+  assert.match(exportPanel, /Handoff Status/);
+  assert.match(exportPanel, /Handoff Time/);
+  assert.doesNotMatch(exportPanel, /Export Package \/ Budget Code/);
+  assert.doesNotMatch(exportPanel, /Export Status/);
+  assert.doesNotMatch(exportPanel, /Exported At/);
   assert.doesNotMatch(app, />Export Excel<\/button>/);
   assert.doesNotMatch(app, />Export Quote PDF Package<\/button>/);
-  assert.match(app, /Export Package/);
+  assert.match(app, /OM Handoff/);
+  assert.match(app, /Budget Code/);
+  assert.match(app, /purposeLocations/);
+  assert.match(app, /purposeProjectBuildKey/);
+  assert.match(app, /groupRowsByPasDemandId/);
+  assert.match(app, /function createPasExcelSystemFileRecord/);
+  assert.match(app, /groupRowsForPasExcelExport/);
+  assert.match(app, /pasExcelSystemFileName/);
+  assert.match(app, /function pasExcelWorkbookSheet/);
+  assert.match(app, /async function uploadGeneratedPasExcelAttachment/);
+  assert.match(app, /async function ensurePasExcelSystemFileForGroups/);
+  assert.match(app, /om_pas_tracking_system_excel/);
+  assert.match(app, /pasExcelSystemAttachmentId/);
+  assert.match(app, /pasExcelSystemAttachmentMode/);
+  assert.match(app, /async function confirmOmQuoteResultRows/);
+  assert.match(app, /function pasExcelRowsForQuoteConfirmation/);
+  assert.match(app, /data-om-row-button-action="generatePasExcel"/);
+  assert.match(app, /Generated PAS Excel/);
+  assert.match(app, /data-generated-pas-excel/);
+  assert.doesNotMatch(quoteTable, /data-om-excel/);
+  assert.doesNotMatch(app, /if \(!row\.quotationExcel\) missing\.push\("Excel"\)/);
+  assert.doesNotMatch(quoteValidityModule, /missing\.push\("Excel"\)/);
+  assert.match(app, /PAS Excel system file created/);
   assert.match(app, /Expense → ECS \/ Capex → CFA/);
   assert.match(app, /editableMaterialNo: false/);
+});
+
+test("Dept DRI review exposes requester purpose date and downstream tracking fields", () => {
+  assert.match(app, /function datePlanningDetailRows/);
+  assert.match(app, /Purpose/);
+  assert.match(app, /Line Open Date/);
+  assert.match(app, /Date of Request/);
+  assert.match(app, /Required Delivery Date/);
+  assert.match(app, /Required By Stage/);
+  assert.match(app, /Given LT/);
+  assert.match(app, /Budget Status/);
+  assert.match(app, /Budget #/);
+  assert.match(app, /data-dri-date-field/);
+  assert.doesNotMatch(app, /data-dri-date-field="budgetStatus"/);
+  assert.doesNotMatch(app, /data-dri-date-field="budgetNo"/);
+});
+
+test("OM Purchasing My Exports operates IT PR PO tracking fields and purpose is read only", () => {
+  const exportPanel = between(html, 'data-om-panel="finalExport"', '<section class="view" data-view="buyer">');
+  ["Purpose", "Budget Status / Budget #", "PR / PO Tracking", "ETA / DTA / Total LT", "Handoff Scope / Budget Code"].forEach((label) => {
+    assert.match(exportPanel, new RegExp(label.replace(/[()/#]/g, "\\$&")));
+  });
+  ["Budget Status", "Budget #", "PR Status", "PR#", "PO Status", "PO#", "ETA (PLAN)", "DTA (Actual)", "#PUR Request NO", "Total LT"].forEach((label) => {
+    assert.match(app, new RegExp(label.replace(/[()#]/g, "\\$&")));
+  });
+  assert.match(app, /function omPurposeDisplayCell/);
+  assert.match(app, /Requester input · OM tracking only/);
+  assert.match(app, /function omProcurementTrackingCell/);
+  assert.match(app, /data-om-procurement-field/);
+  assert.match(app, /function updateOmProcurementField/);
+  assert.match(app, /suggestPurRequestNo/);
+  assert.doesNotMatch(app, /data-om-purpose-location/);
+});
+
+test("Admin setup exposes PAS Demand Requirement Master data", () => {
+  const adminView = between(html, '<section class="view" data-view="adminSetup">', '<section class="view" data-view="buyer">');
+  assert.match(adminView, /PAS Demand Requirement Master/);
+  assert.match(adminView, /adminPasDemandRequirementMasterRows/);
+  assert.match(adminView, /<th>Item Category<\/th>/);
+  assert.match(adminView, /<th>Match Keywords<\/th>/);
+  assert.match(adminView, /<th>PAS Demand ID<\/th>/);
+  assert.match(app, /function renderAdminPasDemandRequirementMaster/);
+  assert.match(app, /PAS_DEMAND_REQUIREMENT_MASTER/);
 });
 
 test("OM monthly exchange-rate owner and deferred export contract are explicit", () => {
@@ -1310,7 +1536,7 @@ test("OM submission detail stays within OM ownership and export allows price-cle
   assert.match(omDetail, /PAS Demand/);
   assert.match(omDetail, /Quote Result/);
   assert.match(omDetail, /User Confirm/);
-  assert.match(omDetail, /Export Package/);
+  assert.match(omDetail, /OM Handoff/);
   const exportAuth = between(app, "function isOmExportAuthorized", "function isOmFinalExportPrepared");
   assert.match(exportAuth, /USER_CONFIRMATION_NOT_REQUIRED/);
   assert.match(exportAuth, /PRICE_AUTO_CLEARED/);

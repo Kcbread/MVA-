@@ -46,7 +46,7 @@ Budget Approver 是 quote 後價格/預算例外的最終核准者。它只處�
 
 - 輸入：approve/reject decision、reason、direct quantity edit note。
 - 輸出：
-  - approved -> OM Export Package。
+  - approved -> OM Handoff。
   - rejected -> Requester Action Required，保留 audit/timeline。
   - direct quantity edit -> 更新正式 stationBreakdown / phase qty / total qty，並保留 itemQuantityReviewHistory audit。
 
@@ -59,11 +59,11 @@ Budget Approver 是 quote 後價格/預算例外的最終核准者。它只處�
 ## 測試 / QA 重點
 
 - Temporary Budget quote 後必須先經 Dept DRI，再到 Budget Approver。
-- Budget Approver approve 後才進 OM Export。
+- Budget Approver approve 後才進 OM Handoff。
 - Budget Approver reject 回 Requester 修正。
 - Budget Approver 只看到 `Budget Review / Review History`，不再提供獨立 top-level `Project Review`。
 - Budget Review 內的 Dashboard 預設全域；MFG Station Detail / Non-MFG Department Detail scope 必須跟 selected row 或 dashboard cell drill-in 同步。
-- Budget Approver final approve 後該 row 必須仍在 `Budget Review` evidence 可見，第一欄顯示 `Final approved` 與目前派往 OM Export。
+- Budget Approver final approve 後該 row 必須仍在 `Budget Review` evidence 可見，第一欄顯示 `Final approved` 與目前派往 OM Handoff。
 - Item Quantity Review popup 點 quantity / total / item cell 都可開啟，direct edit 後必須同步 total qty 並增加 audit count。
 
 ## Compact Handoff

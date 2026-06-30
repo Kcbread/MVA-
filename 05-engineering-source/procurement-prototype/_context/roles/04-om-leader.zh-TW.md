@@ -7,13 +7,14 @@ OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、�
 ## 可看資訊
 
 - 所有 OM rows 與 assignment。
-- Submission Dashboard / Quote Expiry Watch / Export Package 的高階進度。
+- Submission Dashboard / Quotation DB / OM Handoff 的高階進度。
 - monthly locked exchange rate 狀態。
 - Giang / Linh 的 assigned workload。
 
 ## 可操作功能
 
 - Assign / reassign / clear OM row assignee。
+- 維護 Project Stage Calendar：以 `Year Project + Project + Phase` 定義 line open date，供 Requester phase input、Dept DRI review、OM tracking 共用。
 - Override / backup 維護 monthly locked USD/VND exchange rate；日常輸入 owner 是 Giang。
 - 查看全部 OM 進度與 risk。
 
@@ -28,12 +29,12 @@ OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、�
 - OM Submission Dashboard
 - Assignment Control
 - Exchange Rate Utility
-- Quote Expiry Watch
+- Quotation DB
 
 ## 資料輸入 / 輸出
 
-- 輸入：assignment、exchange rate override、OM orchestration status。
-- 輸出：OM assignee、audit events、monthly locked exchange rate。
+- 輸入：assignment、Project Stage Calendar phase line open date、exchange rate override、OM orchestration status。
+- 輸出：OM assignee、phase-level line open date metadata、audit events、monthly locked exchange rate。
 
 ## 常見風險
 
@@ -47,7 +48,8 @@ OM Leader 是 OM 作業主管。第一版指定 Mai，負責 OM 進度追蹤、�
 - Giang / Linh 不可派工。
 - Monthly exchange rate 由 Giang 輸入並全局套用；Mai / Admin 可 override，Linh 預設不可維護。
 - Mai 看到全部 OM rows；OM Purchasing 只看 assigned rows。
+- Project Stage Calendar 的 line open date 必須被 Requester phase input 帶入，但 Requester 不可直接改 line open date。
 
 ## Compact Handoff
 
-OM Leader is Mai: assignment, exchange rate, tracking, OM orchestration. It sees all OM work but should not become a hidden business approver or default quote operator.
+OM Leader is Mai: assignment, Project Stage Calendar phase dates, exchange rate, tracking, OM orchestration, and Quotation DB visibility. It sees all OM work but should not become a hidden business approver or default quote operator.

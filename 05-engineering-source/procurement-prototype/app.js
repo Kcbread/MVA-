@@ -27,6 +27,9 @@ const ITEM_OWNER_NON_OM = "Non-OM";
 const REQUEST_ACTION_NEW_BUY = "New Buy";
 const REQUEST_ACTION_OTHER = "Other";
 const REQUEST_ACTION_OPTIONS = [REQUEST_ACTION_NEW_BUY, REQUEST_ACTION_OTHER];
+const PURPOSE_LOCATION_OPTIONS = ["SMT", "FATP"];
+const DEFAULT_PURPOSE_LOCATION = "SMT";
+const PROCUREMENT_STATUS_OPTIONS = ["Pending", "In Progress", "Done"];
 const G_YEAR_PROJECT_OPTIONS = ["P26 Demo line", "P26", "P26 Zombie line", "P26 Service line", "F27", "P27", "P25 Service line"];
 const G_PROJECT_CODE_OPTIONS = ["4CS4", "CGY4", "PKK4", "WGO5", "ASK5", "KSH5", "MCN5", "MT5", "BZ5", "FL5"];
 const NON_G_PROJECT_CODE_OPTIONS = ["AS3", "BM2", "LD8", "MA4", "MH2", "ML2", "OR5", "OR6", "SSF"];
@@ -262,6 +265,14 @@ let projectConfigs = mergeCanonicalProjectConfigs(Array.isArray(globalThis.REAL_
     stageDates: { evt: "2026-03-20", dvt: "2026-04-17", pvt: "2026-05-15", mp: "2026-06-12" },
   },
 ]);
+let projectStageCalendarRecords = projectConfigs.flatMap((project) => Object.entries(project.stageDates || {}).map(([phase, lineOpenDate]) => ({
+  yearProject: project.code,
+  projectCode: "",
+  phase,
+  lineOpenDate,
+  updatedBy: "System seed",
+  updatedAt: "",
+})));
 let PROJECTS = projectConfigs.map((project) => project.code);
 const DEMAND_STAGE_ORDER = ["p0", ...STAGES];
 const QUOTE_EXPIRING_SOON_DAYS = 7;
@@ -434,9 +445,9 @@ const roleProfiles = {
   requester: { name: "Requester", dept: "MFG", functionName: "Demand Requester", defaultView: "department" },
   manager: { name: "Cost Manager", dept: "MFG", functionName: "Cost Review", defaultView: "manager" },
   procurement: { name: "MFG Coordinator", dept: "MFG", functionName: "MFG Demand Coordination", defaultView: "procurement" },
-  om: { name: "OM Purchasing", dept: "Operations", functionName: "Quotation & Export Package", defaultView: "om" },
-  omLeader: { name: "OM Leader", dept: "Operations", functionName: "Exchange Rate / Package Owner", defaultView: "om" },
-  omMember: { name: "OM Purchasing", dept: "Operations", functionName: "PAS / Quote / Export Operator", defaultView: "om" },
+  om: { name: "OM Purchasing", dept: "Operations", functionName: "Quotation & OM Handoff", defaultView: "om" },
+  omLeader: { name: "OM Leader", dept: "Operations", functionName: "Exchange Rate / Handoff Owner", defaultView: "om" },
+  omMember: { name: "OM Purchasing", dept: "Operations", functionName: "PAS / Quote / Handoff Operator", defaultView: "om" },
   dri: { name: "Dept DRI", dept: "MFG", functionName: "Dept Review", defaultView: "manager" },
   projectDri: { name: "Budget Approver", dept: "PMO", functionName: "Budget Review", defaultView: "manager" },
   sourcing: { name: "Sourcing", dept: "Supply Chain", functionName: "RFQ Quotation", defaultView: "sourcing" },
@@ -474,16 +485,16 @@ const roleCapabilityMatrix = [
     owns: "OM intake, assignment, exchange rate",
     canApprove: "No business approval",
     canOperate: "Assign / monitor OM rows and maintain exchange rate",
-    visibility: "OM queue, assignee, quote progress, export readiness",
+    visibility: "OM queue, assignee, quote progress, handoff readiness",
     nextAction: "Assign stuck rows and watch SLA / quote expiry",
   },
   {
     role: "OM Purchasing",
-    owns: "Assigned PAS / quote / export work",
+    owns: "Assigned PAS / quote / OM handoff work",
     canApprove: "No business approval",
-    canOperate: "Enter PAS Demand No, quote result, quote validity, quote files, export package",
+    canOperate: "Enter PAS Demand No, quote result, quote validity, quote files, OM handoff",
     visibility: "Assigned rows only, supplier/PAS fields required for work",
-    nextAction: "Complete missing quote fields or move confirmed rows to export",
+    nextAction: "Complete missing quote fields or move confirmed rows to OM handoff",
   },
   {
     role: "Budget Approver",
@@ -495,10 +506,10 @@ const roleCapabilityMatrix = [
   },
   {
     role: "Buyer Handoff",
-    owns: "PR / PO after OM export",
+    owns: "PR / PO after OM handoff",
     canApprove: "No upstream approval",
     canOperate: "Track external PR / PO status, evidence, block reason",
-    visibility: "Export package and external purchasing progress",
+    visibility: "OM handoff scope and external purchasing progress",
     nextAction: "Record PR / PO progress or blocker",
   },
   {
@@ -543,10 +554,11 @@ const roleWorkspaceConfigs = {
     omTabLabels: {
       submission: "OM Leader Console",
       pasRequest: "PAS Demand No",
-      quoteExpiry: "Quote Expiry Watch",
-      finalExport: "Export Package",
+      quoteExpiry: "Quotation DB",
+      finalExport: "OM Handoff",
     },
     showOmRateUtility: true,
+    showOmStageCalendar: true,
     showOmSubmissionSummary: true,
     showOmSubmissionTriage: true,
     showOmSubmissionExpiryMonitor: false,
@@ -557,11 +569,12 @@ const roleWorkspaceConfigs = {
     omTabs: ["pasRequest", "quoteConfirm", "quoteExpiry", "finalExport"],
     omTabLabels: {
       pasRequest: "My Intake",
-      quoteConfirm: "My Quote Result / Monitor",
-      quoteExpiry: "My Quote Expiry Watch",
+      quoteConfirm: "My Quote Result",
+      quoteExpiry: "Quotation DB",
       finalExport: "My Exports",
     },
     showOmRateUtility: true,
+    showOmStageCalendar: false,
     showOmSubmissionSummary: false,
     showOmSubmissionTriage: false,
     showOmSubmissionExpiryMonitor: false,
@@ -688,10 +701,12 @@ function syncOmWorkspaceUi(role = currentRole) {
   const submissionPanel = document.querySelector('[data-om-panel="submission"]');
   if (submissionPanel) {
     const rateUtility = submissionPanel.querySelector(".om-rate-utility");
+    const stageCalendar = submissionPanel.querySelector(".om-stage-calendar-utility");
     const summary = submissionPanel.querySelector("#omSubmissionSummary");
     const triage = submissionPanel.querySelector("#omSubmissionTriage");
     const expiryMonitor = submissionPanel.querySelector(".om-expiry-monitor-panel");
     if (rateUtility) rateUtility.hidden = config.showOmRateUtility === false;
+    if (stageCalendar) stageCalendar.hidden = config.showOmStageCalendar === false;
     if (summary) summary.hidden = config.showOmSubmissionSummary === false;
     if (triage) triage.hidden = config.showOmSubmissionTriage === false;
     if (expiryMonitor) expiryMonitor.hidden = config.showOmSubmissionExpiryMonitor === false;
@@ -761,7 +776,7 @@ const OM_RECEIVED = "Received Handoff";
 const OM_UPDATED = "External System Updated";
 const OM_QUOTE_NEEDED = "Quote Needed";
 const OM_QUOTE_READY = "Quote Ready";
-const OM_READY_TO_EXPORT = "Ready to Export";
+const OM_READY_TO_EXPORT = "Ready for Handoff";
 const OM_WAITING_USER_CONFIRM = "Waiting User A Confirmation";
 const OM_USER_CONFIRMED = "Requester Confirmed";
 const USER_CONFIRMATION_NOT_REQUIRED = "User Confirmation Not Required";
@@ -785,7 +800,7 @@ const DEMAND_REVIEW_PENDING = "Pending";
 const DEMAND_REVIEW_APPROVED = "Approved";
 const DEMAND_REVIEW_DENIED = "Denied";
 const DEMAND_REVIEW_REVISE_REQUIRED = "Revise Required";
-const OM_PREPARING_EXPORT = "Preparing Export Package";
+const OM_PREPARING_EXPORT = "Preparing OM Handoff";
 const OM_READY_FOR_CFA = "Ready for CFA";
 const OM_READY_FOR_ECS = "Ready for ECS";
 const LEGACY_DRI_STOCK_QUEUE_LABEL = "Stock / Carryover Review";
@@ -821,6 +836,32 @@ function defaultAdminRolePermissions() {
 
 function defaultAdminFieldVisibilityRules() {
   return adminRoleGuards().defaultFieldVisibilityRules?.() || [];
+}
+
+function defaultPasDemandRequirementMaster() {
+  return (omBusinessFlowModule().PAS_DEMAND_REQUIREMENT_MASTER || []).map((record) => ({
+    ...record,
+    matchKeywords: Array.isArray(record.matchKeywords) ? [...record.matchKeywords] : record.matchKeywords,
+  }));
+}
+
+function normalizeAdminPasDemandRequirementRecord(record = {}) {
+  return omBusinessFlowModule().normalizePasDemandRequirementMasterRecord?.(record) || {
+    id: String(record.id || record.masterRecordId || "").trim(),
+    itemCategory: String(record.itemCategory || record.category || record.label || "").trim(),
+    matchKeywords: Array.isArray(record.matchKeywords) ? record.matchKeywords : String(record.matchKeywords || record.keywords || "").split(","),
+    pasDemandRequired: Boolean(record.pasDemandRequired ?? record.pas_demand_required),
+    active: record.active !== false,
+    ownerRole: String(record.ownerRole || record.owner_role || "OM Purchasing").trim(),
+    note: String(record.note || "").trim(),
+  };
+}
+
+function pasDemandRequirementMasterRows() {
+  const rows = adminApprovalSetup?.pasDemandRequirementMaster?.length
+    ? adminApprovalSetup.pasDemandRequirementMaster
+    : defaultPasDemandRequirementMaster();
+  return rows.map(normalizeAdminPasDemandRequirementRecord);
 }
 
 let adminApprovalSetup = {
@@ -864,13 +905,14 @@ let adminApprovalSetup = {
     { scope: "Computer / IT", dri: "Dept DRI", projectDri: "Budget Approver" },
     { scope: "Temporary Budget", dri: "Dept DRI", projectDri: "Budget Approver" },
   ],
+  pasDemandRequirementMaster: defaultPasDemandRequirementMaster(),
   omAssignmentRules: DEFAULT_OM_ASSIGNMENT_RULES.map((rule) => ({ ...rule })),
   updatedBy: "System",
   updatedAt: "",
 };
 let adminAuditFilters = { actorUserId: "", actorRole: "", eventType: "", module: "", from: "", to: "" };
-const OM_EXPORTED_CFA = "Exported to CFA";
-const OM_EXPORTED_ECS = "Exported to ECS";
+const OM_EXPORTED_CFA = "Handed off to CFA";
+const OM_EXPORTED_ECS = "Handed off to ECS";
 const USER_CANCELLED_REQUEST = "Cancelled by Requester";
 const AMENDMENT_WAITING_OM = "Waiting OM Amendment";
 const AMENDMENT_WAITING_USER_CONFIRM = "Waiting Requester Amendment Confirmation";
@@ -908,7 +950,7 @@ const OM_REQUESTOR = "OM Purchasing";
 const OM_CONTACT = "";
 const RFQ_REPLY_BUSINESS_DAYS = 5;
 const RFQ_OVERDUE_GRACE_DAYS = 2;
-const BUYER_RECEIVED = "Buyer Received";
+const BUYER_RECEIVED = "Buyer Accepted Handoff";
 const BUYER_BLOCKED = "Blocked";
 const BUYER_PR_CREATED = "PR Created";
 const BUYER_PO_ISSUED = "PO Issued";
@@ -1036,6 +1078,7 @@ let currentView = "department";
 let currentProject = "P26";
 let currentProjectCode = "";
 let currentProjectType = "G";
+let currentPurposeLocation = DEFAULT_PURPOSE_LOCATION;
 let currentRequesterPersonaId = "";
 let currencyDisplay = "VND";
 let monthlyExchangeRates = [{
@@ -1089,7 +1132,6 @@ let requestWorksheetSelectedSource = "";
 let requestWorksheetAddPhase = currentDeptDemandPhase;
 let requestWorksheetVisiblePhase = STAGES[0];
 let requestWorksheetActiveCell = { requestId: "", phase: "", column: "" };
-const requestNeedDateByScope = new Map();
 let requestItemPickerQuery = "";
 let requestItemPickerSourceMode = "catalog";
 let requestItemPickerLevel1 = "";
@@ -2357,9 +2399,9 @@ function omTabLabel(tab = currentOmTab) {
   const labels = {
     submission: "OM Leader Console",
     pasRequest: "PAS Demand No",
-    quoteConfirm: "Quote Result / Monitor",
-    quoteExpiry: "Quote Expiry Watch",
-    finalExport: "Export Package",
+    quoteConfirm: "Quote Result",
+    quoteExpiry: "Quotation DB",
+    finalExport: "OM Handoff",
   };
   return labels[tab] || tab || "OM";
 }
@@ -2377,7 +2419,7 @@ function renderOmWorkspaceBanner() {
         <div class="panel-title section-head-tight">
           <div>
             <h3>Assigned OM Workbench</h3>
-            <p class="panel-subcopy">Work from left to right: claim intake, complete quote package, watch expiring quotes, then finish export. Monitoring and assignment governance stay with OM Leader.</p>
+            <p class="panel-subcopy">Work from left to right: claim intake, complete quote package, reuse valid quotation records when Central IT has confirmed them, then finish export.</p>
           </div>
         </div>
         <div class="summary-grid">
@@ -2399,7 +2441,7 @@ function renderOmWorkspaceBanner() {
       <div class="panel-title section-head-tight">
         <div>
           <h3>OM Intake And Monitoring</h3>
-          <p class="panel-subcopy">Start from intake monitoring and assignment visibility. Leader view keeps exchange rate, queue triage, and downstream export readiness together because this role owns orchestration.</p>
+          <p class="panel-subcopy">Start from intake monitoring and assignment visibility. Leader view keeps exchange rate, queue triage, and downstream handoff readiness together because this role owns orchestration.</p>
         </div>
       </div>
       <div class="summary-grid">
@@ -2544,8 +2586,20 @@ function leadTimeModule() {
   return globalThis.ProcurementApp?.modules?.leadTime || {};
 }
 
+function purposeDateModule() {
+  return globalThis.ProcurementApp?.modules?.purposeDate || {};
+}
+
 function workflowStatusModule() {
   return globalThis.ProcurementApp?.modules?.workflowStatus || {};
+}
+
+function omBusinessFlowModule() {
+  return globalThis.ProcurementApp?.modules?.omBusinessFlow || {};
+}
+
+function quoteValidityModule() {
+  return globalThis.ProcurementApp?.modules?.quoteValidity || {};
 }
 
 function omProgressModule() {
@@ -3134,6 +3188,48 @@ function normalize(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function normalizePurposeLocation(value = "") {
+  return purposeDateModule().normalizePurposeLocation?.(value)
+    || (PURPOSE_LOCATION_OPTIONS.includes(String(value || "").trim().toUpperCase()) ? String(value || "").trim().toUpperCase() : DEFAULT_PURPOSE_LOCATION);
+}
+
+function dateOnly(value = "") {
+  if (purposeDateModule().dateOnly) return purposeDateModule().dateOnly(value);
+  if (!value) return "";
+  const parsed = new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+}
+
+function requiredDeliveryDateFollowStageDate(lineOpenDate = "") {
+  if (purposeDateModule().requiredDeliveryDateFollowStageDate) return purposeDateModule().requiredDeliveryDateFollowStageDate(lineOpenDate);
+  const normalized = dateOnly(lineOpenDate);
+  if (!normalized) return "";
+  const date = new Date(`${normalized}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 14);
+  return date.toISOString().slice(0, 10);
+}
+
+function givenLeadTimeDays(dateOfRequest = "", lineOpenDate = "") {
+  if (purposeDateModule().givenLeadTimeDays) return purposeDateModule().givenLeadTimeDays(dateOfRequest, lineOpenDate);
+  const start = dateOnly(dateOfRequest);
+  const end = requiredDeliveryDateFollowStageDate(lineOpenDate);
+  if (!start || !end) return null;
+  return Math.round((new Date(`${end}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000);
+}
+
+function procurementStatusValue(value = "") {
+  return purposeDateModule().procurementStatusValue?.(value)
+    || PROCUREMENT_STATUS_OPTIONS.find((option) => option.toLowerCase() === String(value || "").trim().toLowerCase())
+    || "Pending";
+}
+
+function suggestPurRequestNo(row = {}) {
+  return purposeDateModule().suggestPurRequestNo?.({
+    ...row,
+    qty: row.qty || totalQty(row),
+  }) || "";
+}
+
 function statusClass(status) {
   return normalize(status).replace(/[^a-z0-9]+/g, "-") || "draft";
 }
@@ -3164,7 +3260,7 @@ function quoteStatus(record) {
 }
 
 function hasOmQuoteData(row) {
-  return Boolean(row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteValidUntil(row) && omQuoteScreenshotFile(row) && row.quotationExcel);
+  return Boolean(row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteValidUntil(row) && omQuoteScreenshotFile(row));
 }
 
 function omQuoteReceivedAt(row) {
@@ -4080,6 +4176,62 @@ function projectTypesForFilter() {
   return PROJECT_TYPES;
 }
 
+function normalizeProjectStageCalendarRecord(record = {}) {
+  const yearProject = normalizeYearProjectLabel(record.yearProject || record.project || "");
+  const projectCode = normalizeProjectCodeLabel(record.projectCode || record.actualProject || "");
+  const phase = phaseKeyFromInput(record.phase);
+  return {
+    yearProject,
+    projectCode,
+    phase,
+    lineOpenDate: dateOnly(record.lineOpenDate || record.stageDate || ""),
+    updatedBy: record.updatedBy || "",
+    updatedAt: record.updatedAt || "",
+  };
+}
+
+function projectStageCalendarKey(record = {}) {
+  const normalized = normalizeProjectStageCalendarRecord(record);
+  return [normalized.yearProject, normalized.projectCode, normalized.phase].join("::");
+}
+
+function projectStageCalendarRows() {
+  const rowsByKey = new Map();
+  projectConfigs.forEach((project) => {
+    Object.entries(project.stageDates || {}).forEach(([phase, lineOpenDate]) => {
+      const row = normalizeProjectStageCalendarRecord({
+        yearProject: project.code,
+        projectCode: "",
+        phase,
+        lineOpenDate,
+        updatedBy: "System seed",
+      });
+      if (row.yearProject && row.phase && row.lineOpenDate) rowsByKey.set(projectStageCalendarKey(row), row);
+    });
+  });
+  projectStageCalendarRecords.forEach((record) => {
+    const row = normalizeProjectStageCalendarRecord(record);
+    if (row.yearProject && row.phase && row.lineOpenDate) rowsByKey.set(projectStageCalendarKey(row), row);
+  });
+  return [...rowsByKey.values()].sort((left, right) => (
+    left.yearProject.localeCompare(right.yearProject)
+    || left.projectCode.localeCompare(right.projectCode)
+    || STAGES.indexOf(left.phase) - STAGES.indexOf(right.phase)
+  ));
+}
+
+function projectStageCalendarLineOpenDate({ project = currentProject, projectCode = currentProjectCode, phase = currentStageForProject(project) } = {}) {
+  const yearProject = normalizeYearProjectLabel(project || currentProject);
+  const phaseKey = phaseKeyFromInput(phase) || currentStageForProject(yearProject);
+  const normalizedProjectCode = normalizeProjectCodeLabel(projectCode || "");
+  const rows = projectStageCalendarRows();
+  const exact = normalizedProjectCode
+    ? rows.find((row) => row.yearProject === yearProject && row.projectCode === normalizedProjectCode && row.phase === phaseKey)
+    : null;
+  const projectDefault = rows.find((row) => row.yearProject === yearProject && !row.projectCode && row.phase === phaseKey);
+  return exact?.lineOpenDate || projectDefault?.lineOpenDate || stageDateForProject(yearProject, phaseKey);
+}
+
 function stageDateForProject(projectCode, stage) {
   return projectConfigFor(projectCode)?.stageDates?.[stage] || "";
 }
@@ -4091,6 +4243,60 @@ function requiredDeliveryDateForProject(projectCode, stage) {
   if (Number.isNaN(date.getTime())) return "";
   date.setDate(date.getDate() - 14);
   return date.toISOString().slice(0, 10);
+}
+
+function requestPhaseLineOpenDate({ project = currentProject, projectCode = currentProjectCode, phase = currentStageForProject(project) } = {}) {
+  return dateOnly(projectStageCalendarLineOpenDate({ project, projectCode, phase }));
+}
+
+function requestPhaseLineOpenDateSource() {
+  return "OM Leader Project Stage Calendar";
+}
+
+function requestPhaseLineOpenDateMap(project = currentProject, projectCode = currentProjectCode) {
+  return Object.fromEntries(STAGES.map((phase) => [phase, requestPhaseLineOpenDate({ project, projectCode, phase })]));
+}
+
+function requestRowRequestedPhases(row = {}) {
+  const phases = stationBreakdownRowsForDetail(row)
+    .filter((item) => stationBreakdownRowTotal(item) > 0)
+    .map(stationBreakdownPhaseKey)
+    .filter((phase) => STAGES.includes(phase));
+  const unique = [...new Set(phases)];
+  if (unique.length) return unique;
+  return [row.phase || row.defaultPhase || currentStageForProject(row.project || currentProject)].filter(Boolean);
+}
+
+function requestDatePlanByPhase(row = {}, dateOfRequest = dateOfRequestForRow(row)) {
+  return Object.fromEntries(requestRowRequestedPhases(row).map((phase) => {
+    const project = row.project || row.yearProject || currentProject;
+    const projectCode = row.projectCode || projectCodeForRow(row) || currentProjectCode;
+    const lineOpenDate = requestPhaseLineOpenDate({ project, projectCode, phase });
+    return [phase, {
+      phase,
+      lineOpenDate,
+      requiredDeliveryDateFollowStageDate: requiredDeliveryDateFollowStageDate(lineOpenDate),
+      givenLeadTimeDays: givenLeadTimeDays(dateOfRequest, lineOpenDate),
+      source: requestPhaseLineOpenDateSource(),
+    }];
+  }));
+}
+
+function primaryRequestPhaseLineOpenDate(row = {}) {
+  const phase = requestRowRequestedPhases(row)[0] || currentStageForProject(row.project || currentProject);
+  return requestPhaseLineOpenDate({
+    project: row.project || row.yearProject || currentProject,
+    projectCode: row.projectCode || projectCodeForRow(row) || currentProjectCode,
+    phase,
+  });
+}
+
+function syncRequestPurposeDateInputs() {
+  const purposeSelect = document.getElementById("requestPurposeLocationInput");
+  currentPurposeLocation = normalizePurposeLocation(currentPurposeLocation);
+  if (purposeSelect && purposeSelect.value !== currentPurposeLocation) {
+    purposeSelect.value = currentPurposeLocation;
+  }
 }
 
 function allProjectCodes() {
@@ -4274,6 +4480,26 @@ function updateRequestNeedDate(requestId, value) {
   const updated = requests.find((row) => row.id === requestId);
   if (updated) addHandoffHistory(updated, "Need date updated", nextValue || "Need date cleared");
   renderDepartment();
+}
+
+function updateRequestRequiredDeliveryDate(requestId, value) {
+  const nextValue = dateOnly(value);
+  const now = new Date().toISOString();
+  requests = requests.map((row) => {
+    if (row.id !== requestId || !canRequesterEditRequest(row)) return row;
+    const previous = dateOnly(row.requiredDeliveryDate || row.needDate || row.requiredDeliveryDateDri || "");
+    return normalizeRequesterDateFields({
+      ...row,
+      needDate: nextValue,
+      requiredDeliveryDate: nextValue,
+      requiredDeliveryDateDri: nextValue,
+      requestDeadline: nextValue || row.requestDeadline || "",
+      requiredDeliveryDateUpdatedAt: previous !== nextValue ? now : row.requiredDeliveryDateUpdatedAt,
+      requiredDeliveryDateUpdatedBy: previous !== nextValue ? roleProfiles[currentRole]?.name || "Requester" : row.requiredDeliveryDateUpdatedBy,
+    });
+  });
+  renderRequestRows();
+  renderSelectedDemandLines();
 }
 
 function visibleSuggestions() {
@@ -4884,7 +5110,7 @@ function renderManagerStageTracking() {
       { label: "Waiting OM", value: waitingOm, helper: "PAS no / quote / export" },
       { label: "Waiting PAS", value: waitingPas, helper: "Bidding result not returned" },
       { label: "Waiting Requester", value: waitingRequester, helper: "Need confirm / revise" },
-      { label: "Buyer Handoff", value: buyerHandoff, helper: "Buyer owns PR / PO after OM export" },
+      { label: "Buyer Handoff", value: buyerHandoff, helper: "Buyer owns PR / PO after OM handoff" },
       { label: "Over SLA", value: overSla, helper: `>${OM_INTERNAL_SLA_DAYS}d in current stage`, variant: overSla ? "warning" : "" },
       { label: "Expired Quote", value: expired, helper: "Requote required", variant: expired ? "warning" : "" },
     ]);
@@ -8808,6 +9034,30 @@ function setPriceReviewQueue(queueName) {
   renderPriceReview();
 }
 
+function dateOfRequestForRow(row = {}) {
+  return dateOnly(row.dateOfRequest || row.requestedAt || row.submittedAt || row.createdAt || "");
+}
+
+function normalizeRequesterDateFields(row = {}) {
+  const purposeLocation = normalizePurposeLocation(row.purposeLocation || row.purpose || currentPurposeLocation);
+  const dateOfRequest = dateOfRequestForRow(row);
+  const requiredDeliveryDate = dateOnly(row.requiredDeliveryDate || row.needDate || row.requiredDeliveryDateDri || "");
+  const datePlanByPhase = requestDatePlanByPhase({ ...row, purposeLocation }, dateOfRequest);
+  const lineOpenDate = dateOnly(row.lineOpenDate || Object.values(datePlanByPhase)[0]?.lineOpenDate || "");
+  const requiredByStage = requiredDeliveryDateFollowStageDate(lineOpenDate);
+  return {
+    ...row,
+    purposeLocation,
+    purpose: purposeLocation,
+    lineOpenDate,
+    datePlanByPhase,
+    dateOfRequest,
+    requiredDeliveryDate,
+    requiredDeliveryDateFollowStageDate: requiredByStage,
+    givenLeadTimeDays: givenLeadTimeDays(dateOfRequest, lineOpenDate),
+  };
+}
+
 function requestFromRecord(record, overrides = {}) {
   const masterRecord = materialMasterRecordFor(record);
   const project = overrides.project || record.project || currentProject;
@@ -8817,15 +9067,17 @@ function requestFromRecord(record, overrides = {}) {
   const requestIntent = normalizeRequestIntentFields({ ...record, ...overrides });
   const omPatch = omResponsibilityPatch({ ...record, ...overrides, project });
   const demandDepartment = rowDemandDepartment({ ...record, ...overrides }, currentRequesterDepartment());
-  const draft = {
+  const draft = normalizeRequesterDateFields({
     id: `DRAFT-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
     project,
     yearProject,
     projectCode,
     projectType: overrides.projectType || record.projectType || projectTypeFor(project),
     timelineSource: `${projectTypeFor(project)} Requester Timeline`,
-    lineOpenDate: overrides.lineOpenDate || record.lineOpenDate || stageDateForProject(project, stage),
-    requiredDeliveryDate: overrides.requiredDeliveryDate || record.requiredDeliveryDate || requiredDeliveryDateForProject(project, stage),
+    lineOpenDate: overrides.lineOpenDate || record.lineOpenDate || requestPhaseLineOpenDate({ project, phase: stage }),
+    requiredDeliveryDate: Object.prototype.hasOwnProperty.call(overrides, "requiredDeliveryDate")
+      ? overrides.requiredDeliveryDate
+      : record.requiredDeliveryDate || requiredDeliveryDateForProject(project, stage),
     sourceRecordId: record.id,
     sourceSuggestionId: record.sourceSuggestionId || "",
     sourceProject: overrides.sourceProject || record.sourceProject || record.project || currentProject,
@@ -8852,7 +9104,8 @@ function requestFromRecord(record, overrides = {}) {
     level2: record.level2 || "",
     level3: record.level3 || "",
     spec: record.spec,
-    purpose: overrides.purpose ?? record.purpose ?? "",
+    purpose: overrides.purpose ?? overrides.purposeLocation ?? record.purposeLocation ?? record.purpose ?? "",
+    purposeLocation: overrides.purposeLocation ?? record.purposeLocation ?? record.purpose ?? "",
     process: record.process,
     station: record.station,
     department: demandDepartment,
@@ -8900,7 +9153,7 @@ function requestFromRecord(record, overrides = {}) {
     requestAction: requestIntent.requestAction,
     action: requestIntent.requestAction,
     requestActionOtherText: requestIntent.requestActionOtherText,
-  };
+  });
   return syncRowPhaseQtyFromStationBreakdown(normalizeRequestDemandDepartment(draft, demandDepartment));
 }
 
@@ -9197,7 +9450,7 @@ function seedOmDemoData() {
       updatedPrice: validRecord.unitPrice || 95,
       pasDemandNo: "AIDB260512-OM005",
       pasMaterialNo: "PAS-MAT-OM005",
-      procurementRemark: "Requester confirmed this quote. Use this row to test Expense/Capex selection, Export Package, and Mark Exported.",
+      procurementRemark: "Requester confirmed this quote. Use this row to test Expense/Capex selection, OM Handoff, and Mark Handoff.",
       decidedAt: "2026-05-12T09:45:00.000Z",
       sentToOmAt: "2026-05-12T10:15:00.000Z",
       pasResultReceivedAt: "2026-05-12T10:45:00.000Z",
@@ -9244,7 +9497,7 @@ function seedOmDemoData() {
   seedOmHistory(demoRows[1], "Uploaded quote Excel", demoRows[1].quotationExcel);
   seedOmHistory(demoRows[2], "PAS result uploaded", "Quote file, vendor, date, and price are ready to send to Requester confirmation.");
   seedOmHistory(demoRows[2], "Uploaded quote Excel", demoRows[2].quotationExcel);
-  seedOmHistory(demoRows[3], "Requester confirmed need", "Demo row is ready for Final Export package testing.");
+  seedOmHistory(demoRows[3], "Requester confirmed need", "Demo row is ready for OM Handoff testing.");
   seedOmHistory(demoRows[3], "Uploaded quote Excel", demoRows[3].quotationExcel);
   demoRows.forEach((row) => seedOmHistory(row, "Received handoff", `Route: ${handoffRoute(row)} / ${handoffWarnings(row).join(" / ") || "No warnings"}`));
 }
@@ -9544,6 +9797,7 @@ function seedProjectStatusCostDashboardDemoData() {
 
 function renderDepartment() {
   syncProjectControls();
+  syncRequestPurposeDateInputs();
   syncCascade("natural");
   syncCascade("history");
   renderItemPickerDemandContext();
@@ -10343,6 +10597,8 @@ function renderRequestWorksheetHead() {
     stages: STAGES,
     stageLabels: STAGE_LABELS,
     columns,
+    phaseLineOpenDates: requestPhaseLineOpenDateMap(currentProject),
+    phaseLineOpenSource: requestPhaseLineOpenDateSource(),
   }) || "";
 }
 
@@ -10367,6 +10623,8 @@ function renderRequestWorksheetPhaseJumpBar() {
     stages: STAGES,
     stageLabels: STAGE_LABELS,
     activePhase: requestWorksheetVisiblePhase,
+    phaseLineOpenDates: requestPhaseLineOpenDateMap(currentProject),
+    phaseLineOpenSource: requestPhaseLineOpenDateSource(),
   }) || "";
 }
 
@@ -10457,10 +10715,6 @@ function requestWorksheetBreakdownMatches(item, { mode = requestWorksheetMode, r
   return mode === DEMAND_TYPE_MFG ? item.station === column : demandUnitFor(item) === column;
 }
 
-function requestNeedDateScopeKey({ project = currentProject, requestLine = requestWorksheetLine, mode = requestWorksheetMode } = {}) {
-  return [project || currentProject, requestLine || "Line 1", quantityReviewModeValue(mode)].join("|||");
-}
-
 function requestNeedDateScopeLabel({ requestLine = requestWorksheetLine, mode = requestWorksheetMode } = {}) {
   return `${quantityReviewModeLabel(mode)} / ${requestLine || "Line 1"}`;
 }
@@ -10478,31 +10732,6 @@ function requestRowHasSubmitScopeDemand(row, { mode = requestWorksheetMode, requ
     requestBreakdownMatchesScope(item, { mode, requestLine })
     && stationBreakdownRowTotal(item) > 0
   );
-}
-
-function currentRequestScopeNeedDateFromRows() {
-  const rows = activeProjectRequests().filter((row) => requestRowMatchesSubmitScope(row));
-  return rows.map(needDateForRow).find(Boolean) || "";
-}
-
-function currentRequestScopeNeedDate() {
-  return requestNeedDateByScope.get(requestNeedDateScopeKey()) || currentRequestScopeNeedDateFromRows();
-}
-
-function setCurrentRequestScopeNeedDate(value = "") {
-  const key = requestNeedDateScopeKey();
-  const next = value || "";
-  if (next) requestNeedDateByScope.set(key, next);
-  else requestNeedDateByScope.delete(key);
-}
-
-function syncRequestPackageNeedDateInput() {
-  const input = document.getElementById("requestPackageNeedDate");
-  const label = document.getElementById("requestPackageNeedDateLabel");
-  if (label) label.textContent = `${quantityReviewModeLabel(requestWorksheetMode)} Need Date`;
-  if (!input) return;
-  input.value = currentRequestScopeNeedDate();
-  input.setAttribute("aria-label", `${requestNeedDateScopeLabel()} Need Date`);
 }
 
 function requesterSubmitScopeAudit() {
@@ -11016,8 +11245,19 @@ function requestWorksheetHintCell(row) {
   return `
     <div class="request-hint-stack">
       <div class="request-hint-badges">${hintHtml}</div>
+      ${requestWorksheetRequiredDeliveryDateControl(row)}
       ${requestWorksheetActionControl(row)}
     </div>`;
+}
+
+function requestWorksheetRequiredDeliveryDateControl(row) {
+  const value = dateOnly(row.requiredDeliveryDate || row.needDate || row.requiredDeliveryDateDri || "");
+  const disabled = canRequesterEditRequest(row) ? "" : "disabled";
+  return `
+    <label class="request-required-delivery-control">
+      <span>Required Delivery Date</span>
+      <input ${disabled} type="date" value="${htmlAttr(value)}" data-request-required-delivery-date="${htmlAttr(row.id)}" aria-label="Required Delivery Date for ${htmlAttr(row.name || "request item")}" />
+    </label>`;
 }
 
 function requestWorksheetActionControl(row) {
@@ -11076,6 +11316,8 @@ function requestWorksheetOverrides(record, source, phases = [requestWorksheetAdd
   const zeroStageOverrides = STAGES.reduce((values, stage) => ({ ...values, [stage]: 0 }), {});
   const stationBreakdown = phases.map((phase) => requestWorksheetSeedBreakdown(record, { phase, mode: requestWorksheetMode }));
   const requestIntent = normalizeRequestIntentFields(record);
+  const purposeLocation = normalizePurposeLocation(currentPurposeLocation);
+  const lineOpenDate = requestPhaseLineOpenDate({ project: currentProject, phase: phases[0] || requestWorksheetAddPhase });
   return {
     ...zeroStageOverrides,
     project: currentProject,
@@ -11088,8 +11330,10 @@ function requestWorksheetOverrides(record, source, phases = [requestWorksheetAdd
     demandType: requestWorksheetMode,
     station: requestWorksheetMode === DEMAND_TYPE_MFG ? requestWorksheetColumns()[0] : "",
     demandUnit: requestWorksheetMode === DEMAND_TYPE_MFG ? "" : requestWorksheetColumns()[0],
-    lineOpenDate: stageDateForProject(currentProject, phases[0] || requestWorksheetAddPhase),
-    requiredDeliveryDate: requiredDeliveryDateForProject(currentProject, phases[0] || requestWorksheetAddPhase),
+    purposeLocation,
+    purpose: purposeLocation,
+    lineOpenDate,
+    requiredDeliveryDate: "",
     stationBreakdown,
     selected: true,
     requestAction: requestIntent.requestAction,
@@ -11158,19 +11402,18 @@ function renderRequestRows() {
   renderRequestWorksheetHead();
   renderRequestWorksheetPhaseJumpBar();
   renderRequesterInputContext();
-  syncRequestPackageNeedDateInput();
   const summary = document.getElementById("requestDraftSummary");
   const scopeSummary = document.getElementById("requestWorksheetScopeSummary");
-  const packageNeedDate = requestPackageNeedDateValue();
   const audit = requesterSubmitScopeAudit();
   const rowsWithQty = audit.readyRows;
+  const rowsMissingRequiredDeliveryDate = rowsWithQty.filter((row) => !dateOnly(row.requiredDeliveryDate || row.needDate || row.requiredDeliveryDateDri || ""));
   if (summary) {
     if (!packageRows.length) {
       summary.textContent = `Use Add Item, then enter at least one non-zero ${quantityReviewModeLabel(requestWorksheetMode)} quantity before submitting.`;
     } else if (!rowsWithQty.length) {
       summary.textContent = `Add quantity to at least one ${requestNeedDateScopeLabel()} worksheet row before submitting to Dept DRI.`;
-    } else if (!packageNeedDate) {
-      summary.textContent = `${quantityReviewModeLabel(requestWorksheetMode)} Need Date is still required before this scope can be submitted.`;
+    } else if (rowsMissingRequiredDeliveryDate.length) {
+      summary.textContent = `Required Delivery Date is required for each submitted item. ${rowsMissingRequiredDeliveryDate.length} row${rowsMissingRequiredDeliveryDate.length === 1 ? "" : "s"} still missing.`;
     } else {
       const excludedText = audit.excluded.length ? ` Excluded: ${audit.excluded.slice(0, 3).join(" / ")}${audit.excluded.length > 3 ? ` / +${audit.excluded.length - 3} more` : ""}.` : "";
       summary.textContent = `Ready to submit ${rowsWithQty.length} ${quantityReviewModeLabel(requestWorksheetMode)} row${rowsWithQty.length === 1 ? "" : "s"} on ${requestWorksheetLine}.${excludedText}`;
@@ -12593,8 +12836,8 @@ function timelineMilestones(row) {
     { key: "pasDemandNo", label: "PAS Demand No", done: pasDemandNoDone, pending: isPasRequired(row) && ["Approved", "Reported"].includes(row.status) && !pasDemandNoDone, at: row.pasDemandNoUpdatedAt || row.pasResultReceivedAt || historyTimestamp(row, "PAS Demand No recorded") },
     { key: "quoteReady", label: "Quote Ready", done: quoteReadyDone, pending: row.omStage === "pasResult" && !quoteReadyDone, at: row.quoteReadyAt || historyTimestamp(row, "Saved quote info") || requesterConfirmationSentAt(row) },
     { key: "userConfirm", label: row.userAQuoteDecisionStatus === USER_CANCELLED_REQUEST ? "Cancelled" : "Requester Confirm", done: [OM_WAITING_USER_CONFIRM, OM_USER_CONFIRMED, USER_CANCELLED_REQUEST].includes(row.userAQuoteDecisionStatus), pending: row.userAQuoteDecisionStatus === OM_WAITING_USER_CONFIRM, blocked: row.userAQuoteDecisionStatus === USER_CANCELLED_REQUEST, at: row.userAQuoteDecisionAt || requesterConfirmationSentAt(row) },
-    { key: "finalExport", label: "Export Package", done: [OM_READY_FOR_CFA, OM_READY_FOR_ECS, OM_EXPORTED_CFA, OM_EXPORTED_ECS].includes(row.finalExportStatus), pending: [OM_READY_FOR_CFA, OM_READY_FOR_ECS].includes(row.finalExportStatus), at: row.finalExportedAt || historyTimestamp(row, `Marked for ${row.finalExportTarget}`) },
-    { key: "buyer", label: "Buyer Received", done: Boolean(row.buyerStatus || row.buyerReceivedAt || [OM_EXPORTED_CFA, OM_EXPORTED_ECS].includes(row.finalExportStatus)), at: row.buyerReceivedAt || row.finalExportedAt },
+    { key: "finalExport", label: "OM Handoff", done: [OM_READY_FOR_CFA, OM_READY_FOR_ECS, OM_EXPORTED_CFA, OM_EXPORTED_ECS].includes(row.finalExportStatus), pending: [OM_READY_FOR_CFA, OM_READY_FOR_ECS].includes(row.finalExportStatus), at: row.finalExportedAt || historyTimestamp(row, `Marked for ${row.finalExportTarget}`) },
+    { key: "buyer", label: "Buyer Accepted Handoff", done: Boolean(row.buyerStatus || row.buyerReceivedAt || [OM_EXPORTED_CFA, OM_EXPORTED_ECS].includes(row.finalExportStatus)), at: row.buyerReceivedAt || row.finalExportedAt },
     { key: "poDone", label: "PO Done", done: [BUYER_PO_ISSUED, BUYER_COMPLETED].includes(row.buyerStatus) || [EXT_PO_ISSUED, EXT_COMPLETED].includes(externalStatusFor(row)), at: poDoneEvent?.createdAt },
   ];
 }
@@ -12834,14 +13077,14 @@ function managerAuditTimelineEvents(row) {
       source: "Requester",
     } : null,
     row.finalExportedAt ? {
-      action: `Exported to ${row.finalExportTarget || "CFA/ECS"}`,
+      action: `OM Handoff to ${row.finalExportTarget || "CFA/ECS"}`,
       actor: row.finalExportedBy || "OM Purchasing",
-      note: row.finalExportStatus || "Final export completed.",
+      note: row.finalExportStatus || "OM handoff completed.",
       timestamp: row.finalExportedAt,
       source: "OM",
     } : null,
     row.buyerReceivedAt ? {
-      action: "Buyer Received",
+      action: "Buyer Accepted Handoff",
       actor: row.buyerReceivedBy || "Buyer",
       note: row.buyerStatus || "Buyer PR / PO follow-up started.",
       timestamp: row.buyerReceivedAt,
@@ -13384,24 +13627,17 @@ function importHistoryPackage() {
   showToast(`Copied ${imported.length} demand item identities to ${targetProject} / ${context.requestLine}. Quantity starts at 0.`, "success");
 }
 
-function requestPackageNeedDateValue() {
-  return document.getElementById("requestPackageNeedDate")?.value || currentRequestScopeNeedDate();
-}
-
 function saveRequesterDraft() {
   const rows = requesterPackageRows();
   const now = new Date().toISOString();
-  const packageNeedDate = requestPackageNeedDateValue();
-  if (packageNeedDate) setCurrentRequestScopeNeedDate(packageNeedDate);
-  requests = requests.map((row) => rows.some((item) => item.id === row.id) ? {
-    ...row,
-    draftSavedAt: now,
-    ...(packageNeedDate ? {
-      needDate: packageNeedDate,
-      requiredDeliveryDate: packageNeedDate,
-      requiredDeliveryDateDri: packageNeedDate,
-    } : {}),
-  } : row);
+  requests = requests.map((row) => rows.some((item) => item.id === row.id)
+    ? normalizeRequesterDateFields({
+      ...row,
+      draftSavedAt: now,
+      purposeLocation: currentPurposeLocation,
+      lineOpenDate: primaryRequestPhaseLineOpenDate(row),
+    })
+    : row);
   renderRequestRows();
   renderSelectedDemandLines();
   showToast(rows.length ? `${rows.length} worksheet item${rows.length === 1 ? "" : "s"} saved.` : "No worksheet items on this line yet.", rows.length ? "success" : "info");
@@ -13411,7 +13647,6 @@ function submitRequests() {
   const audit = requesterSubmitScopeAudit();
   const visibleRows = audit.scopedRows.filter(canRequesterEditRequest);
   const selectedRows = audit.readyRows;
-  const packageNeedDate = requestPackageNeedDateValue();
   if (!visibleRows.length) {
     showToast(`Add at least one ${quantityReviewModeLabel(requestWorksheetMode)} item/spec before submitting to Dept DRI.`, "error");
     return;
@@ -13420,8 +13655,8 @@ function submitRequests() {
     showToast(`Add at least one ${quantityReviewModeLabel(requestWorksheetMode)} phase quantity before submitting to Dept DRI.`, "error");
     return;
   }
-  if (!packageNeedDate) {
-    showToast(`${quantityReviewModeLabel(requestWorksheetMode)} Need Date is required before submitting this demand scope.`, "error");
+  if (selectedRows.some((row) => !dateOnly(row.requiredDeliveryDate || row.needDate || row.requiredDeliveryDateDri || ""))) {
+    showToast("Required Delivery Date is required for each submitted item.", "error");
     return;
   }
   if (selectedRows.some((row) => !isMaintenanceComplete(row) && !isMaterialNoPending(row))) {
@@ -13434,7 +13669,6 @@ function submitRequests() {
   }
   let submitted = 0;
   const now = new Date().toISOString();
-  setCurrentRequestScopeNeedDate(packageNeedDate);
   const packageId = `PKG-${currentProject}-${now.replace(/[-:.TZ]/g, "").slice(0, 14)}`;
   const requesterPersona = currentRequesterPersona();
   const requesterDepartment = currentRequesterDepartment();
@@ -13450,7 +13684,8 @@ function submitRequests() {
       submitted += 1;
       const newId = submittedIds.get(row.id);
       const demandDepartment = rowDemandDepartment(row, requesterDepartment);
-      return syncRowPhaseQtyFromStationBreakdown(normalizeRequestDemandDepartment({
+      const rowRequiredDeliveryDate = dateOnly(row.requiredDeliveryDate || row.needDate || row.requiredDeliveryDateDri || "");
+      return syncRowPhaseQtyFromStationBreakdown(normalizeRequestDemandDepartment(normalizeRequesterDateFields({
         ...row,
         id: newId,
 	        selected: false,
@@ -13472,14 +13707,18 @@ function submitRequests() {
         requestPackageId: row.requestPackageId || packageId,
         requestPackageLabel: row.requestPackageLabel || `${currentProject} Demand Package`,
         submittedAt: now,
+        dateOfRequest: row.dateOfRequest || now,
+        purposeLocation: currentPurposeLocation,
+        purpose: currentPurposeLocation,
+        lineOpenDate: primaryRequestPhaseLineOpenDate(row),
         submittedBy: requesterPersona?.name || roleProfiles[currentRole]?.name || "Requester",
         requestAction: requestActionValue(row),
         action: requestActionValue(row),
         requestActionOtherText: requestActionOtherTextValue(row),
-        needDate: packageNeedDate,
-        requiredDeliveryDate: packageNeedDate,
-        requiredDeliveryDateDri: packageNeedDate,
-        requestDeadline: row.requestDeadline || packageNeedDate,
+        needDate: rowRequiredDeliveryDate,
+        requiredDeliveryDate: rowRequiredDeliveryDate,
+        requiredDeliveryDateDri: rowRequiredDeliveryDate,
+        requestDeadline: row.requestDeadline || rowRequiredDeliveryDate,
         requesterName: row.requesterName || requesterPersona?.name || "",
         requesterEmployeeId: row.requesterEmployeeId || requesterPersona?.employeeId || "",
         email: row.email || requesterPersona?.email || "",
@@ -13493,7 +13732,7 @@ function submitRequests() {
           amendedBy: roleProfiles[currentRole]?.name || "Requester",
           amendedAt: row.amendedAt || now,
         } : {}),
-      }, demandDepartment));
+      }), demandDepartment));
     }
     const amendment = amendmentSubmissions.find((item) => item.sourceId === row.id);
     if (amendment) {
@@ -13515,7 +13754,7 @@ function submitRequests() {
   requests
     .filter((row) => [...submittedIds.values()].includes(row.id))
     .forEach((row) => {
-      addHandoffHistory(row, "Need date submitted", needDateForRow(row));
+      addHandoffHistory(row, "Required Delivery Date submitted", needDateForRow(row));
       addHandoffHistory(row, "Submitted to Dept DRI", "Dept DRI must approve before OM Leader intake.");
       if (isTemporaryBudgetRequest(row)) {
         addHandoffHistory(row, "Temporary Budget submitted", "Dept DRI initial approval is required before OM quote/bidding.");
@@ -14363,7 +14602,7 @@ function managerQueueNextStep(row, role = managerReviewRole(currentRole)) {
     if (row.priceDecisionStatus === PRICE_ESCALATION_REQUIRED || row.priceApprovalStatus === PRICE_ESCALATION_PENDING_DRI) return "Budget Review";
     return row.nextStep || "Waiting Dept Review";
   }
-  if (role === "projectDri") return row.nextStep || "OM Export Package";
+  if (role === "projectDri") return row.nextStep || "OM Handoff";
   if (isCostManagerAuthorizationPending(row)) return "Demand approval before OM intake";
   if (isDeptDriSubmissionPending(row)) return "Waiting Dept DRI approval";
   return row.nextStep || (row.status === "Approved" ? "OM / cost tracking" : "Waiting approval gate");
@@ -15447,9 +15686,9 @@ function omStageTrackingCell(group, stage) {
       note: rows.some((row) => row.userAQuoteDecisionStatus === OM_USER_CONFIRMED) ? "Requester confirmed" : rows.some((row) => isOmWaitingUserConfirm(row)) ? "Waiting Requester" : "Not sent to Requester",
     },
     export: {
-      label: rows.some((row) => row.finalExportedAt) ? "Exported" : rows.some((row) => row.finalExportStatus || row.finalExportTarget) ? "Preparing" : "Pending",
+      label: rows.some((row) => row.finalExportedAt) ? "Handed Off" : rows.some((row) => row.finalExportStatus || row.finalExportTarget) ? "Preparing" : "Pending",
       date: latestDate((row) => row.finalExportedAt || row.finalExportPreparedAt),
-      note: rows.some((row) => row.finalExportedAt) ? "CFA/ECS exported" : "Export pending",
+      note: rows.some((row) => row.finalExportedAt) ? "Buyer handoff complete" : "Handoff pending",
     },
   }[stage];
   return `
@@ -15588,7 +15827,7 @@ function omPendingOwnerHelper(group, pendingOwner) {
       .map((row) => row.buyerReceivedAt || row.finalExportedAt || row.sentToBuyerAt)
       .filter(Boolean)
       .sort()[0] || "";
-    if (!buyerStart) return "Buyer owns PR / PO after OM export";
+    if (!buyerStart) return "Buyer owns PR / PO after OM handoff";
     const days = daysBetweenDates(buyerStart);
     return `Buyer owns PR / PO · ${days}d since ${compactDateTime(buyerStart)}`;
   }
@@ -15651,6 +15890,103 @@ function canMaintainOmExchangeRate() {
     || currentOmUserId() === "om-member-giang";
 }
 
+function canMaintainProjectStageCalendar() {
+  return isOmLeaderRole();
+}
+
+function omStageCalendarYearProjectOptions() {
+  return [...new Set(projectConfigs.map((project) => project.code).filter(Boolean))];
+}
+
+function syncOmStageCalendarControls() {
+  const yearSelect = document.getElementById("omStageCalendarYearProject");
+  const projectSelect = document.getElementById("omStageCalendarProjectCode");
+  const phaseInput = document.getElementById("omStageCalendarPhase");
+  const dateInput = document.getElementById("omStageCalendarLineOpenDate");
+  const saveButton = document.querySelector("[data-action='saveOmStageCalendar']");
+  if (!yearSelect || !projectSelect || !phaseInput || !dateInput) return;
+  const yearOptions = omStageCalendarYearProjectOptions();
+  const selectedYear = normalizeYearProjectLabel(yearSelect.value || currentProject || yearOptions[0] || "");
+  yearSelect.innerHTML = yearOptions.map((project) => `<option value="${htmlAttr(project)}">${htmlText(project)}</option>`).join("");
+  yearSelect.value = yearOptions.includes(selectedYear) ? selectedYear : yearOptions[0] || "";
+  const projectCodes = projectCodeOptionsForScope({
+    projectType: projectTypeFor(yearSelect.value),
+    yearProject: yearSelect.value,
+  });
+  const selectedProjectCode = normalizeProjectCodeLabel(projectSelect.value || "");
+  projectSelect.innerHTML = [
+    `<option value="">All project codes</option>`,
+    ...projectCodes.map((code) => `<option value="${htmlAttr(code)}">${htmlText(code)}</option>`),
+  ].join("");
+  projectSelect.value = projectCodes.includes(selectedProjectCode) ? selectedProjectCode : "";
+  if (!phaseInput.value) phaseInput.value = stageLabel(currentStageForProject(yearSelect.value));
+  const canMaintain = canMaintainProjectStageCalendar();
+  [yearSelect, projectSelect, phaseInput, dateInput].forEach((input) => {
+    input.disabled = !canMaintain;
+  });
+  if (saveButton) saveButton.disabled = !canMaintain;
+}
+
+function renderOmProjectStageCalendar() {
+  const body = document.getElementById("omStageCalendarRows");
+  if (!body) return;
+  syncOmStageCalendarControls();
+  const rows = projectStageCalendarRows();
+  body.innerHTML = rows.length
+    ? rows.map((row) => `
+      <tr>
+        <td>${htmlText(row.yearProject)}</td>
+        <td>${row.projectCode ? htmlText(row.projectCode) : "All project codes"}</td>
+        <td>${htmlText(stageLabel(row.phase))}</td>
+        <td>${htmlText(row.lineOpenDate || "-")}</td>
+        <td>${htmlText(requiredDeliveryDateFollowStageDate(row.lineOpenDate) || "-")}</td>
+        <td>${htmlText(row.updatedBy || "System seed")}${row.updatedAt ? `<div class="reason-text">${compactDateTime(row.updatedAt)}</div>` : ""}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="6" class="empty-cell">No project stage dates have been configured yet.</td></tr>`;
+}
+
+function saveOmStageCalendar() {
+  if (!canMaintainProjectStageCalendar()) {
+    showToast("Only OM Leader or Admin can update Project Stage Calendar.", "error");
+    return;
+  }
+  const yearProject = normalizeYearProjectLabel(document.getElementById("omStageCalendarYearProject")?.value || "");
+  const projectCode = normalizeProjectCodeLabel(document.getElementById("omStageCalendarProjectCode")?.value || "");
+  const phase = phaseKeyFromInput(document.getElementById("omStageCalendarPhase")?.value || "");
+  const lineOpenDate = dateOnly(document.getElementById("omStageCalendarLineOpenDate")?.value || "");
+  if (!yearProject || !phase || !lineOpenDate) {
+    showToast("Year Project, Phase, and Line Open Date are required.", "error");
+    return;
+  }
+  const record = {
+    yearProject,
+    projectCode,
+    phase,
+    lineOpenDate,
+    updatedBy: roleProfiles[currentRole]?.name || "OM Leader",
+    updatedAt: new Date().toISOString(),
+  };
+  const key = projectStageCalendarKey(record);
+  projectStageCalendarRecords = [
+    record,
+    ...projectStageCalendarRecords.filter((row) => projectStageCalendarKey(row) !== key),
+  ];
+  projectConfigs = projectConfigFor(yearProject)
+    ? projectConfigs.map((project) => project.code === yearProject ? {
+      ...project,
+      stageDates: { ...(project.stageDates || {}), [phase]: lineOpenDate },
+    } : project)
+    : [...projectConfigs, { code: yearProject, projectType: projectTypeForScopeCode(yearProject) || "G", currentPhase: stageLabel(phase), openToUser: true, stageDates: { [phase]: lineOpenDate } }];
+  refreshProjectCodes();
+  syncProjectControls();
+  renderOmSubmission();
+  renderDepartment();
+  renderProjectSetup();
+  renderManagerStageTracking();
+  renderProjectStatus();
+  showToast(`Project Stage Calendar saved: ${yearProject}${projectCode ? ` / ${projectCode}` : ""} ${stageLabel(phase)} opens ${lineOpenDate}.`, "success");
+}
+
 function saveOmExchangeRate() {
   if (!canMaintainOmExchangeRate()) {
     showToast("Only Giang, OM Leader, or Admin can update monthly exchange rate.", "error");
@@ -15675,6 +16011,34 @@ function saveOmExchangeRate() {
   showToast(`Exchange rate saved: 1 USD = ${rate.toLocaleString("en-US")} VND.`, "success");
 }
 
+function omPendingFocusReason(group) {
+  const owner = omPendingOwnerForGroup(group);
+  const stage = omCurrentStageForGroup(group);
+  const quoteStatus = omQuoteStatusForGroup(group);
+  if (omIsOverSla(group)) return `Over SLA in ${stage}`;
+  if (owner === "PAS / Bidding") return "Waiting PAS bidding result";
+  if (owner === "Requester") return "Waiting Requester confirm / cancel";
+  if (stage === "OM Handoff") return "Confirmed by Requester; OM handoff pending";
+  if (quoteStatus === "Missing Validity") return "Quote validity missing in Quote Result";
+  if (["Expiring Soon", "Expired / Requote Required"].includes(quoteStatus)) return quoteStatus;
+  if (stage === "PAS Demand No") return "PAS Demand No not recorded";
+  return omNextActionForGroup(group);
+}
+
+function omPendingFocusScore(group) {
+  const days = omDaysInStage(group);
+  const owner = omPendingOwnerForGroup(group);
+  const quoteStatus = omQuoteStatusForGroup(group);
+  let score = 0;
+  if (omIsOverSla(group)) score += 100;
+  if (quoteStatus === "Expired / Requote Required") score += 80;
+  if (quoteStatus === "Expiring Soon") score += 60;
+  if (owner === "PAS / Bidding") score += 40;
+  if (owner === "Requester") score += 30;
+  if (omCurrentStageForGroup(group) === "OM Handoff") score += 20;
+  return score + (days || 0);
+}
+
 function renderOmSubmissionTriage(rows = []) {
   const target = document.getElementById("omSubmissionTriage");
   if (!target) return;
@@ -15693,12 +16057,12 @@ function renderOmSubmissionTriage(rows = []) {
     { label: "Waiting PAS Reply", value: waitingPasReply.length, helper: "Follow bidding result", tone: waitingPasReply.length ? "pending" : "ok" },
     { label: "Quote Validity Missing", value: quoteMissing.length, helper: "Fill Valid Until", tone: quoteMissing.length ? "warning" : "ok" },
     { label: "Expiry Risk", value: expiryRisk.length, helper: `Expired or <= ${QUOTE_EXPIRING_SOON_DAYS}d`, tone: expiryRisk.length ? "warning" : "ok" },
-    { label: "Ready to Export", value: exportReady.length, helper: "Confirmed by Requester", tone: exportReady.length ? "info" : "ok" },
+    { label: "Ready for Handoff", value: exportReady.length, helper: "Confirmed by Requester", tone: exportReady.length ? "info" : "ok" },
   ];
   target.innerHTML = `
     <div class="triage-title">
-      <strong>Queue Triage</strong>
-      <span>Prioritize overdue, missing PAS number, quote validity, and export-ready rows before routine monitoring.</span>
+      <strong>Pending Request Focus</strong>
+      <span>Prioritize request-level blockers here. Edit quote data only in Quote Result.</span>
     </div>
     <div class="triage-grid">
       ${triageItems.map((item) => `
@@ -15772,6 +16136,7 @@ function omProgressRemarkCell(group) {
 function renderOmSubmission() {
   syncOmSubmissionFilters();
   renderOmExchangeRatePanel();
+  renderOmProjectStageCalendar();
   const filters = omSubmissionFilterState();
   const scopeLabel = document.getElementById("omSubmissionScopeLabel");
   if (scopeLabel) scopeLabel.textContent = omSubmissionScopeLabel(filters);
@@ -15788,7 +16153,7 @@ function renderOmSubmission() {
       { label: "Product / Project Rows", value: rows.length, helper: `${totalQty} qty · Lv2 → Lv3 grain`, variant: "hero" },
       { label: "Pending PAS Demand", value: pendingPas, helper: `SLA ${OM_PAS_DEMAND_SLA_DAYS}d` },
       { label: "Pending Bidding Result", value: pendingBidding, helper: `SLA ${OM_BIDDING_RESULT_SLA_DAYS}d` },
-      { label: "Ready to Export", value: readyToExport, helper: "Requester confirmed" },
+      { label: "Ready for Handoff", value: readyToExport, helper: "Requester confirmed" },
       { label: "Buyer Handoff / PR", value: buyerHandoff, helper: "PR stays buyer-owned" },
       { label: "Overdue", value: overSla, helper: "Row highlight + remark", variant: overSla ? "warning" : "" },
     ]);
@@ -15857,7 +16222,7 @@ function openOmSubmissionDetail(groupKeyId) {
         ["PAS Demand", group.rows.some((row) => row.pasDemandNo) ? "Recorded" : "Pending", group.rows.map((row) => row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt).filter(Boolean).sort()[0] || "-"],
         ["Quote Completion", group.rows.some((row) => isOmQuoteReady(row) || row.quoteCompletionReadyAt) ? "Ready" : "Pending", group.rows.map((row) => row.quoteCompletionReadyAt || row.quoteReadyAt).filter(Boolean).sort()[0] || "-"],
         ["User Confirmation", group.rows.some((row) => row.userAQuoteDecisionAt) ? "Done" : group.rows.some((row) => isOmWaitingUserConfirm(row)) ? "Waiting" : "Not Sent", group.rows.map((row) => row.userAQuoteDecisionAt || row.sentToUserAAt).filter(Boolean).sort().pop() || "-"],
-        ["Export Package", group.rows.some((row) => row.finalExportedAt) ? "Exported" : "Pending", group.rows.map((row) => row.finalExportedAt || row.finalExportPreparedAt).filter(Boolean).sort().pop() || "-"],
+        ["OM Handoff", group.rows.some((row) => row.finalExportedAt) ? "Handed Off" : "Pending", group.rows.map((row) => row.finalExportedAt || row.finalExportPreparedAt).filter(Boolean).sort().pop() || "-"],
       ])}
     </section>
     <section class="work-panel detail-subsection">
@@ -15865,7 +16230,7 @@ function openOmSubmissionDetail(groupKeyId) {
         <div>
           <h4>Raw Request Rows</h4>
           <p class="panel-subcopy">Use this section to trace the grouped OM submission back to each requester row, schedule date, and purchasing progress record.</p>
-          <p class="panel-subcopy">OM view stops at PAS / quote / requester confirmation / export. Buyer PR / PO execution is a buyer handoff note and is not shown as OM work.</p>
+          <p class="panel-subcopy">OM view stops at PAS / quote / requester confirmation / OM handoff. Buyer PR / PO execution is a buyer handoff note and is not shown as OM work.</p>
         </div>
       </div>
       <div class="table-wrap stage-demand-wrap">
@@ -15879,7 +16244,7 @@ function openOmSubmissionDetail(groupKeyId) {
               <th>PAS Demand</th>
               <th>Quote Result</th>
               <th>User Confirm</th>
-              <th>Export Package</th>
+              <th>OM Handoff</th>
               <th>Pending / Risk Reason</th>
             </tr>
           </thead>
@@ -16081,6 +16446,26 @@ function detailSection(title, rows) {
       <h4>${title}</h4>
       <div class="detail-section-grid">${rows.join("")}</div>
     </section>`;
+}
+
+function datePlanningDetailRows(row = {}, { editableDri = false } = {}) {
+  const normalized = normalizeRequesterDateFields(row);
+  const givenLt = normalized.givenLeadTimeDays;
+  const budgetStatus = procurementStatusValue(row.budgetStatus);
+  const budgetNo = row.budgetNo || "";
+  const requiredDelivery = dateOnly(normalized.requiredDeliveryDate);
+  return [
+    detailRow("Purpose", normalized.purposeLocation),
+    detailRow("Line Open Date", normalized.lineOpenDate || "-"),
+    detailRow("Date of Request", normalized.dateOfRequest || "-"),
+    detailRow("Required Delivery Date", editableDri
+      ? `<input type="date" value="${htmlAttr(requiredDelivery)}" data-dri-date-field="requiredDeliveryDate" data-dri-date-id="${htmlAttr(row.id)}" />`
+      : requiredDelivery || "-"),
+    detailRow("Required By Stage", normalized.requiredDeliveryDateFollowStageDate || "-"),
+    detailRow("Given LT", givenLt === null || givenLt === undefined ? "-" : `${givenLt} days`),
+    detailRow("Budget Status", budgetStatus),
+    detailRow("Budget #", budgetNo || "-"),
+  ];
 }
 
 function approvalPipelineDetailHtml(row = {}, role = currentRole) {
@@ -16294,7 +16679,8 @@ function renderItemDetail(row, sourceType) {
   const internalOmFlowRows = currentRole === "requester" ? [] : isCostManagerRole ? [
     detailRow("OM Buy Scope Status", omBuyScopeStatus(enrichedRow)),
     detailRow("PAS Status", pasDisplayStatus(row)),
-    detailRow("Budget / Package Code", row.finalExportPackageCode || "Not prepared"),
+    detailRow("Handoff Code", row.finalExportPackageCode || "Not prepared"),
+    detailRow("Budget Code", omBudgetCode(row)),
     detailRow("Next Step", managerNextStep(row)),
     detailRow("Cost Confidence", quote),
     detailRow("Unit Price Reference", price ? money(price) : "Pending"),
@@ -16308,7 +16694,8 @@ function renderItemDetail(row, sourceType) {
     detailRow("PAS Project Code", row.pasProjectCode || "Pending PAS review"),
     detailRow("PAS Budget Amount", row.pasBudgetAmount ? money(row.pasBudgetAmount) : "Pending PAS review"),
     detailRow("PAS Comment", row.pasComment || "No PAS comment yet."),
-    detailRow("Budget / Package Code", row.finalExportPackageCode || "Not prepared"),
+    detailRow("Handoff Code", row.finalExportPackageCode || "Not prepared"),
+    detailRow("Budget Code", omBudgetCode(row)),
     detailRow("Source Budget No.", row.budgetNo || "-"),
     detailRow("Payment Method", OM_PAYMENT_METHOD),
     detailRow("Next Step", managerNextStep(row)),
@@ -16319,7 +16706,7 @@ function renderItemDetail(row, sourceType) {
       detailRow("Quote Date", isSuggestion ? "Pending" : row.quoteDate || "Pending"),
       detailRow("Quote Expiry", isSuggestion ? "Pending" : row.quoteExpiry || "Pending"),
       detailRow("Quote Screenshot", omQuoteScreenshotFile(row) || "No screenshot"),
-      detailRow("Quote Excel", row.quotationExcel || "No Excel"),
+      detailRow("Generated PAS Excel", row.pasExcelSystemFileName || "Generated after Validate Quote"),
     ] : []),
     ...(canSeeInternalQuoteFields ? [detailRow("Unit Price Reference", price ? money(price) : "Pending")] : []),
     ...(canSeeInternalQuoteFields ? [detailRow("Remark", row.procurementRemark || "No OM remark yet.")] : []),
@@ -16332,6 +16719,7 @@ function renderItemDetail(row, sourceType) {
     ] : []),
     ...(isRequest || isSuggestion ? [detailRow("Reason / Use Case", row.requesterReason || row.useCase || "No requester reason provided.")] : []),
   ];
+  const datePlanningRows = isRequest ? datePlanningDetailRows(row, { editableDri: currentRole === "dri" }) : [];
 
   const pasTrackingRows = !canSeeInternalQuoteFields ? [] : [
     detailRow("Demand No", row.pasDemandNo || "Waiting PAS Demand No"),
@@ -16400,6 +16788,7 @@ function renderItemDetail(row, sourceType) {
   const groupedDetailHtml = useGroupedDetail
     ? [
       detailSection("Item & Material", identityRows),
+      detailSection("Requester Dates / Downstream Tracking", datePlanningRows),
       `<section class="detail-card-section"><h4>需求單位 / Station Breakdown</h4>${stationBreakdownDetailHtml(row)}</section>`,
       currentRole === "requester" ? "" : approvalPipelineDetailHtml(row, currentRole),
       detailSection("OM Quote & PAS", omFlowRows),
@@ -17044,9 +17433,8 @@ function omPasResultStatus(row) {
   if (isOmUserConfirmed(row)) return OM_USER_CONFIRMED;
   if (omReadyForBuyer(row)) return "Ready to Send Requester Confirmation";
   if (!row.pasMaterialNo) return "PAS Material No Missing";
-  if (row.pasMaterialNo && row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteScreenshotFile(row) && row.quotationExcel && !omQuoteValidUntil(row)) return "Quote Validity Missing";
-  if (omQuoteScreenshotFile(row) && !row.quotationExcel) return "Quote Excel Missing";
-  if (row.quotationExcel && !omQuoteScreenshotFile(row)) return "Quote Screenshot Missing";
+  if (row.pasMaterialNo && row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteScreenshotFile(row) && !omQuoteValidUntil(row)) return "Quote Validity Missing";
+  if ((row.pasExcelSystemFileName || row.quotationExcel) && !omQuoteScreenshotFile(row)) return "Quote Screenshot Missing";
   if (omQuoteScreenshotFile(row) || row.quotationExcel || row.vendor || effectiveUnitPrice(row) || row.quoteDate || omQuoteValidUntil(row)) return "Quote Info Incomplete";
   return "Quote Completion Needed";
 }
@@ -17146,16 +17534,103 @@ function omPasBundleHtml(row, { editableDemandNo = false, editableMaterialNo = f
     </div>`;
 }
 
+function omPasDemandRequirement(row = {}) {
+  return omBusinessFlowModule().pasDemandRequirement?.(row, pasDemandRequirementMasterRows()) || {
+    required: true,
+    label: "PAS Demand ID Required",
+    reason: "PAS Demand ID is required before Quote Result.",
+    isHardItem: true,
+  };
+}
+
+function omQuoteDbCandidate(row = {}) {
+  return omBusinessFlowModule().bestQuoteDbCandidate?.(row, undefined, new Date()) || null;
+}
+
+function omQuoteDbCandidateStatus(row = {}, candidate = omQuoteDbCandidate(row)) {
+  if (!candidate) return null;
+  return omBusinessFlowModule().quoteDbCandidateStatus?.(candidate, row, new Date()) || null;
+}
+
+function omPurposeLocations(row = {}) {
+  return omBusinessFlowModule().purposeLocations?.(row) || ["SMT"];
+}
+
+function omPurposeProjectBuildKey(row = {}) {
+  return omBusinessFlowModule().purposeProjectBuildKey?.(row) || [row.yearProject || "", row.project || "", row.stage || "", omPurposeLocations(row).join("+")].join("|");
+}
+
+function omBudgetCode(row = {}) {
+  return omBusinessFlowModule().budgetCodeForRow?.(row) || row.budgetCode || "BUD-PURPOSE-BUILD";
+}
+
+function omBudgetPatch(row = {}) {
+  const next = { ...row };
+  const purposeProjectBuildKey = omPurposeProjectBuildKey(next);
+  return {
+    purposeLocations: omPurposeLocations(next),
+    purposeProjectBuildKey,
+    budgetCode: omBudgetCode({ ...next, purposeProjectBuildKey }),
+  };
+}
+
+function omQuoteDbCandidateHtml(row, { readOnly = false } = {}) {
+  const candidate = omQuoteDbCandidate(row);
+  if (!candidate) {
+    return `<div class="om-quote-db-card compact"><span class="om-cell-helper">Quote DB: no candidate</span></div>`;
+  }
+  const status = omQuoteDbCandidateStatus(row, candidate);
+  const actionDisabled = readOnly || !status || status.expired || status.reusable || !canOperateOmRow(row);
+  const detail = `${candidate.vendor || "-"} · ${candidate.currency || "USD"} ${Number(candidate.unitPrice || 0).toLocaleString("en-US")} · Valid until ${candidate.quoteValidUntil || "-"} · ${status.quantityNote || ""} ${candidate.bufferNote || ""}`;
+  const visibleStatus = status.expired ? "QDB Expired" : status.reusable ? "QDB Reusable" : "QDB Needs Check";
+  return `
+    <div class="om-quote-db-card compact om-quote-db-card-dense" title="${htmlAttr(detail)}">
+      <span class="status-pill ${statusClass(status.status)}">${visibleStatus}</span>
+      <button class="mini approve" type="button" title="Central IT Checked" data-om-row-button="${row.id}" data-om-row-button-action="centralItChecked" ${actionDisabled ? "disabled" : ""}>Check</button>
+      ${row.centralItCheckedAt ? `<div class="om-cell-helper">Checked ${compactDateTime(row.centralItCheckedAt)} by ${row.centralItCheckedBy || "OM Purchasing"}</div>` : ""}
+    </div>`;
+}
+
+function omIntakeQuotationDbCell(row, { readOnly = false } = {}) {
+  const candidate = omQuoteDbCandidate(row);
+  if (!candidate) {
+    return `<div class="om-quote-db-card compact"><span class="om-cell-helper">Quotation DB: no candidate</span></div>`;
+  }
+  const status = omQuoteDbCandidateStatus(row, candidate);
+  const actionDisabled = readOnly || !status || status.expired || status.reusable || !canOperateOmRow(row);
+  const detail = `${candidate.vendor || "-"} · ${candidate.currency || "USD"} ${Number(candidate.unitPrice || 0).toLocaleString("en-US")} · Valid until ${candidate.quoteValidUntil || "-"} · ${status.quantityNote || ""} ${candidate.bufferNote || ""}`;
+  return `
+    <div class="om-quote-db-card compact" title="${htmlAttr(detail)}">
+      <span class="status-pill ${statusClass(status.status)}">${status.status}</span>
+      <div class="reason-text">Quotation DB: ${candidate.vendor || "-"} · ${candidate.quoteValidUntil || "-"}</div>
+      <button class="mini approve" type="button" title="Confirm with Central IT and apply this Quotation DB record" data-om-row-button="${row.id}" data-om-row-button-action="applyQuoteDbFromIntake" ${actionDisabled ? "disabled" : ""}>Confirm &amp; Apply</button>
+      ${row.centralItCheckedAt ? `<div class="om-cell-helper">Applied ${compactDateTime(row.centralItCheckedAt)} by ${row.centralItCheckedBy || "OM Purchasing"}</div>` : `<div class="om-cell-helper">${status.quantityNote || "Quantity is not a hard stop."}</div>`}
+    </div>`;
+}
+
+function omPasDemandGroupSuggestionHtml(row) {
+  const suggestion = omBusinessFlowModule().pasDemandGroupSuggestion?.(row, omPasRequestRows()) || { hasGroup: false, message: "No same-demand group", pasDemandId: "", rowIds: [] };
+  if (!suggestion.hasGroup) return "";
+  return `
+    <div class="pas-demand-group-suggestion" data-pas-group-id="${htmlAttr(suggestion.pasDemandId)}" aria-label="Same PAS Demand No group" title="${htmlAttr(suggestion.rowIds.join(", "))}">
+      ${htmlText(suggestion.message)}
+      <span>OM confirms merge in Quote Result.</span>
+    </div>`;
+}
+
 function pasDemandNoEntryHtml(row) {
   const demandNo = row.pasDemandNo || "";
   const disabled = canOperateOmRow(row) ? "" : "disabled";
+  const requirement = omPasDemandRequirement(row);
   return `
     <div class="pas-demand-entry ${demandNo ? "ready" : "pending"}">
       <label class="pas-demand-entry-field">
         <span>PAS Demand No</span>
         <input class="pas-inline-input" type="text" value="${htmlAttr(demandNo)}" placeholder="Enter PAS Demand No" data-om-field="pasDemandNo" data-om-id="${row.id}" ${disabled} />
       </label>
-      <div class="om-cell-helper">${omRowAccessReason(row) || (demandNo ? `Recorded ${compactDateTime(row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt)}` : "Required before Move to Quote.")}</div>
+      <span class="status-pill ${statusClass(requirement.label)}">${requirement.label}</span>
+      ${omPasDemandGroupSuggestionHtml(row)}
+      <div class="om-cell-helper">${omRowAccessReason(row) || (demandNo ? `Recorded ${compactDateTime(row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt)}` : requirement.reason)}</div>
     </div>`;
 }
 
@@ -17225,10 +17700,7 @@ function omQuoteEntryHtml(row, { readOnly = false } = {}) {
             ${screenshotFile ? "Screenshot Uploaded" : "Upload Screenshot"}
             <input type="file" accept="image/*,.jpg,.jpeg,.png" data-om-screenshot="${row.id}" />
           </label>
-          <label class="mini upload ${row.quotationExcel ? "uploaded" : ""}">
-            ${row.quotationExcel ? "Excel Uploaded" : "Upload Excel"}
-            <input type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" data-om-excel="${row.id}" />
-          </label>
+          <button class="mini" type="button" title="Generate PAS Excel from current quote result" data-om-row-button="${htmlAttr(row.id)}" data-om-row-button-action="generatePasExcel">${row.pasExcelSystemFileName ? "Regenerate Excel" : "Generate Excel"}</button>
         </div>`}
         ${quoteAttachmentListHtml(row)}
         ${readOnly ? `<div class="om-cell-helper">Quote package locked after send.</div>` : ""}
@@ -17244,7 +17716,6 @@ function omQuoteMissingFields(row) {
   if (!row.quoteDate) missing.push("Quote Date");
   if (!omQuoteValidUntil(row)) missing.push("Valid Until");
   if (!omQuoteScreenshotFile(row)) missing.push("Screenshot");
-  if (!row.quotationExcel) missing.push("Excel");
   return missing;
 }
 
@@ -17277,14 +17748,43 @@ function omQuoteResultItemCell(row, stageLabel) {
     </div>`;
 }
 
+function omPasExcelGroupDecisionCell(row, readOnly) {
+  const suggestion = omBusinessFlowModule().pasDemandGroupSuggestion?.(row, omQuoteConfirmRows()) || { hasGroup: false, pasDemandId: "", rows: [], message: "No same-demand group" };
+  const decision = row.pasExcelMergeDecision === "separate" ? "separate" : "merge";
+  if (!suggestion.hasGroup) {
+    return `<div class="pas-excel-group-cell"><span class="status-pill neutral">Single row</span><div class="reason-text">No same-demand group</div></div>`;
+  }
+  if (readOnly) {
+    return `<div class="pas-excel-group-cell"><span class="status-pill ${decision === "merge" ? "success" : "warning"}">${decision === "merge" ? "Merged Excel" : "Separate Excel"}</span><div class="reason-text">${htmlText(suggestion.message)}</div></div>`;
+  }
+  return `
+    <div class="pas-excel-group-cell">
+      <span class="status-pill ${decision === "merge" ? "success" : "warning"}">${htmlText(suggestion.message)}</span>
+      <div class="segmented-mini" data-pas-group-id="${htmlAttr(suggestion.pasDemandId)}">
+        <label title="Generate one PAS Excel workbook for rows with this PAS Demand No">
+          <input type="radio" name="pas-excel-group-${htmlAttr(row.id)}" value="merge" data-om-pas-excel-group="${htmlAttr(row.id)}" ${decision === "merge" ? "checked" : ""} />
+          Merge for one PAS Excel
+        </label>
+        <label title="Generate a separate PAS Excel workbook for this row">
+          <input type="radio" name="pas-excel-group-${htmlAttr(row.id)}" value="separate" data-om-pas-excel-group="${htmlAttr(row.id)}" ${decision === "separate" ? "checked" : ""} />
+          Keep separate
+        </label>
+      </div>
+    </div>`;
+}
+
 function omQuoteResultFileCell(row, readOnly) {
   const screenshotFile = omQuoteScreenshotFile(row);
-  const excelFile = row.quotationExcel || "";
+  const generatedExcel = row.pasExcelSystemFileName || "";
+  const generatedExcelHtml = generatedExcel
+    ? `<div class="om-quote-row-note" data-generated-pas-excel="${htmlAttr(row.id)}">Generated PAS Excel: ${attachmentLinkHtml(generatedExcel, row.pasExcelSystemAttachmentId, row.pasExcelSystemAttachmentUrl, { allowDownload: true })}</div>`
+    : "";
   if (readOnly) {
     return `
       <div class="om-quote-file-stack readonly">
         <span class="status-pill ${screenshotFile ? "success" : "warning"}" title="${htmlAttr(screenshotFile || "Quote screenshot required")}">Shot ${screenshotFile ? "OK" : "Missing"}</span>
-        <span class="status-pill ${excelFile ? "success" : "warning"}" title="${htmlAttr(excelFile || "Quote Excel required")}">Excel ${excelFile ? "OK" : "Missing"}</span>
+        <span class="status-pill ${generatedExcel ? "success" : "neutral"}" title="${htmlAttr(generatedExcel || "Generated when OM validates quote")}">Excel ${generatedExcel ? "Generated" : "Pending"}</span>
+        ${generatedExcelHtml}
       </div>`;
   }
   return `
@@ -17293,10 +17793,10 @@ function omQuoteResultFileCell(row, readOnly) {
         Shot
         <input type="file" accept="image/*,.jpg,.jpeg,.png" data-om-screenshot="${row.id}" />
       </label>
-      <label class="mini upload ${excelFile ? "uploaded" : ""}" title="${htmlAttr(excelFile || "Upload quote Excel")}">
-        Excel
-        <input type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" data-om-excel="${row.id}" />
-      </label>
+      <button class="mini ${generatedExcel ? "uploaded" : ""}" type="button" title="${htmlAttr(generatedExcel || "Generate PAS Excel from current quote result")}" data-om-row-button="${htmlAttr(row.id)}" data-om-row-button-action="generatePasExcel">
+        ${generatedExcel ? "Regenerate Excel" : "Generate Excel"}
+      </button>
+      ${generatedExcelHtml}
     </div>`;
 }
 
@@ -17305,11 +17805,19 @@ function omQuoteResultCompletionCell(row, status, readOnlyReason = "") {
   const visibleMissing = missing.slice(0, 3);
   const hiddenMissingCount = Math.max(0, missing.length - visibleMissing.length);
   const ready = !missing.length;
+  const retention = omQuotationDbRetentionDecision(row);
+  const showRetention = ready || Boolean(row.quoteDbRetentionEvaluatedAt);
+  const retentionReason = row.quoteDbRetentionReason || retention.reason;
+  const retentionEvaluatedAt = row.quoteDbRetentionEvaluatedAt ? ` · Checked ${compactDateTime(row.quoteDbRetentionEvaluatedAt)}` : "";
   return `
     <div class="om-quote-completion-cell">
       <span class="status-pill ${statusClass(status)}">${status}</span>
       ${ready ? `<span class="om-quote-saved-note">${row.quoteCompletionReadyAt ? `Saved ${compactDateTime(row.quoteCompletionReadyAt)}` : "Ready to save"}</span>` : ""}
       ${missing.length ? `<div class="om-missing-chip-list" title="${htmlAttr(missing.join(", "))}">${visibleMissing.map((item) => `<span class="om-missing-chip">${item}</span>`).join("")}${hiddenMissingCount ? `<span class="om-missing-chip">+${hiddenMissingCount} more</span>` : ""}</div>` : ""}
+      ${showRetention ? `<div class="om-quote-row-note" title="${htmlAttr(retentionReason)}">
+        <span class="status-pill ${statusClass(row.quoteDbRetentionStatus || retention.status)}">${row.quoteDbRetentionStatus || retention.status}</span>${retentionEvaluatedAt}
+      </div>` : ""}
+      ${omQuoteDbCandidateHtml(row, { readOnly: Boolean(readOnlyReason) })}
       ${readOnlyReason ? `<div class="om-quote-row-note">${readOnlyReason}</div>` : ""}
     </div>`;
 }
@@ -17327,19 +17835,19 @@ function renderOmPasRequest() {
   const projectFilter = omDemandProjectFilterValue();
   const summary = document.getElementById("omPasRequestSummary");
   if (summary) {
-    const waitingDemandNo = rows.filter((row) => !row.pasDemandNo).length;
-    const demandNoReady = rows.filter((row) => row.pasDemandNo).length;
+    const waitingDemandNo = rows.filter((row) => omPasDemandRequirement(row).required && !row.pasDemandNo).length;
+    const demandNoReady = rows.filter((row) => row.pasDemandNo || !omPasDemandRequirement(row).required).length;
     const cards = [
       { label: "Total Items", value: rows.length, helper: `${projectFilter || "All projects"} · ${projectFilter ? currentPhaseLabelForProject(projectFilter) : "Multiple phases"}`, variant: "hero" },
-      ["Waiting PAS Demand No", waitingDemandNo],
-      ["PAS Demand No Ready", demandNoReady],
+      ["PAS Demand ID Required", waitingDemandNo],
+      ["Quote Flow Ready", demandNoReady],
       ["Ready to Move", demandNoReady],
     ];
     summary.innerHTML = summaryCardsHtml(cards);
   }
   const pasHint = document.getElementById("omPasRequestHint");
   if (pasHint) {
-    pasHint.textContent = "Enter PAS Demand No on the row, then move that row to Quote Completion.";
+    pasHint.textContent = "Hard Item rows require PAS Demand ID before Quote Result. Other requests can move without PAS Demand ID.";
   }
 
   const target = document.getElementById("omPasRequestRows");
@@ -17355,15 +17863,16 @@ function renderOmPasRequest() {
         <td>${omItemCell(row, { extraLines: omFinalSpecStatus(row) === OM_FINAL_SPEC_REQUIRED ? ["Final spec required"] : [] })}</td>
         <td>${totalQty(row)}</td>
         <td>${pasDemandNoEntryHtml(row)}</td>
+        <td>${omIntakeQuotationDbCell(row)}</td>
         <td>${enriched.omOwner || "-"}${enriched.omOwner ? `<div class="reason-text">CPD-IEP owner</div>` : ""}</td>
         <td>${omAssignmentCell(row)}</td>
         <td>
           <span class="status-pill ${statusClass(omPasRequestStatus(row))}">${omPasRequestStatus(row)}</span>
-          <div class="reason-text">${omRowAccessReason(row) || (row.pasDemandNo ? "Ready for quote result input" : "PAS Demand No is required.")}</div>
+          <div class="reason-text">${omRowAccessReason(row) || (row.pasDemandNo || !omPasDemandRequirement(row).required ? "Ready for quote result input" : "PAS Demand ID is required for Hard Item.")}</div>
         </td>
         <td>
           ${supervisorAction || `<div class="row-action-stack">
-            <button class="mini approve" type="button" title="${row.pasDemandNo ? "Move to PAS Quote Result" : "Enter PAS Demand No first"}" data-om-row-button="${row.id}" data-om-row-button-action="moveToQuoteCompletion" ${omActionDisabledAttr(row, !row.pasDemandNo)}>Move to Quote</button>
+            <button class="mini approve" type="button" title="${row.pasDemandNo || !omPasDemandRequirement(row).required ? "Move to Quote Result" : "PAS Demand ID is required for Hard Item"}" data-om-row-button="${row.id}" data-om-row-button-action="moveToQuoteCompletion" ${omActionDisabledAttr(row, omPasDemandRequirement(row).required && !row.pasDemandNo)}>Move to Quote</button>
             <button class="mini danger" type="button" data-om-row-button="${row.id}" data-om-row-button-action="rejectToDri" ${omActionDisabledAttr(row)}>Reject to DRI</button>
           </div>`}
         </td>
@@ -17371,7 +17880,7 @@ function renderOmPasRequest() {
         <td>${itemDetailButton("request", row.id)}</td>
       </tr>`;
     }).join("")
-    : `<tr><td colspan="11" class="empty-cell">No OM demand is waiting for PAS Demand No.</td></tr>`;
+    : `<tr><td colspan="12" class="empty-cell">No OM demand is waiting for PAS Demand No.</td></tr>`;
 }
 
 function updatePasField(requestId, field, value) {
@@ -17991,9 +18500,9 @@ function buyerStatusFor(row) {
 
 function buyerPackageHelper(row) {
   if (row.finalExportedAt) {
-    return `Received from OM export on ${new Date(row.finalExportedAt).toLocaleDateString("en-US")}`;
+    return `Accepted OM handoff on ${new Date(row.finalExportedAt).toLocaleDateString("en-US")}`;
   }
-  return "Waiting OM export date";
+  return "Waiting OM handoff time";
 }
 
 function buyerStatusHelper(row) {
@@ -18021,7 +18530,7 @@ function renderBuyer() {
   syncProjectControls();
   const rows = buyerRows();
   const cards = [
-    { label: "Buyer Received", value: rows.filter((row) => buyerStatusFor(row) === BUYER_RECEIVED).length, helper: `${document.getElementById("buyerProjectFilter")?.value || "All projects"} · OM export package`, variant: "hero" },
+    { label: "Buyer Accepted Handoff", value: rows.filter((row) => buyerStatusFor(row) === BUYER_RECEIVED).length, helper: `${document.getElementById("buyerProjectFilter")?.value || "All projects"} · OM handoff`, variant: "hero" },
     { label: "Blocked", value: rows.filter((row) => buyerStatusFor(row) === BUYER_BLOCKED).length, helper: "Rows that need buyer follow-up or unblock" },
     { label: "PR Created", value: rows.filter((row) => externalStatusFor(row) === EXT_PR_CREATED).length, helper: "Progress already moved into PR stage" },
     { label: "PO Issued", value: rows.filter((row) => buyerStatusFor(row) === BUYER_PO_ISSUED).length, helper: "PO has been issued to vendor" },
@@ -18034,7 +18543,7 @@ function renderBuyer() {
   if (!target) return;
   target.innerHTML = rows.length
     ? rows.map((row) => {
-      const buyerItemTitle = [row.name, partName(row), row.id, itemDetail(row), row.finalExportTarget ? `${row.finalExportTarget} package from OM` : "OM export package"]
+      const buyerItemTitle = [row.name, partName(row), row.id, itemDetail(row), row.finalExportTarget ? `${row.finalExportTarget} handoff from OM` : "OM handoff"]
         .filter(Boolean)
         .join(" / ");
       const buyerPackageTitle = [row.finalExportTarget || "-", buyerPackageHelper(row)].filter(Boolean).join(" / ");
@@ -18044,7 +18553,7 @@ function renderBuyer() {
       <tr>
         <td>${row.id}</td>
         <td>${row.project}</td>
-        <td class="cell-identity buyer-item-cell" title="${htmlAttr(buyerItemTitle)}">${omItemCell(row, { stageLabel: "Buyer package", extraLines: [row.finalExportTarget ? `${row.finalExportTarget} package from OM` : "OM export package"] })}</td>
+        <td class="cell-identity buyer-item-cell" title="${htmlAttr(buyerItemTitle)}">${omItemCell(row, { stageLabel: "Buyer handoff", extraLines: [row.finalExportTarget ? `${row.finalExportTarget} handoff from OM` : "OM handoff"] })}</td>
         <td>
           <strong>${row.pasMaterialNo || "Waiting PAS Material No"}</strong>
           <input type="text" value="${factoryMaterialNoFor(row)}" placeholder="Factory Material No after PO" data-buyer-field="factoryMaterialNo" data-buyer-id="${row.id}" />
@@ -18053,8 +18562,8 @@ function renderBuyer() {
         <td class="buyer-status-cell" title="${htmlAttr(buyerStatusTitle)}"><span class="status-pill ${statusClass(buyerStatusFor(row))}">${buyerStatusFor(row)}</span><div class="reason-text">${buyerStatusHelper(row)}</div></td>
         <td><input type="text" value="${row.externalSystem || ""}" placeholder="External system" data-buyer-field="externalSystem" data-buyer-id="${row.id}" /></td>
         <td><input type="text" value="${row.externalRequestNo || ""}" placeholder="External request no." data-buyer-field="externalRequestNo" data-buyer-id="${row.id}" /></td>
-        <td><input type="text" value="${row.prNo || ""}" placeholder="PR No." data-buyer-field="prNo" data-buyer-id="${row.id}" /></td>
-        <td><input type="text" value="${row.buyerPoNo || row.poNo || ""}" placeholder="PO No." data-buyer-field="buyerPoNo" data-buyer-id="${row.id}" /></td>
+        <td><strong>${row.prNo || "Pending"}</strong><div class="reason-text">OM owns PR / PO tracking for IT items</div></td>
+        <td><strong>${row.buyerPoNo || row.poNo || "Pending"}</strong><div class="reason-text">OM owns PR / PO tracking for IT items</div></td>
         <td class="buyer-progress-cell" title="${htmlAttr(buyerProgressTitle)}"><span class="status-pill ${statusClass(externalStatusFor(row))}">${externalStatusFor(row)}</span><div class="reason-text">${buyerExternalStatusHelper(row)}</div></td>
         <td>${externalEvidenceLabel(row)}</td>
         <td><input type="text" value="${row.buyerNote || ""}" placeholder="Buyer note" data-buyer-field="buyerNote" data-buyer-id="${row.id}" /></td>
@@ -18064,7 +18573,7 @@ function renderBuyer() {
         <td>${itemDetailButton("request", row.id)}</td>
       </tr>`;
     }).join("")
-    : `<tr><td colspan="17" class="empty-cell">No OM export package has been handed to Buyer yet.</td></tr>`;
+    : `<tr><td colspan="17" class="empty-cell">No OM handoff has been submitted to Buyer yet.</td></tr>`;
 }
 
 function updateBuyerField(requestId, field, value) {
@@ -18611,12 +19120,13 @@ function omFinalExportPackageCode(row) {
 }
 
 function budgetPackageCode(row) {
-  return row.finalExportPackageCode || row.budgetNo || "-";
+  return omBudgetCode(row);
 }
 
 function budgetPackageHelper(row) {
-  if (row.finalExportPackageCode && row.budgetNo && row.finalExportPackageCode !== row.budgetNo) return `Source Budget No. ${row.budgetNo}`;
-  return row.budgetStatus || (row.finalExportPackageCode ? "System package code" : "Source budget reference");
+  if (row.finalExportPackageCode) return `Handoff Code ${row.finalExportPackageCode}`;
+  if (row.budgetNo) return `Source Budget No. ${row.budgetNo}`;
+  return row.budgetStatus || "Budget Code by Purpose Project Build";
 }
 
 function omWorkflowStage(row) {
@@ -19288,7 +19798,7 @@ function postUserAQuoteConfirmationRoutePatch(row, now = new Date().toISOString(
 }
 
 function omReadyForBuyer(row) {
-  return Boolean(row.pasMaterialNo && omQuoteScreenshotFile(row) && row.quotationExcel && row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteValidUntil(row));
+  return Boolean(row.pasMaterialNo && omQuoteScreenshotFile(row) && row.vendor && effectiveUnitPrice(row) && row.quoteDate && omQuoteValidUntil(row));
 }
 
 function omQuoteScreenshotFile(row) {
@@ -19318,6 +19828,21 @@ function omQuotePriceDisplay(row) {
   return `${usdText} / ${vndText}`;
 }
 
+function omQuotationDbRetentionDecision(row = {}) {
+  return quoteValidityModule().quotationDbRetentionDecision?.({
+    ...row,
+    updatedPrice: effectiveUnitPrice(row),
+    quoteValidUntil: omQuoteValidUntil(row),
+    quotationPdf: omQuoteScreenshotFile(row),
+    quotationExcel: row.pasExcelSystemFileName || row.quotationExcel,
+  }, new Date()) || {
+    eligible: false,
+    status: "Complete quote before Quotation DB",
+    reason: "Quotation DB retention rule is unavailable.",
+    daysRemaining: null,
+  };
+}
+
 function omQuoteCurrencyOptions(selected = "VND") {
   return ["VND", "USD"].map((currency) => `<option value="${currency}" ${currency === selected ? "selected" : ""}>${currency}</option>`).join("");
 }
@@ -19336,19 +19861,18 @@ function omWarnings(row) {
   if (!row.quoteDate) warnings.push("Missing quote date");
   if (!omQuoteValidUntil(row)) warnings.push("Missing quote validity");
   if (!omQuoteScreenshotFile(row) && status !== "Quote Screenshot Missing") warnings.push("Missing quote screenshot");
-  if (!row.quotationExcel && status !== "Quote Excel Missing") warnings.push("Missing quote Excel");
   if (!effectiveUnitPrice(row)) warnings.push("Missing price");
   return warnings;
 }
 
 function omHasRequiredQuoteFiles(row) {
-  return Boolean(omQuoteScreenshotFile(row) && row.quotationExcel);
+  return Boolean(omQuoteScreenshotFile(row) && row.pasExcelSystemFileName);
 }
 
 function validateOmFinalExportAttachments(rows) {
   const missing = rows.filter((row) => !omHasRequiredQuoteFiles(row));
   if (!missing.length) return "";
-  return `Upload both quote screenshot and quote Excel before Export Package. Missing file rows: ${missing.map((row) => row.id).join(", ")}.`;
+  return `Upload quote screenshot and generate PAS Excel before OM Handoff. Missing file rows: ${missing.map((row) => row.id).join(", ")}.`;
 }
 
 function omTargetForCostType(costType) {
@@ -19398,7 +19922,7 @@ function omStatusLabel(status) {
 function renderOmSummary(rows) {
   const pasRows = omPasResultRows();
   const missingMaterialRows = pasRows.filter((row) => omPasResultStatus(row) === "PAS Material No Missing");
-  const quoteIncompleteRows = pasRows.filter((row) => ["Quote Info Incomplete", "Quote Screenshot Missing", "Quote Excel Missing", "Quote Validity Missing", "Quote Completion Needed"].includes(omPasResultStatus(row)));
+  const quoteIncompleteRows = pasRows.filter((row) => ["Quote Info Incomplete", "Quote Screenshot Missing", "Quote Validity Missing", "Quote Completion Needed"].includes(omPasResultStatus(row)));
   const readyRows = pasRows.filter((row) => omPasResultStatus(row) === "Ready to Send Requester Confirmation");
   const expiringRows = pasRows.filter((row) => omQuoteValidity(row) === "Quote Expiring Soon");
   const expiredRows = pasRows.filter((row) => omQuoteValidity(row) === "Quote Expired");
@@ -19503,12 +20027,20 @@ function omQuoteExpiryMatchesFilters(row, filters) {
   return true;
 }
 
-function omQuoteExpiryAction(row) {
+function omQuotationDbAction(row) {
   const status = omQuoteExpiryStatusLabel(row);
-  if (!omQuoteValidUntil(row)) return "Fill Quote Valid Until in Quote Result / Monitor.";
-  if (status === "Expired / Requote Required") return "Requote required before next purchasing step.";
-  if (status === "Expiring Soon") return "Follow PAS / supplier before quote expires.";
-  return "No immediate expiry action.";
+  const candidate = omQuoteDbCandidate(row);
+  const candidateStatus = candidate ? omQuoteDbCandidateStatus(row, candidate) : null;
+  if (!omQuoteValidUntil(row)) return "Check Quote Result before reuse.";
+  if (status === "Expired / Requote Required") return "Requote required before reuse.";
+  if (status === "Expiring Soon") return "Confirm with PAS / supplier before quote expires.";
+  if (candidate && candidateStatus?.reusable) return "Reusable after Central IT confirmation.";
+  if (candidate && !candidateStatus?.expired) return "Confirm with Central IT before reuse.";
+  return "Reusable quote record available for OM review.";
+}
+
+function omQuoteExpiryAction(row) {
+  return omQuotationDbAction(row);
 }
 
 function renderOmQuoteExpiry() {
@@ -19518,7 +20050,7 @@ function renderOmQuoteExpiry() {
   const rowCount = document.getElementById("omQuoteExpiryCount");
   if (rowCount) rowCount.textContent = `${rows.length} row${rows.length === 1 ? "" : "s"}`;
   const hint = document.getElementById("omQuoteExpiryHint");
-  if (hint) hint.textContent = `Tracking only. Edit Quote Valid Until from Quote Result / Monitor. Expiring Soon means <= ${QUOTE_EXPIRING_SOON_DAYS} days.`;
+  if (hint) hint.textContent = `Reuse valid quote records after Central IT confirmation. Expiring Soon means <= ${QUOTE_EXPIRING_SOON_DAYS} days; expired records require requote before reuse.`;
   const summary = document.getElementById("omQuoteExpirySummary");
   if (summary) {
     const allRows = omQuoteExpiryRows();
@@ -19528,7 +20060,7 @@ function renderOmQuoteExpiry() {
       ["Expiring Soon", allRows.filter((row) => omQuoteExpiryStatusLabel(row) === "Expiring Soon").length],
       ["Expired / Requote", allRows.filter((row) => omQuoteExpiryStatusLabel(row) === "Expired / Requote Required").length],
       ["Waiting Requester", allRows.filter((row) => omCurrentStageForRow(row) === "Waiting Requester").length],
-      ["Ready to Export", allRows.filter((row) => row.userAQuoteDecisionStatus === OM_USER_CONFIRMED && !row.finalExportedAt).length],
+      ["Ready for Handoff", allRows.filter((row) => row.userAQuoteDecisionStatus === OM_USER_CONFIRMED && !row.finalExportedAt).length],
     ]);
   }
   if (!target) return;
@@ -19539,7 +20071,7 @@ function renderOmQuoteExpiry() {
       return `
         <tr>
           <td>${row.project || "-"}</td>
-          <td>${omItemCell(row, { stageLabel: "Quote expiry" })}</td>
+          <td>${omItemCell(row, { stageLabel: "Quotation DB" })}</td>
           <td>${row.pasDemandNo || "-"}</td>
           <td>${row.pasMaterialNo || "-"}</td>
           <td>${row.quoteDate || "-"}</td>
@@ -19551,7 +20083,83 @@ function renderOmQuoteExpiry() {
           <td class="cell-action">${itemDetailButton("request", row.id)}</td>
         </tr>`;
     }).join("")
-    : `<tr><td colspan="11" class="empty-cell">No quote expiry rows match the current filters.</td></tr>`;
+    : `<tr><td colspan="11" class="empty-cell">No quotation DB rows match the current filters.</td></tr>`;
+}
+
+function omPurposeDisplayCell(row) {
+  const purposeLocation = normalizePurposeLocation(row.purposeLocation || row.purpose || omPurposeLocations(row)[0]);
+  return `
+    <div class="om-purpose-cell">
+      <div class="om-quote-entry-title">Purpose</div>
+      <span class="status-pill ${statusClass(purposeLocation)}">${htmlText(purposeLocation)}</span>
+      <div class="reason-text">Requester input · OM tracking only</div>
+    </div>`;
+}
+
+function statusSelectHtml(value, attrs) {
+  const selected = procurementStatusValue(value);
+  return `<select ${attrs}>${PROCUREMENT_STATUS_OPTIONS.map((status) => `<option value="${status}" ${status === selected ? "selected" : ""}>${status}</option>`).join("")}</select>`;
+}
+
+function omProcurementInput(row, field, type = "text", placeholder = "") {
+  const value = field === "purRequestNo" ? (row.purRequestNo || suggestPurRequestNo(row)) : (row[field] || "");
+  return `<input type="${type}" value="${htmlAttr(value)}" placeholder="${htmlAttr(placeholder)}" data-om-procurement-field="${field}" data-om-procurement-id="${htmlAttr(row.id)}" />`;
+}
+
+function omBudgetTrackingCell(row = {}) {
+  return `
+    <div class="om-procurement-cell">
+      <label><span>Budget Status</span>${statusSelectHtml(row.budgetStatus, `data-om-procurement-field="budgetStatus" data-om-procurement-id="${htmlAttr(row.id)}"`)}</label>
+      <label><span>Budget #</span>${omProcurementInput(row, "budgetNo", "text", "Budget code")}</label>
+    </div>`;
+}
+
+function omProcurementTrackingCell(row = {}) {
+  return `
+    <div class="om-procurement-cell">
+      <label><span>PR Status</span>${statusSelectHtml(row.prStatus, `data-om-procurement-field="prStatus" data-om-procurement-id="${htmlAttr(row.id)}"`)}</label>
+      <label><span>PR#</span>${omProcurementInput(row, "prNo", "text", "PR number")}</label>
+      <label><span>PO Status</span>${statusSelectHtml(row.poStatus, `data-om-procurement-field="poStatus" data-om-procurement-id="${htmlAttr(row.id)}"`)}</label>
+      <label><span>PO#</span>${omProcurementInput(row, "buyerPoNo", "text", "PO number")}</label>
+      <label><span>#PUR Request NO</span>${omProcurementInput(row, "purRequestNo", "text", "#PUR request no")}</label>
+    </div>`;
+}
+
+function omArrivalTrackingCell(row = {}) {
+  const givenLt = row.givenLeadTimeDays;
+  return `
+    <div class="om-procurement-cell">
+      <label><span>ETA (PLAN)</span>${omProcurementInput(row, "etaPlanDate", "date", "")}</label>
+      <label><span>DTA (Actual)</span>${omProcurementInput(row, "dtaActualDate", "date", "")}</label>
+      <label><span>Total LT</span>${omProcurementInput(row, "totalLeadTimeDays", "number", "days")}</label>
+      <div class="reason-text">Given LT: ${givenLt === null || givenLt === undefined ? "-" : `${givenLt} days`}</div>
+    </div>`;
+}
+
+function updateOmProcurementField(requestId, field, value) {
+  const normalizedValue = ["budgetStatus", "prStatus", "poStatus"].includes(field)
+    ? procurementStatusValue(value)
+    : ["etaPlanDate", "dtaActualDate"].includes(field)
+      ? dateOnly(value)
+      : field === "totalLeadTimeDays"
+        ? (String(value || "").trim() === "" ? "" : clampQty(value))
+        : String(value || "").trim();
+  requests = requests.map((row) => {
+    if (row.id !== requestId) return row;
+    const patch = {
+      [field]: normalizedValue,
+      omProcurementUpdatedAt: new Date().toISOString(),
+    };
+    if (field === "buyerPoNo") patch.poNo = normalizedValue;
+    if (field === "etaPlanDate") patch.etaPlan = normalizedValue;
+    if (field === "dtaActualDate") patch.dtaActual = normalizedValue;
+    return { ...row, ...patch };
+  });
+  const updated = requests.find((row) => row.id === requestId);
+  addOmHistory(updated, `OM updated ${field}`, normalizedValue || "blank");
+  renderOmPurchasing();
+  renderBuyer();
+  renderDepartment();
 }
 
 function renderOmFinalExport() {
@@ -19563,15 +20171,15 @@ function renderOmFinalExport() {
   const summary = document.getElementById("omFinalExportSummary");
   if (summary) {
     summary.innerHTML = summaryCardsHtml([
-      { label: "Confirmed Rows", value: rows.length, helper: `${omFinalExportProjectFilterValue() || "All projects"} · Export Package`, variant: "hero" },
+      { label: "Confirmed Rows", value: rows.length, helper: `${omFinalExportProjectFilterValue() || "All projects"} · OM Handoff`, variant: "hero" },
       ["Expense / ECS", rows.filter((row) => omFinalExportCostType(row) === OM_COST_TYPE_EXPENSE).length],
       ["Capex / CFA", rows.filter((row) => omFinalExportCostType(row) === OM_COST_TYPE_CAPEX).length],
-      ["Exported", rows.filter(isOmFinalExported).length],
+      ["Handed Off", rows.filter(isOmFinalExported).length],
     ]);
   }
   const exportHint = document.getElementById("omFinalExportHint");
   if (exportHint) {
-    exportHint.textContent = "Choose Expense or Capex, then use one Export Package action to prepare Excel and quote screenshot package.";
+    exportHint.textContent = "Choose Expense or Capex, prepare the handoff files, then submit the handoff to Buyer.";
   }
   target.innerHTML = rows.length
     ? rows.map((row) => {
@@ -19580,22 +20188,26 @@ function renderOmFinalExport() {
       <tr>
         <td>${row.project}</td>
         <td>${currentPhaseLabelForProject(row.project)}</td>
-        <td>${omItemCell(row, { stageLabel: "Export package" })}</td>
+        <td>${omItemCell(row, { stageLabel: "OM Handoff" })}</td>
         <td>${totalQty(row)}</td>
         <td>${omAssignmentCell(row)}</td>
-        <td><span class="status-pill ${statusClass(omFinalExportPackageCode(row))}">${omFinalExportPackageCode(row)}</span><div class="reason-text">Payment: ${OM_PAYMENT_METHOD}</div></td>
+        <td><span class="status-pill ${statusClass(omFinalExportPackageCode(row))}">${omFinalExportPackageCode(row)}</span><div class="reason-text">Handoff Code</div><div class="reason-text">Budget Code: ${omBudgetCode(row)}</div><div class="reason-text">Payment: ${OM_PAYMENT_METHOD}</div></td>
+        <td>${omPurposeDisplayCell(row)}</td>
+        <td>${omBudgetTrackingCell(row)}</td>
         <td>${omPasBundleHtml(row, { editableDemandNo: false, editableMaterialNo: false })}</td>
         <td>${quoteAttachmentListHtml(row)}</td>
         <td><span class="status-pill ${statusClass(omUserQuoteDecisionLabel(row))}">${omUserQuoteDecisionLabel(row)}</span></td>
         <td class="om-export-target-cell"><span class="status-pill ${statusClass(omCostTypeTargetLabel(row))}">${omCostTypeTargetLabel(row)}</span><div class="reason-text">Expense → ECS / Capex → CFA</div></td>
-        <td class="om-export-status-cell"><span class="status-pill ${statusClass(omFinalExportStatusLabel(row))}">${omFinalExportStatusLabel(row)}</span><div class="reason-text">${row.finalExportedAt ? `Exported ${new Date(row.finalExportedAt).toLocaleString("en-US")}` : isOmFinalExportPrepared(row) ? "Ready to mark exported" : "Waiting export target"}</div></td>
+        <td class="om-export-status-cell"><span class="status-pill ${statusClass(omFinalExportStatusLabel(row))}">${omFinalExportStatusLabel(row)}</span><div class="reason-text">${row.finalExportedAt ? `Handed off ${new Date(row.finalExportedAt).toLocaleString("en-US")}` : isOmFinalExportPrepared(row) ? "Ready to submit handoff" : "Waiting handoff target"}</div></td>
+        <td>${omProcurementTrackingCell(row)}</td>
+        <td>${omArrivalTrackingCell(row)}</td>
         <td>${row.finalExportedAt ? new Date(row.finalExportedAt).toLocaleDateString("en-US") : "-"}</td>
         <td class="cell-action om-export-actions-cell">
           ${supervisorAction || `<div class="row-action-stack">
             <button class="mini" type="button" title="Prepare Expense / ECS package" data-om-row-button="${row.id}" data-om-row-button-action="prepareExpense" ${omActionDisabledAttr(row, isOmFinalExported(row))}>Expense</button>
             <button class="mini" type="button" title="Prepare Capex / CFA package" data-om-row-button="${row.id}" data-om-row-button-action="prepareCapex" ${omActionDisabledAttr(row, isOmFinalExported(row))}>Capex</button>
-            <button class="mini" type="button" title="Export Excel package and quote screenshot package" data-om-row-button="${row.id}" data-om-row-button-action="exportPackage" ${omActionDisabledAttr(row, !(isOmFinalExportPrepared(row) || isOmFinalExported(row)))}>Export</button>
-            <button class="mini approve" type="button" title="Mark package exported" data-om-row-button="${row.id}" data-om-row-button-action="markExported" ${omActionDisabledAttr(row, !isOmFinalExportPrepared(row))}>Mark</button>
+            <button class="mini" type="button" title="Prepare handoff Excel and quote screenshot files" data-om-row-button="${row.id}" data-om-row-button-action="exportPackage" ${omActionDisabledAttr(row, !(isOmFinalExportPrepared(row) || isOmFinalExported(row)))}>Prepare</button>
+            <button class="mini approve" type="button" title="Submit handoff to Buyer" data-om-row-button="${row.id}" data-om-row-button-action="markExported" ${omActionDisabledAttr(row, !isOmFinalExportPrepared(row))}>Submit</button>
             <button class="mini danger" type="button" title="Reject to DRI" data-om-row-button="${row.id}" data-om-row-button-action="rejectToDri" ${omActionDisabledAttr(row, isOmFinalExported(row))}>Reject</button>
           </div>`}
         </td>
@@ -19603,7 +20215,7 @@ function renderOmFinalExport() {
         <td class="cell-action">${itemDetailButton("request", row.id)}</td>
       </tr>`;
     }).join("")
-    : `<tr><td colspan="15" class="empty-cell">No Requester confirmed rows are ready for export package.</td></tr>`;
+    : `<tr><td colspan="19" class="empty-cell">No Requester confirmed rows are ready for OM handoff.</td></tr>`;
 }
 
 function omAmendmentEditorHtml(row) {
@@ -19637,14 +20249,14 @@ function renderOmQuoteConfirmRows(rows) {
   const target = document.getElementById("omWorkbenchRows");
   if (!target) return;
   if (!rows.length) {
-    target.innerHTML = `<tr><td colspan="20" class="empty-cell">No quote or user confirmation rows are available for this project package.</td></tr>`;
+    target.innerHTML = `<tr><td colspan="21" class="empty-cell">No quote or user confirmation rows are available for this project package.</td></tr>`;
     return;
   }
   const waitingRows = rows.filter((row) => isOmWaitingUserConfirm(row) || row.amendmentStatus === AMENDMENT_WAITING_USER_CONFIRM);
   const editingRows = rows.filter((row) => !waitingRows.includes(row));
   const sectionRow = (label, helper) => `
     <tr class="om-quote-section-row">
-      <td colspan="20"><strong>${label}</strong><span>${helper}</span></td>
+      <td colspan="21"><strong>${label}</strong><span>${helper}</span></td>
     </tr>`;
   const quoteRowHtml = (row) => {
       const amendmentAwaitingOm = row.amendmentStatus === AMENDMENT_WAITING_OM || row.amendmentStatus === AMENDMENT_REWORK_REQUIRED;
@@ -19672,12 +20284,10 @@ function renderOmQuoteConfirmRows(rows) {
           ? "All required quote fields are ready. Use this row action to send."
           : status === "PAS Material No Missing"
             ? "Enter PAS Material No after PAS bidding result, then complete quote fields."
-          : status === "Quote Excel Missing"
-            ? "Upload the quote Excel file to complete the quote package."
-            : status === "Quote Screenshot Missing"
+          : status === "Quote Screenshot Missing"
               ? "Upload the quote screenshot image to complete the quote package."
         : quoteCompletionNeeded
-            ? "Complete PAS Material No, vendor name, price, quote date, screenshot, and Excel."
+            ? "Complete PAS Material No, vendor name, price, quote date, and screenshot. Excel is generated from the quote result."
             : "Quote data is partially filled. Complete the missing fields below.";
       const rowClasses = [
         waitingUserConfirm ? "om-row-waiting-confirm" : "",
@@ -19705,6 +20315,7 @@ function renderOmQuoteConfirmRows(rows) {
         <td>${omQuoteResultItemCell(row, stageLabel)}${omAmendmentEditorHtml(row)}</td>
         <td class="cell-qty">${omCurrentPrQty(row)}</td>
         <td class="cell-code"><span title="${htmlAttr(row.pasDemandNo || "Waiting PAS Demand No")}">${row.pasDemandNo || "Waiting PAS Demand No"}</span></td>
+        <td>${omPasExcelGroupDecisionCell(row, readOnly)}</td>
         <td class="cell-code">${omQuoteResultInput(row, "pasMaterialNo", row.pasMaterialNo, { placeholder: "PAS Material No", readOnly })}</td>
         <td>${omQuoteResultInput(row, "vendor", row.vendor, { placeholder: "Vendor", readOnly })}</td>
         <td class="cell-code">${omQuoteResultInput(row, "vendorPartNo", row.vendorPartNo, { placeholder: "Vendor code", readOnly })}</td>
@@ -19724,9 +20335,9 @@ function renderOmQuoteConfirmRows(rows) {
         <td class="om-quote-assignee-cell">${omAssignmentCell(row)}</td>
         <td>
           ${supervisorAction || `<div class="row-action-stack om-quote-action-stack">
-            <button class="mini" type="button" title="Save Quote Info" aria-label="Save Quote Info" data-om-row-button="${row.id}" data-om-row-button-action="saveQuoteInfo" ${omActionDisabledAttr(row, waitingUserConfirm)}>Save</button>
-            <button class="mini approve" type="button" title="Send to User A" aria-label="Send to User A" data-om-row-button="${row.id}" data-om-row-button-action="sendToUserConfirm" ${omActionDisabledAttr(row, !(readyToSend && !waitingUserConfirm))}>Send</button>
-            <button class="mini danger" type="button" title="Reject to DRI" aria-label="Reject to DRI" data-om-row-button="${row.id}" data-om-row-button-action="rejectToDri" ${omActionDisabledAttr(row)}>Reject</button>
+            <button class="mini" type="button" title="Validate quote, price decision, and Quotation DB retention" aria-label="Validate quote, price decision, and Quotation DB retention" data-om-row-button="${row.id}" data-om-row-button-action="saveQuoteInfo" ${omActionDisabledAttr(row, waitingUserConfirm)}>Validate Quote</button>
+            <button class="mini approve" type="button" title="Send quote to Requester confirmation" aria-label="Send quote to Requester confirmation" data-om-row-button="${row.id}" data-om-row-button-action="sendToUserConfirm" ${omActionDisabledAttr(row, !(readyToSend && !waitingUserConfirm))}>Send to Requester</button>
+            <button class="mini danger" type="button" title="Return quote row to DRI" aria-label="Return quote row to DRI" data-om-row-button="${row.id}" data-om-row-button-action="rejectToDri" ${omActionDisabledAttr(row)}>Return to DRI</button>
           </div>`}
         </td>
         <td>${itemDetailButton("request", row.id)}</td>
@@ -20083,6 +20694,20 @@ function updateOmField(requestId, field, value) {
   renderManagerCostView();
 }
 
+function updateOmPasExcelMergeDecision(requestId, decision) {
+  const before = requests.find((row) => row.id === requestId);
+  if (before && !ensureOmRowAccess(before, "update PAS Excel grouping decision")) {
+    renderOmPurchasing();
+    return;
+  }
+  const normalizedDecision = decision === "separate" ? "separate" : "merge";
+  if (!before || before.pasExcelMergeDecision === normalizedDecision) return;
+  requests = requests.map((row) => row.id === requestId ? { ...row, pasExcelMergeDecision: normalizedDecision } : row);
+  const updated = requests.find((row) => row.id === requestId);
+  if (updated) addOmHistory(updated, "PAS Excel grouping decision", normalizedDecision === "merge" ? "Merge for one PAS Excel." : "Keep separate PAS Excel.");
+  renderOmPurchasing();
+}
+
 function toggleOmQuoteException(requestId, checked) {
   const row = requests.find((item) => item.id === requestId);
   if (!row || Boolean(row.quoteException) === checked) return;
@@ -20140,8 +20765,40 @@ function selectedOmProjectPackage(rows) {
   return [...new Set(rows.map((row) => row.project))];
 }
 
+function pasExcelRowsForQuoteConfirmation(rows = []) {
+  const selectedIds = new Set(rows.map((row) => row.id));
+  const selectedPasDemandNos = new Set(rows
+    .map((row) => omBusinessFlowModule().normalizePasDemandNo?.(row.pasDemandNo || row.pasDemandId || "") || "")
+    .filter(Boolean));
+  return omQuoteConfirmRows().filter((candidate) => {
+    if (selectedIds.has(candidate.id)) return true;
+    const candidatePasDemandNo = omBusinessFlowModule().normalizePasDemandNo?.(candidate.pasDemandNo || candidate.pasDemandId || "") || "";
+    if (!candidatePasDemandNo || !selectedPasDemandNos.has(candidatePasDemandNo)) return false;
+    if (candidate.pasExcelMergeDecision === "separate") return false;
+    return canOperateOmRow(candidate);
+  });
+}
+
+async function confirmOmQuoteResultRows(rows, { requireComplete = true } = {}) {
+  if (!saveOmQuoteInfoRows(rows, { requireComplete })) return false;
+  const excelRows = pasExcelRowsForQuoteConfirmation(rows);
+  const groups = omBusinessFlowModule().groupRowsForPasExcelExport?.(excelRows) || [];
+  if (groups.length) {
+    await ensurePasExcelSystemFileForGroups(groups, { download: false });
+  }
+  return true;
+}
+
+async function generatePasExcelForQuoteRow(row, { download = false } = {}) {
+  const excelRows = pasExcelRowsForQuoteConfirmation([row]);
+  const groups = omBusinessFlowModule().groupRowsForPasExcelExport?.(excelRows.length ? excelRows : [row]) || [];
+  if (!groups.length) return false;
+  await ensurePasExcelSystemFileForGroups(groups, { download });
+  return true;
+}
+
 function saveOmQuoteInfoRows(rows, { requireComplete = false } = {}) {
-  if (!rows.every((row) => ensureOmRowAccess(row, "save quote info"))) return;
+  if (!rows.every((row) => ensureOmRowAccess(row, "validate quote result"))) return;
   const incompleteRows = rows
     .map((row) => ({ row, missing: omQuoteMissingFields(row) }))
     .filter((item) => item.missing.length);
@@ -20153,9 +20810,18 @@ function saveOmQuoteInfoRows(rows, { requireComplete = false } = {}) {
   const rowIds = new Set(rows.map((row) => row.id));
   requests = requests.map((row) => {
     if (!rowIds.has(row.id)) return row;
+    const retention = omQuotationDbRetentionDecision(row);
+    const retentionPatch = {
+      quoteDbRetentionStatus: retention.status,
+      quoteDbRetentionReason: retention.reason,
+      quoteDbRetentionEligible: retention.eligible,
+      quoteDbRetentionDaysRemaining: retention.daysRemaining,
+      quoteDbRetentionEvaluatedAt: now,
+    };
     if (!omReadyForBuyer(row) || row.amendmentOf) {
       return {
         ...row,
+        ...retentionPatch,
         quoteReadyAt: omReadyForBuyer(row) ? row.quoteReadyAt || now : row.quoteReadyAt,
         quoteCompletionReadyAt: omReadyForBuyer(row) ? row.quoteCompletionReadyAt || now : row.quoteCompletionReadyAt,
       };
@@ -20163,12 +20829,14 @@ function saveOmQuoteInfoRows(rows, { requireComplete = false } = {}) {
     const shouldDeferRouting = !isTemporaryBudgetRequest(row);
     return {
       ...row,
+      ...retentionPatch,
       ...priceDecisionPatch(row, now, { deferRouting: shouldDeferRouting }),
     };
   });
   rows.forEach((row) => {
     const latest = requests.find((item) => item.id === row.id) || row;
-    addOmHistory(latest, "Saved quote info", `Vendor: ${latest.vendor || "blank"} / Unit price: ${effectiveUnitPrice(latest) || "blank"} / Quote valid until: ${omQuoteValidUntil(latest) || "blank"}`);
+    addOmHistory(latest, "Validated quote result", `Vendor: ${latest.vendor || "blank"} / Unit price: ${effectiveUnitPrice(latest) || "blank"} / Quote valid until: ${omQuoteValidUntil(latest) || "blank"}`);
+    addOmHistory(latest, "Quotation DB retention evaluated", `${latest.quoteDbRetentionStatus || "Not evaluated"}: ${latest.quoteDbRetentionReason || "No retention reason."}`);
     if (latest.priceDecisionStatus === PRICE_AUTO_CLEARED) {
       addOmHistory(latest, "Auto cleared by threshold", latest.priceDecisionReason || "Quote is within threshold.");
       addHandoffHistory(latest, "Auto cleared by threshold", latest.priceDecisionReason || "Requester confirmation not required.");
@@ -20191,15 +20859,67 @@ function saveOmQuoteInfoRows(rows, { requireComplete = false } = {}) {
   return true;
 }
 
-function saveOmQuoteInfo() {
+async function saveOmQuoteInfo() {
   const rows = selectedOmPasResultRows().length ? selectedOmPasResultRows() : omPasResultRows();
   if (!rows.length) {
     showToast("No PAS result rows are available to save.", "error");
     return;
   }
-  if (!saveOmQuoteInfoRows(rows, { requireComplete: true })) return;
+  if (!await confirmOmQuoteResultRows(rows, { requireComplete: true })) return;
   renderOmPurchasing();
-  showToast("PAS quote info saved.", "success");
+  showToast("Quote validated; generated PAS Excel attached; price and Quotation DB retention checks updated.", "success");
+}
+
+function applyQuoteDbCandidateToOmRow(row, actionLabel = "Central IT Checked") {
+  if (!row || !ensureOmRowAccess(row, actionLabel)) return null;
+  const candidate = omQuoteDbCandidate(row);
+  if (!candidate) {
+    showToast("No Quotation DB candidate found for this item/spec.", "error");
+    return null;
+  }
+  const status = omQuoteDbCandidateStatus(row, candidate);
+  if (status?.expired) {
+    showToast("Quotation DB candidate is expired. Requote is required.", "error");
+    return null;
+  }
+  const now = new Date().toISOString();
+  const actor = roleProfiles[currentRole]?.name || "OM Purchasing";
+  requests = requests.map((item) => {
+    if (item.id !== row.id) return item;
+    const patched = omBusinessFlowModule().applyQuoteDbCandidate?.(item, candidate, now, actor) || item;
+    return {
+      ...patched,
+      quoteValidUntilUpdatedAt: patched.quoteValidUntil ? now : item.quoteValidUntilUpdatedAt,
+      quoteReceivedAt: patched.quoteDate || item.quoteReceivedAt,
+      pasDemandNoUpdatedAt: patched.pasDemandNo ? now : item.pasDemandNoUpdatedAt,
+      pasDemandNoRecordedAt: patched.pasDemandNo ? item.pasDemandNoRecordedAt || now : item.pasDemandNoRecordedAt,
+      pasMaterialNoUpdatedAt: patched.pasMaterialNo ? now : item.pasMaterialNoUpdatedAt,
+    };
+  });
+  const updated = requests.find((item) => item.id === row.id) || row;
+  addOmHistory(updated, actionLabel, `Quotation DB candidate ${candidate.id} checked; ${status?.quantityNote || "quantity is not a hard stop"}`);
+  addHandoffHistory(updated, "Quotation DB candidate reused", `${candidate.id} / valid until ${candidate.quoteValidUntil || "-"}.`);
+  return updated;
+}
+
+function markOmCentralItChecked(row) {
+  const updated = applyQuoteDbCandidateToOmRow(row, "Central IT Checked");
+  if (!updated) return;
+  renderOmPurchasing();
+  showToast("Central IT checked. Quotation DB candidate marked reusable.", "success");
+}
+
+function applyQuoteDbFromIntake(row) {
+  const updated = applyQuoteDbCandidateToOmRow(row, "Quote DB candidate applied from My Intake");
+  if (!updated) return;
+  const latest = requests.find((item) => item.id === row.id) || updated;
+  if (omPasDemandRequirement(latest).required && !latest.pasDemandNo) {
+    renderOmPurchasing();
+    showToast("Quotation DB applied. PAS Demand ID is still required before My Quote Result.", "success");
+    return;
+  }
+  movePasRowsToQuoteCompletion([latest]);
+  showToast("Quotation DB applied and moved to My Quote Result.", "success");
 }
 
 function movePasRowsToQuoteCompletion(rows) {
@@ -20207,10 +20927,10 @@ function movePasRowsToQuoteCompletion(rows) {
     showToast("Select at least one PAS result row before moving to Quote Completion.", "error");
     return;
   }
-  if (!rows.every((row) => ensureOmRowAccess(row, "move to PAS Quote Result"))) return;
-  const missingDemandNo = rows.filter((row) => !row.pasDemandNo);
+  if (!rows.every((row) => ensureOmRowAccess(row, "move to Quote Result"))) return;
+  const missingDemandNo = rows.filter((row) => omPasDemandRequirement(row).required && !row.pasDemandNo);
   if (missingDemandNo.length) {
-    showToast("Enter PAS Demand No before moving to Quote Completion.", "error");
+    showToast("PAS Demand ID is required for Hard Item before Quote Result.", "error");
     return;
   }
   const now = new Date().toISOString();
@@ -20227,8 +20947,8 @@ function movePasRowsToQuoteCompletion(rows) {
       pasPartName: pasPartName(row),
       pasBrand: pasBrand(row),
       pasSpec: pasSpec(row),
-      pasDemandNoUpdatedAt: row.pasDemandNoUpdatedAt || now,
-      pasDemandNoRecordedAt: row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt || now,
+      pasDemandNoUpdatedAt: row.pasDemandNo ? row.pasDemandNoUpdatedAt || now : row.pasDemandNoUpdatedAt,
+      pasDemandNoRecordedAt: row.pasDemandNo ? row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt || now : row.pasDemandNoRecordedAt,
       pasResultReceivedAt: row.pasResultReceivedAt || now,
       procurementStatus: HANDOFF_SENT_TO_OM,
       omStatus: OM_RECEIVED,
@@ -20239,9 +20959,10 @@ function movePasRowsToQuoteCompletion(rows) {
     };
   });
   rows.forEach((row) => {
-    addOmHistory(row, "PAS Demand No recorded", row.pasDemandNo || "PAS Demand No recorded.");
-    addOmHistory(row, "PAS result received", `${row.project} ${omItemBucket(row)} received PAS Demand No and moved to Quote Completion.`);
-    addHandoffHistory(row, "PAS result received", `${row.project} ${omItemBucket(row)} received PAS Demand No and moved to Quote Completion.`);
+    const requirement = omPasDemandRequirement(row);
+    if (row.pasDemandNo) addOmHistory(row, "PAS Demand No recorded", row.pasDemandNo);
+    addOmHistory(row, "PAS result received", `${row.project} ${omItemBucket(row)} moved to Quote Completion. ${requirement.label}.`);
+    addHandoffHistory(row, "PAS result received", `${row.project} ${omItemBucket(row)} moved to Quote Completion. ${requirement.label}.`);
   });
   omSelections.clear();
   renderOmPurchasing();
@@ -20252,22 +20973,22 @@ function markPasRequestSent() {
   movePasRowsToQuoteCompletion(selectedOmPasRequestRows());
 }
 
-function sendOmPasRowsToUserConfirm(rows) {
+async function sendOmPasRowsToUserConfirm(rows) {
   if (!rows.length) {
-    showToast("No quote row is available to send to User A confirmation.", "error");
+    showToast("No quote row is available to send to Requester confirmation.", "error");
     return;
   }
-  if (!rows.every((row) => ensureOmRowAccess(row, "send to User A"))) return;
+  if (!rows.every((row) => ensureOmRowAccess(row, "send to Requester confirmation"))) return;
   const incomplete = rows
     .map((row) => ({ row, missing: omQuoteMissingFields(row) }))
     .filter((item) => item.missing.length);
   if (incomplete.length) {
-    showToast(`Complete required quote fields before Send to User A: ${incomplete[0].missing.join(", ")}.`, "error");
+    showToast(`Complete required quote fields before Send to Requester: ${incomplete[0].missing.join(", ")}.`, "error");
     return;
   }
   const now = new Date().toISOString();
   const standardRows = rows.filter((row) => !row.amendmentOf && !isTemporaryBudgetRequest(row));
-  if (standardRows.length && !saveOmQuoteInfoRows(standardRows, { requireComplete: true })) return;
+  if (standardRows.length && !await confirmOmQuoteResultRows(standardRows, { requireComplete: true })) return;
   requests = requests.map((row) => {
     if (!rows.some((selected) => selected.id === row.id)) return row;
     const isAmendment = Boolean(row.amendmentOf);
@@ -20302,8 +21023,8 @@ function sendOmPasRowsToUserConfirm(rows) {
   showToast(`${rows.filter((row) => row.amendmentOf || !isTemporaryBudgetRequest(row)).length} row${rows.length === 1 ? "" : "s"} sent to User A confirmation.`, "success");
 }
 
-function sendOmPasResultToUserConfirm() {
-  sendOmPasRowsToUserConfirm(selectedOmPasResultRows());
+async function sendOmPasResultToUserConfirm() {
+  await sendOmPasRowsToUserConfirm(selectedOmPasResultRows());
 }
 
 function openOmPasResultUpload() {
@@ -20341,7 +21062,7 @@ function confirmUserAOmQuote(requestId) {
   addHandoffHistory(after, "Requester confirmed need", "Quoted amount confirmed by Requester.");
   renderDepartment();
   renderOmPurchasing();
-  showToast(after.omStage === "priceReview" ? "OM quote confirmed. Row moved to price review." : "OM quote confirmed. Row moved to Export Package.", "success");
+  showToast(after.omStage === "priceReview" ? "OM quote confirmed. Row moved to price review." : "OM quote confirmed. Row moved to OM Handoff.", "success");
 }
 
 function cancelUserAOmQuote(requestId) {
@@ -20560,6 +21281,7 @@ function updateFinalExportTarget(rows, target) {
   const costType = omCostTypeForTarget(target);
   requests = requests.map((row) => rows.some((selected) => selected.id === row.id) ? {
     ...row,
+    ...omBudgetPatch(row),
     omSelected: false,
     omStage: "finalExport",
     omStatus: OM_PREPARING_EXPORT,
@@ -20586,7 +21308,7 @@ function prepareOmFinalExport(target) {
 function prepareOmFinalExportCostType(costType, rows = selectedOmFinalExportRows()) {
   const target = omTargetForCostType(costType);
   if (!target) {
-    showToast("Choose Expense or Capex before preparing the export package.", "error");
+    showToast("Choose Expense or Capex before preparing the OM handoff.", "error");
     return;
   }
   if (!rows.every((row) => ensureOmRowAccess(row, `prepare ${costType}`))) return;
@@ -20595,13 +21317,13 @@ function prepareOmFinalExportCostType(costType, rows = selectedOmFinalExportRows
 
 function markOmFinalExportRowsExported(rows) {
   if (!rows.length) {
-    showToast("No prepared row is available to mark export complete.", "error");
+    showToast("No prepared row is available to submit handoff.", "error");
     return;
   }
   if (!rows.every((row) => ensureOmRowAccess(row, "mark export complete"))) return;
   const unprepared = rows.filter((row) => ![OM_READY_FOR_CFA, OM_READY_FOR_ECS].includes(row.finalExportStatus));
   if (unprepared.length) {
-    showToast("Choose Expense or Capex before marking export completed.", "error");
+    showToast("Choose Expense or Capex before submitting the handoff.", "error");
     return;
   }
   const scopeError = validateOmFinalExportPackageScope(rows);
@@ -20638,8 +21360,8 @@ function markOmFinalExportRowsExported(rows) {
   });
   rows.forEach((row) => {
     const finalTarget = omFinalExportTargetForRow(row);
-    addOmHistory(row, `Exported to ${finalTarget}`, `${row.finalExportPackageCode || packageCode} marked exported and handed to Buyer for PR creation.`);
-    addHandoffHistory(row, `Exported to ${finalTarget}`, `${row.finalExportPackageCode || packageCode} marked exported and handed to Buyer for PR creation.`);
+    addOmHistory(row, `OM Handoff to ${finalTarget}`, `${row.finalExportPackageCode || packageCode} submitted to Buyer for PR creation.`);
+    addHandoffHistory(row, `OM Handoff to ${finalTarget}`, `${row.finalExportPackageCode || packageCode} submitted to Buyer for PR creation.`);
   });
   omSelections.clear();
   renderOmPurchasing();
@@ -20779,7 +21501,7 @@ function approvalPipelineStatus(row = {}, role = currentRole) {
       blockedAtOwner: hasBuyer ? "Buyer" : hasExport ? "Buyer" : "OM Purchasing",
       sentAt: budgetApprovedAt,
       lastUpdatedAt: buyerUpdatedAt || omUpdatedAt || budgetApprovedAt,
-      nextStep: hasBuyer ? "Buyer PR / PO tracking" : hasExport ? "Buyer handoff pending" : "OM export package",
+      nextStep: hasBuyer ? "Buyer PR / PO tracking" : hasExport ? "Buyer handoff pending" : "OM handoff",
       poStatus: hasBuyer ? approvalPipelinePoStatus(row) : "PO Pending",
       tone: hasBuyer ? "po" : "sent",
     };
@@ -20905,7 +21627,7 @@ function reviewStatusForRole(row = {}, role = currentRole) {
       return { label: DEMAND_REVIEW_REVISE_REQUIRED, secondary: row.priceEscalationRejectReason || "Requester revise / resubmit", owner: "Requester", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "revise", actionable: false };
     }
     if (row.projectDriApprovedAt) {
-      return { label: DEMAND_REVIEW_APPROVED, secondary: `Sent to ${pipeline.nextOwner || "OM Export"}`, owner: pipeline.blockedAtOwner || pipeline.nextOwner || "OM Export", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
+      return { label: DEMAND_REVIEW_APPROVED, secondary: `Sent to ${pipeline.nextOwner || "OM Handoff"}`, owner: pipeline.blockedAtOwner || pipeline.nextOwner || "OM Handoff", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: pipeline.tone === "po" ? "po" : "approved", actionable: false };
     }
     if (row.priceApprovalStatus === PRICE_ESCALATION_PENDING_PROJECT_DRI || row.driApprovedAt) {
       return { label: "Pending Budget Approver", secondary: "Dept DRI approved", owner: "Budget Approver", nextStep: pipeline.nextStep, poStatus: pipeline.poStatus, tone: "pending", actionable: true };
@@ -21571,11 +22293,11 @@ function applyPriceReviewDecision(requestId, action) {
     userAQuoteDecisionBy: "Budget Approver approval",
   } : item);
   const latest = requests.find((item) => item.id === requestId);
-  addHandoffHistory(latest, "Budget Approver approved", "Price escalation approved; row moved to Export Package.");
-  addOmHistory(latest, "Budget Approver approved", "Price escalation approved; row moved to Export Package.");
+  addHandoffHistory(latest, "Budget Approver approved", "Price escalation approved; row moved to OM Handoff.");
+  addOmHistory(latest, "Budget Approver approved", "Price escalation approved; row moved to OM Handoff.");
   rerenderReviewAfterDecision();
   renderOmPurchasing();
-  showToast("Budget Review approved. Row moved to Export Package.", "success");
+  showToast("Budget Review approved. Row moved to OM Handoff.", "success");
 }
 
 function applyCostManagerAuthorization(requestId, action) {
@@ -21943,6 +22665,21 @@ function renderSapPoRawImportPanel() {
   }
 }
 
+function renderAdminPasDemandRequirementMaster() {
+  const target = document.getElementById("adminPasDemandRequirementMasterRows");
+  if (!target) return;
+  const rows = pasDemandRequirementMasterRows();
+  target.innerHTML = rows.length ? rows.map((row) => `
+    <tr data-admin-pas-demand-master="${htmlAttr(row.id)}">
+      <td><strong>${htmlText(row.itemCategory || row.id)}</strong><div class="muted">${htmlText(row.id)}</div></td>
+      <td>${htmlText(row.matchKeywords.map((keyword) => String(keyword).trim()).filter(Boolean).join(", "))}</td>
+      <td><span class="status-pill ${row.pasDemandRequired ? "status-warning" : "info"}">${row.pasDemandRequired ? "Required" : "Optional"}</span></td>
+      <td><span class="status-pill ${row.active ? "status-ok" : "neutral"}">${row.active ? "Active" : "Inactive"}</span></td>
+      <td>${htmlText(row.ownerRole || "OM Purchasing")}</td>
+      <td class="cell-note-summary" title="${htmlAttr(row.note)}">${htmlText(row.note)}</td>
+    </tr>`).join("") : `<tr><td colspan="6" class="empty-cell">No PAS Demand Requirement Master records.</td></tr>`;
+}
+
 async function refreshSapPoRawImportStatus({ silent = false } = {}) {
   if (!apiModeEnabled()) {
     if (!silent) showToast("SAP PO Raw import status requires server API mode.", "error");
@@ -22095,6 +22832,7 @@ function renderAdminSetup() {
   }
   renderAdminRolePermissionMatrix();
   renderAdminFieldVisibilityMatrix();
+  renderAdminPasDemandRequirementMaster();
   renderAdminAuditLog();
   renderSapPoRawImportPanel();
   renderRoleCapabilityMatrix();
@@ -22518,27 +23256,49 @@ async function exportAdminAuditLog() {
   downloadFile("admin-audit-export.csv", lines.join("\n"), "text/csv");
 }
 
-function exportPasExcel() {
-  const rows = selectedOmPasRequestRows();
-  if (!rows.length) {
-    showToast("PAS Excel export is no longer part of PAS Result Queue.", "error");
-    return;
-  }
-  const projects = selectedOmProjectPackage(rows);
-  if (projects.length !== 1) {
-    showToast("Export one project package at a time for PAS.", "error");
-    return;
-  }
-  const project = projects[0];
-  downloadXlsx(`${project}-PAS-Tracking.xlsx`, [{
+function createPasExcelSystemFileRecord(group, fileName, createdAt = new Date().toISOString(), attachment = {}) {
+  const groupRows = group.rows || [];
+  const summary = omBusinessFlowModule().pasExcelSystemAttachmentSummary?.(group, createdAt) || {
+    linkedEntityId: group.displayPasDemandId || group.pasDemandId || "PAS-Demand-Pending",
+    rowIds: groupRows.map((row) => row.id).filter(Boolean),
+    metadata: { rowCount: groupRows.length, mergeDecision: group.mergeDecision || "merge" },
+  };
+  const rowIds = new Set(summary.rowIds);
+  requests = requests.map((row) => {
+    if (!rowIds.has(row.id)) return row;
+    return {
+      ...row,
+      pasExcelGroupId: summary.linkedEntityId,
+      pasExcelMergeDecision: group.mergeDecision || row.pasExcelMergeDecision || "merge",
+      pasExcelSystemFileName: fileName,
+      pasExcelSystemFileCreatedAt: createdAt,
+      pasExcelSystemAttachmentId: attachment.id || row.pasExcelSystemAttachmentId || "",
+      pasExcelSystemAttachmentUrl: attachment.downloadUrl || row.pasExcelSystemAttachmentUrl || "",
+      pasExcelSystemAttachmentMode: attachment.id ? "api-upload" : "local-metadata",
+      pasExcelSystemAttachmentKind: "om_pas_tracking_system_excel",
+      pasExcelSystemRowCount: groupRows.length,
+    };
+  });
+  groupRows.forEach((row) => {
+    const updated = requests.find((item) => item.id === row.id) || row;
+    const mode = attachment.id ? "uploaded to system attachments" : "recorded as local metadata";
+    addOmHistory(updated, "PAS Excel system file created", `${fileName} includes ${groupRows.length} item${groupRows.length === 1 ? "" : "s"} and was ${mode}.`);
+  });
+}
+
+function pasExcelWorkbookSheet(group) {
+  const groupRows = group.rows || [];
+  const firstRow = groupRows[0] || {};
+  const workbookDemandId = group.displayPasDemandId || group.pasDemandId || "PAS-Demand-Pending";
+  return {
     name: "PAS Tracking",
     rows: [
-      ["Form Head", "", "", "", "", "", "", "", "", "", "", ""],
-      ["Demand No", rows[0].pasDemandNo || "Waiting PAS Demand No", "PAS Material No", rows[0].pasMaterialNo || "Waiting PAS Material No", "Demand Date", pasDemandDate(rows[0]), "Legal Name", pasLegalName(rows[0]), "Request Dept", pasRequestDept(rows[0]), "Data Transfer To", pasDataTransferTo(rows[0])],
-      ["", "", "", "", "", "", "", "", "", "", "", ""],
-      ["Form Item", "", "", "", "", "", "", "", "", "", "", ""],
-      ["Project Type", "Project", "Phase", "PAS Material No", "Part Name", "Brand", "Spec", "Unit", "Quantity", "Level 2", "Level 3", "CPD-IEP Owner", "Requirement"],
-      ...rows.map((row) => {
+      ["Form Head", "", "", "", "", "", "", "", "", "", "", "", ""],
+      ["Demand No", workbookDemandId || "Waiting PAS Demand No", "PAS Material No", firstRow.pasMaterialNo || "Waiting PAS Material No", "Demand Date", pasDemandDate(firstRow), "Legal Name", pasLegalName(firstRow), "Request Dept", pasRequestDept(firstRow), "Data Transfer To", pasDataTransferTo(firstRow), ""],
+      ["", "", "", "", "", "", "", "", "", "", "", "", ""],
+      ["Form Item", "", "", "", "", "", "", "", "", "", "", "", ""],
+      ["Project Type", "Project", "Phase", "PAS Material No", "Part Name", "Brand", "Spec", "Purpose Location", "Unit", "Quantity", "Level 2", "Level 3", "CPD-IEP Owner", "Requirement"],
+      ...groupRows.map((row) => {
         const enriched = applyOmResponsibility(row);
         const phase = currentStageForProject(row.project);
         return [
@@ -22549,6 +23309,7 @@ function exportPasExcel() {
           pasPartName(row),
           pasBrand(row),
           pasSpec(row),
+          omPurposeLocations(row).join(" / "),
           omUnit(row),
           totalQty(row),
           enriched.omCategoryLevel2 || "",
@@ -22561,10 +23322,59 @@ function exportPasExcel() {
     minWidth: 10,
     maxWidth: 34,
     freezeHeader: true,
-  }]);
-  rows.forEach((row) => addOmHistory(row, "Exported PAS Tracking Excel", `${project} PAS tracking exported.`));
+  };
+}
+
+async function uploadGeneratedPasExcelAttachment(group, fileName, blob, createdAt = new Date().toISOString()) {
+  if (!apiModeEnabled()) return null;
+  const summary = omBusinessFlowModule().pasExcelSystemAttachmentSummary?.(group, createdAt);
+  if (!summary) return null;
+  const file = typeof File === "function"
+    ? new File([blob], fileName, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+    : blob;
+  return uploadAttachment(file, {
+    linkedEntityType: summary.linkedEntityType,
+    linkedEntityId: summary.linkedEntityId,
+    attachmentKind: summary.attachmentKind,
+    visibilityScope: summary.visibilityScope,
+    metadata: summary.metadata,
+  });
+}
+
+async function ensurePasExcelSystemFileForGroups(groups, { download = false } = {}) {
+  const createdAt = new Date().toISOString();
+  const results = [];
+  for (const group of groups) {
+    const fileName = omBusinessFlowModule().pasExcelSystemFileName?.(group) || `${String(group.pasDemandId || "PAS-Demand-Pending").replace(/[^a-zA-Z0-9._-]+/g, "-")}-PAS-Tracking.xlsx`;
+    const blob = createXlsxBlob([pasExcelWorkbookSheet(group)]);
+    let attachment = null;
+    try {
+      attachment = await uploadGeneratedPasExcelAttachment(group, fileName, blob, createdAt);
+    } catch (error) {
+      showToast(`Generated PAS Excel attachment failed: ${error.message}`, "error");
+      throw error;
+    }
+    createPasExcelSystemFileRecord(group, fileName, createdAt, attachment || {});
+    if (download) downloadBlob(fileName, blob);
+    results.push({ group, fileName, attachment });
+  }
+  return results;
+}
+
+async function exportPasExcel() {
+  const rows = selectedOmPasResultRows().length ? selectedOmPasResultRows() : selectedOmPasRequestRows();
+  if (!rows.length) {
+    showToast("Select at least one PAS row before generating PAS Excel.", "error");
+    return;
+  }
+  const groups = omBusinessFlowModule().groupRowsForPasExcelExport?.(rows) || omBusinessFlowModule().groupRowsByPasDemandId?.(rows) || [{ pasDemandId: rows[0].pasDemandNo || "PAS-Demand-Pending", rows }];
+  await ensurePasExcelSystemFileForGroups(groups, { download: true });
+  rows.forEach((row) => {
+    const updated = requests.find((item) => item.id === row.id) || row;
+    addOmHistory(updated, "Exported PAS Tracking Excel", `${updated.pasExcelSystemFileName || row.pasDemandNo || "PAS-Demand-Pending"} PAS tracking exported.`);
+  });
   renderOmPurchasing();
-  showToast("PAS tracking Excel exported.", "success");
+  showToast(`${groups.length} PAS tracking Excel file${groups.length === 1 ? "" : "s"} exported by PAS Demand ID.`, "success");
 }
 
 function exportPasPdf() {
@@ -22747,7 +23557,7 @@ function submitOmExternalResult(event) {
   if (commitExternalResult(rows, payload)) closeOmExternalResultModal();
 }
 
-function runOmRowAction(requestId, action) {
+async function runOmRowAction(requestId, action) {
   const row = requests.find((item) => item.id === requestId);
   if (!row || !action) return;
   if (!ensureOmRowAccess(row, action)) return;
@@ -22759,16 +23569,27 @@ function runOmRowAction(requestId, action) {
     }
   }
   if (action === "saveQuoteInfo") {
-    if (!saveOmQuoteInfoRows([row], { requireComplete: true })) return;
+    if (!await confirmOmQuoteResultRows([row], { requireComplete: true })) return;
     renderOmPurchasing();
-    showToast("Quote info saved.", "success");
+    showToast("Quote validated; generated PAS Excel attached; price and Quotation DB retention checks updated.", "success");
+  }
+  if (action === "generatePasExcel") {
+    if (!await generatePasExcelForQuoteRow(row, { download: false })) return;
+    renderOmPurchasing();
+    showToast("PAS Excel generated and attached.", "success");
+  }
+  if (action === "centralItChecked") {
+    markOmCentralItChecked(row);
+  }
+  if (action === "applyQuoteDbFromIntake") {
+    applyQuoteDbFromIntake(row);
   }
   if (action === "moveToQuoteCompletion") {
     const latest = requests.find((item) => item.id === requestId) || row;
     movePasRowsToQuoteCompletion([latest]);
   }
   if (action === "sendToUserConfirm") {
-    sendOmPasRowsToUserConfirm([row]);
+    await sendOmPasRowsToUserConfirm([row]);
   }
   if (action === "rejectToDri") {
     rejectOmRowsToDri([row]);
@@ -22804,6 +23625,11 @@ function omPackageCodeForRows(rows) {
   return rows[0]?.finalExportPackageCode || generateOmFinalExportPackageCode(rows);
 }
 
+function omBudgetCodeForRows(rows) {
+  const codes = [...new Set(rows.map((row) => omBudgetCode(row)).filter(Boolean))];
+  return codes.length === 1 ? codes[0] : codes.join(" / ");
+}
+
 function omDetailSheetName(packageCode) {
   return String(packageCode || "OM-Purchasing-Detail").slice(0, 31);
 }
@@ -22814,6 +23640,7 @@ function omPackageFileName(packageCode) {
 
 function omSummarySheetRows(rows) {
   const packageCode = omPackageCodeForRows(rows);
+  const budgetCode = omBudgetCodeForRows(rows);
   const totalVnd = rows.reduce((sum, row) => sum + omAmountVnd(row), 0);
   const totalUsd = rows.reduce((sum, row) => sum + omAmountUsd(row), 0);
   const today = rows[0]?.finalExportPreparedAt ? new Date(rows[0].finalExportPreparedAt) : new Date();
@@ -22826,7 +23653,7 @@ function omSummarySheetRows(rows) {
     ["申請人\nRequestors", OM_REQUESTOR, "聯系電話\ncontact number", OM_CONTACT, ""],
     ["量产or 试产\nMass production & NPI", stageType, "法人\nLegal person", "富山\nFushan", ""],
     ["付费方式\nPayment methods", OM_PAYMENT_METHOD, "幣別\nCurrency", "交易幣別  VND\nTransaction currency", "預算幣別 USD\nBudget currency"],
-    ["月度预算代碼\nMonthly budget code", packageCode, "金額\nAmount", totalVnd, totalUsd],
+    ["月度预算代碼\nMonthly budget code", budgetCode, "金額\nAmount", totalVnd, totalUsd],
     ["合     計：\ntotal", "", "", totalVnd, totalUsd],
     ["", "", "", "\n承辦﹕\nRequestors", ""],
     [" 核   准(BU):\nBU head", "", "部门主管審核﹕\nDepartment head ", "", ""],
@@ -22841,6 +23668,8 @@ function omDetailSheetRows(rows) {
     "NO",
     "物品名稱Item Name",
     "PAS Material No.",
+    "Budget Code",
+    "Purpose Location",
     "Material Name",
     "規格\nDetail / specification",
     "單位\nunit",
@@ -22858,11 +23687,13 @@ function omDetailSheetRows(rows) {
     "廠商\nVendor",
     "供應商代碼\nVendor Code",
   ];
-  const title = [packageCode, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
+  const title = [packageCode, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
   const bodyRows = rows.map((row, index) => [
     index + 1,
     row.name,
     row.pasMaterialNo || "",
+    omBudgetCode(row),
+    omPurposeLocations(row).join(" / "),
     partName(row),
     itemDetail(row) || "\\",
     omUnit(row),
@@ -22880,7 +23711,7 @@ function omDetailSheetRows(rows) {
     row.vendor || "",
     row.vendorPartNo || "",
   ]);
-  const totalRow = ["Total", "", "", "", "", "", "", "", "", "", "", bodyRows.reduce((sum, row) => sum + Number(row[11] || 0), 0), "", bodyRows.reduce((sum, row) => sum + Number(row[13] || 0), 0), "", "", "", "", ""];
+  const totalRow = ["Total", "", "", "", "", "", "", "", "", "", "", "", "", bodyRows.reduce((sum, row) => sum + Number(row[13] || 0), 0), "", bodyRows.reduce((sum, row) => sum + Number(row[15] || 0), 0), "", "", "", "", ""];
   return [
     title,
     header,
@@ -22909,7 +23740,7 @@ function omExportWorkbookSheets(rows) {
       maxWidth: 42,
       preferred: { 0: 4, 1: 28, 2: 18, 3: 20, 4: 24, 5: 32, 6: 34, 8: 13, 10: 13, 11: 13, 12: 13, 13: 13, 14: 13, 15: 13, 16: 28, 19: 18 },
       rowHeights: [26.25, 63.75],
-      merges: ["A1:T1"],
+      merges: ["A1:U1"],
       freezeHeader: true,
     },
   ];
@@ -22917,18 +23748,18 @@ function omExportWorkbookSheets(rows) {
 
 function exportOmExcelRows(rows) {
   if (!rows.length) {
-    showToast("No export package row is available to export Excel.", "error");
+    showToast("No OM handoff row is available to prepare Excel.", "error");
     return;
   }
   if (!rows.every((row) => ensureOmRowAccess(row, "export Excel"))) return;
   const unprepared = rows.filter((row) => !isOmFinalExportPrepared(row) && !isOmFinalExported(row));
   if (unprepared.length) {
-    showToast("Choose Expense or Capex before exporting the final Excel package.", "error");
+    showToast("Choose Expense or Capex before preparing the handoff Excel.", "error");
     return;
   }
   const projects = selectedOmProjectPackage(rows);
   if (projects.length !== 1) {
-    showToast("Export one final export package at a time. Please filter or select rows from a single project.", "error");
+    showToast("Prepare one OM handoff at a time. Please filter or select rows from a single project.", "error");
     return;
   }
   const scopeError = validateOmFinalExportPackageScope(rows);
@@ -22947,6 +23778,7 @@ function exportOmExcelRows(rows) {
   rows.forEach((row) => addOmHistory(row, "Prepared export Excel", `Exported ${packageCode} OM Purchasing Excel package.`));
   requests = requests.map((row) => rows.some((selected) => selected.id === row.id) ? {
     ...row,
+    ...omBudgetPatch(row),
     paymentMethod: OM_PAYMENT_METHOD,
     finalExportPackageCode: rows.find((selected) => selected.id === row.id)?.finalExportPackageCode || packageCode,
     excelExportedAt: now,
@@ -22954,7 +23786,7 @@ function exportOmExcelRows(rows) {
     omStage: "finalExport",
   } : row);
   renderOmPurchasing();
-  showToast("Final export Excel prepared.", "success");
+  showToast("OM handoff Excel prepared.", "success");
 }
 
 function exportOmExcel() {
@@ -22963,13 +23795,13 @@ function exportOmExcel() {
 
 function exportOmQuotePdfRows(rows) {
   if (!rows.length) {
-    showToast("Select at least one final export row before exporting quote screenshot package.", "error");
+    showToast("Select at least one OM handoff row before preparing quote screenshot files.", "error");
     return;
   }
-  if (!rows.every((row) => ensureOmRowAccess(row, "export quote screenshot package"))) return;
+  if (!rows.every((row) => ensureOmRowAccess(row, "prepare quote screenshot files"))) return;
   const projects = selectedOmProjectPackage(rows);
   if (projects.length !== 1) {
-    showToast("Export one final export package at a time. Please filter or select rows from a single project.", "error");
+    showToast("Prepare one OM handoff at a time. Please filter or select rows from a single project.", "error");
     return;
   }
   const attachmentError = validateOmFinalExportAttachments(rows);
@@ -22987,7 +23819,7 @@ function exportOmQuotePdfRows(rows) {
   ].join("\n");
   downloadFile(`${packageCode}-OM-Quote-Screenshot-Package.txt`, content, "text/plain");
   const now = new Date().toISOString();
-  rows.forEach((row) => addOmHistory(row, "Prepared export screenshot package", omQuoteScreenshotFile(row) || `Exported ${packageCode} prototype quote screenshot package.`));
+  rows.forEach((row) => addOmHistory(row, "Prepared handoff screenshot files", omQuoteScreenshotFile(row) || `Prepared ${packageCode} prototype quote screenshot files.`));
   requests = requests.map((row) => rows.some((selected) => selected.id === row.id) ? {
     ...row,
     quotePdfExportedAt: now,
@@ -22995,7 +23827,7 @@ function exportOmQuotePdfRows(rows) {
     omStage: "finalExport",
   } : row);
   renderOmPurchasing();
-  showToast("Final export quote screenshot package prepared.", "success");
+  showToast("OM handoff quote screenshot files prepared.", "success");
 }
 
 function exportOmQuotePdf() {
@@ -23004,13 +23836,13 @@ function exportOmQuotePdf() {
 
 function exportOmPackageRows(rows) {
   if (!rows.length) {
-    showToast("No export package row is available to export.", "error");
+    showToast("No OM handoff row is available to prepare.", "error");
     return;
   }
-  if (!rows.every((row) => ensureOmRowAccess(row, "export package"))) return;
+  if (!rows.every((row) => ensureOmRowAccess(row, "OM handoff"))) return;
   const unprepared = rows.filter((row) => !isOmFinalExportPrepared(row) && !isOmFinalExported(row));
   if (unprepared.length) {
-    showToast("Prepare Expense or Capex before exporting the package.", "error");
+    showToast("Prepare Expense or Capex before preparing the handoff.", "error");
     return;
   }
   const attachmentError = validateOmFinalExportAttachments(rows);
@@ -23020,7 +23852,7 @@ function exportOmPackageRows(rows) {
   }
   exportOmExcelRows(rows);
   exportOmQuotePdfRows(rows);
-  showToast("Export Package prepared: Excel package and quote screenshot package are ready.", "success");
+  showToast("OM Handoff prepared: Excel and quote screenshot files are ready.", "success");
 }
 
 function exportOmPackage() {
@@ -23517,7 +24349,7 @@ document.addEventListener("input", (event) => {
   event.target.closest(".item-review-qty-cell")?.classList.toggle("changed", beforeQty !== afterQty);
 });
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   if (event.target.classList?.contains("modal-backdrop") && !event.target.classList.contains("confirm-backdrop")) {
     closeModalById(event.target.id);
     return;
@@ -23670,6 +24502,7 @@ document.addEventListener("click", (event) => {
   if (action === "clearPriceReviewQuantityFilters") clearPriceReviewQuantityFilters();
   if (action === "clearOmSubmissionFilters") clearOmSubmissionFilters();
   if (action === "saveOmExchangeRate") saveOmExchangeRate();
+  if (action === "saveOmStageCalendar") saveOmStageCalendar();
   if (action === "saveAdminApprovalSetup") saveAdminApprovalSetup();
   if (action === "createOmAssignmentRule") createOmAssignmentRuleFromForm();
   if (action === "createAdminUser") createAdminUserFromForm();
@@ -23766,12 +24599,12 @@ document.addEventListener("click", (event) => {
   if (action === "sendRfqSelectedToBuyer") sendRfqSelectedToBuyer();
   if (action === "closeRfqEmailDraft") closeRfqEmailDraft();
   if (action === "copyRfqEmailDraft") copyRfqEmailDraft();
-  if (action === "exportPasExcel") exportPasExcel();
+  if (action === "exportPasExcel") await exportPasExcel();
   if (action === "exportPasPdf") exportPasPdf();
   if (action === "markPasSent") markPasRequestSent();
   if (action === "omUploadPasResult") openOmPasResultUpload();
-  if (action === "omSaveQuoteInfo") saveOmQuoteInfo();
-  if (action === "omSendToUserConfirm") sendOmPasResultToUserConfirm();
+  if (action === "omSaveQuoteInfo") await saveOmQuoteInfo();
+  if (action === "omSendToUserConfirm") await sendOmPasResultToUserConfirm();
   if (action === "omAskUserAAmend") askUserAAmendSelected();
   if (action === "omPrepareCfa") prepareOmFinalExport("CFA");
   if (action === "omPrepareEcs") prepareOmFinalExport("ECS");
@@ -23944,7 +24777,7 @@ document.addEventListener("click", (event) => {
     managerStageDetailButton.dataset.managerStageDetailLine || "",
   );
   if (projectAccessButton) updateProjectSetup(projectAccessButton.dataset.projectConfigAccess, "openToUser", projectAccessButton.dataset.projectConfigOpen === "true");
-  if (omRowButton) runOmRowAction(omRowButton.dataset.omRowButton, omRowButton.dataset.omRowButtonAction);
+  if (omRowButton) await runOmRowAction(omRowButton.dataset.omRowButton, omRowButton.dataset.omRowButtonAction);
   if (rfqGroupButton) runRfqBuyerGroupAction(rfqGroupButton.dataset.rfqGroupBuyer, rfqGroupButton.dataset.rfqGroupAction);
   if (buyerProgressButton) {
     const row = requests.find((item) => item.id === buyerProgressButton.dataset.buyerProgress);
@@ -23996,6 +24829,11 @@ document.addEventListener("change", async (event) => {
 
   if (event.target.id === "projectCodeInput") {
     currentProjectCode = String(event.target.value || "").trim();
+    renderDepartment();
+  }
+
+  if (event.target.id === "requestPurposeLocationInput") {
+    currentPurposeLocation = normalizePurposeLocation(event.target.value);
     renderDepartment();
   }
 
@@ -24118,6 +24956,11 @@ document.addEventListener("change", async (event) => {
     if (event.target.id === "omSubmissionLevel3Filter") currentOmItemFilter = "";
     renderOmSubmission();
   }
+  if ([
+    "omStageCalendarYearProject",
+    "omStageCalendarProjectCode",
+    "omStageCalendarPhase",
+  ].includes(event.target.id)) renderOmProjectStageCalendar();
   if (event.target.id === "currencyDisplaySelect") {
     currencyDisplay = event.target.value === "USD" ? "USD" : "VND";
     const previousProjectStatusScope = { ...selectedProjectStatusScope };
@@ -24260,10 +25103,8 @@ document.addEventListener("change", async (event) => {
     updateRequestNeedDate(requestNeedDate, event.target.value);
   }
 
-  if (event.target.id === "requestPackageNeedDate") {
-    setCurrentRequestScopeNeedDate(event.target.value);
-    renderRequestRows();
-  }
+  const requestRequiredDeliveryDate = event.target.dataset.requestRequiredDeliveryDate;
+  if (requestRequiredDeliveryDate) updateRequestRequiredDeliveryDate(requestRequiredDeliveryDate, event.target.value);
 
   const requestDemandUnit = event.target.dataset.requestDemandUnit;
   if (requestDemandUnit) updateRequestDemandUnit(requestDemandUnit, event.target.value);
@@ -24386,6 +25227,32 @@ document.addEventListener("change", async (event) => {
   const buyerId = event.target.dataset.buyerId;
   if (buyerField && buyerId) updateBuyerField(buyerId, buyerField, event.target.value);
 
+  const driDateField = event.target.dataset.driDateField;
+  const driDateId = event.target.dataset.driDateId;
+  if (driDateField && driDateId) {
+    if (driDateField !== "requiredDeliveryDate") {
+      renderManager();
+      return;
+    }
+    requests = requests.map((row) => row.id === driDateId
+      ? normalizeRequesterDateFields({
+        ...row,
+        requiredDeliveryDate: event.target.value,
+        requiredDeliveryDateDri: event.target.value,
+      })
+      : row);
+    const updated = requests.find((row) => row.id === driDateId);
+    addHandoffHistory(updated, "Dept DRI updated required delivery date", event.target.value || "blank");
+    renderManager();
+    renderDepartment();
+  }
+
+  const omProcurementField = event.target.dataset.omProcurementField;
+  const omProcurementId = event.target.dataset.omProcurementId;
+  if (omProcurementField && omProcurementId) {
+    updateOmProcurementField(omProcurementId, omProcurementField, event.target.value);
+  }
+
   const omSelect = event.target.dataset.omSelect;
   if (omSelect) {
     if (event.target.checked) omSelections.add(omSelect);
@@ -24436,6 +25303,11 @@ document.addEventListener("change", async (event) => {
   if (omPriceCurrencyId) {
     requests = requests.map((row) => row.id === omPriceCurrencyId ? { ...row, quoteInputCurrency: event.target.value === "USD" ? "USD" : "VND" } : row);
     renderOmPurchasing();
+  }
+
+  const pasExcelGroupId = event.target.dataset.omPasExcelGroup;
+  if (pasExcelGroupId) {
+    updateOmPasExcelMergeDecision(pasExcelGroupId, event.target.value);
   }
 
   const omField = event.target.dataset.omField;
@@ -24528,43 +25400,6 @@ document.addEventListener("change", async (event) => {
     addOmHistory(row, "Uploaded quote screenshot", fileName);
     renderOmPurchasing();
     showToast("Quote screenshot uploaded.", "success");
-  }
-
-  const omExcelId = event.target.dataset.omExcel;
-  if (omExcelId) {
-    const accessRow = requests.find((item) => item.id === omExcelId);
-    if (!accessRow || !ensureOmRowAccess(accessRow, "upload quote Excel")) {
-      event.target.value = "";
-      return;
-    }
-    const file = event.target.files?.[0] || null;
-    const fileName = file?.name || "quotation.xlsx";
-    let attachment = null;
-    try {
-      if (file && apiModeEnabled()) {
-        attachment = await uploadAttachment(file, {
-          linkedEntityType: "om_quote",
-          linkedEntityId: omExcelId,
-          attachmentKind: "om_quote_excel",
-          visibilityScope: "om_internal",
-          metadata: { source: "om_quote_entry", requestId: omExcelId },
-        });
-      }
-    } catch (error) {
-      event.target.value = "";
-      showToast(`Quote Excel upload failed: ${error.message}`, "error");
-      return;
-    }
-    requests = requests.map((row) => row.id === omExcelId ? {
-      ...row,
-      quotationExcel: fileName,
-      quotationExcelAttachmentId: attachment?.id || row.quotationExcelAttachmentId || "",
-      quotationExcelUrl: attachment?.downloadUrl || row.quotationExcelUrl || "",
-    } : row);
-    const row = requests.find((item) => item.id === omExcelId);
-    addOmHistory(row, "Uploaded quote Excel", fileName);
-    renderOmPurchasing();
-    showToast("Quote Excel uploaded.", "success");
   }
 
 });

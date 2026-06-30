@@ -16,11 +16,11 @@
 3. under threshold：
    - `Auto Cleared`
    - 不回 Requester confirm
-   - 進 OM Export Package。
+   - 進 OM Handoff。
 4. over threshold / no history：
    - 進 `Dept DRI Price Exception Review`
    - Dept DRI approve -> `Budget Approver`
-   - Budget Approver approve -> `OM Export Package`
+   - Budget Approver approve -> `OM Handoff`
    - 任一 reject -> `Requester Action Required`
 
 ## Temporary Budget 流程
@@ -31,7 +31,7 @@
 4. Temporary Budget quote result 一律進：
    - Dept DRI quote review
    - Budget Approver final budget approval
-   - OM Export Package
+   - OM Handoff
 5. Reject 回 Requester Action Required。
 
 ## Quote Evidence 與 Expiry
@@ -40,7 +40,7 @@
 - Quote Excel 仍必須保留。
 - Quote date 與 quote received date 視為同一天。
 - Quote expiry warning threshold = 7 days。
-- Quote validity / expiry monitor 屬於 OM `Quote Expiry Watch` standalone tracking tab；不是 workflow gate，資料輸入仍回 `Quote Result / Monitor`。
+- Quote validity / expiry 屬於 OM `Quotation DB` tracking surface；不是 workflow gate，資料輸入仍回 `Quote Result`。
 
 ## UI 透明度
 

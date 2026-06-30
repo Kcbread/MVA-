@@ -13,6 +13,8 @@ const roleGuards = require("../app-modules/role-guards.js");
 const sapPoRawContract = require("../app-modules/sap-po-raw-contract.js");
 const sapPoRawImporter = require("../app-modules/sap-po-raw-importer.js");
 const materialCoding = require("../app-modules/material-coding.js");
+const omBusinessFlow = require("../app-modules/om-business-flow.js");
+const purposeDate = require("../app-modules/purpose-date.js");
 
 test("quote validity uses 7-day warning threshold", () => {
   const today = new Date("2026-06-01T00:00:00");
@@ -21,6 +23,279 @@ test("quote validity uses 7-day warning threshold", () => {
   assert.equal(quote.quoteValidity("2026-06-08", today), "Expiring Soon");
   assert.equal(quote.quoteValidity("2026-06-01", today), "Expiring Soon");
   assert.equal(quote.quoteValidity("2026-06-09", today), "Valid");
+});
+
+test("purpose date helper derives required date and given lead time", () => {
+  assert.equal(purposeDate.requiredDeliveryDateFollowStageDate("2026-08-20"), "2026-08-06");
+  assert.equal(purposeDate.givenLeadTimeDays("2026-07-30", "2026-08-20"), 7);
+});
+
+test("purpose location normalization accepts only SMT or FATP", () => {
+  assert.equal(purposeDate.normalizePurposeLocation("smt"), "SMT");
+  assert.equal(purposeDate.normalizePurposeLocation("FATP"), "FATP");
+  assert.equal(purposeDate.normalizePurposeLocation("CG"), "SMT");
+});
+
+test("PUR request number suggestion uses dept project qty item and spec", () => {
+  const row = {
+    department: "IT",
+    projectCode: "4CS4",
+    project: "P26",
+    qty: 12,
+    name: "Mini PC",
+    spec: "i5 / 16GB RAM",
+  };
+
+  assert.equal(purposeDate.suggestPurRequestNo(row), "PUR-IT-4CS4-12-MINI-PC-I5-16GB-RAM");
+});
+
+test("OM hard item normalized name and spec match requires PAS Demand ID", () => {
+  const hardItem = {
+    name: "Mini PC",
+    spec: "Industrial IPC, Intel i5, 16GB RAM",
+  };
+  const requirement = omBusinessFlow.pasDemandRequirement(hardItem);
+
+  assert.equal(requirement.required, true);
+  assert.equal(requirement.label, "PAS Demand ID Required");
+  assert.match(requirement.reason, /Hard Item/);
+});
+
+test("OM non-hard request does not require PAS Demand ID", () => {
+  const otherRequest = {
+    name: "Office Chair",
+    spec: "Ergonomic chair for meeting room",
+  };
+
+  assert.equal(omBusinessFlow.pasDemandRequirement(otherRequest).required, false);
+  assert.equal(omBusinessFlow.pasDemandRequirement(otherRequest).label, "PAS Demand ID Optional");
+});
+
+test("OM PAS Demand requirement is driven by active master data records", () => {
+  const pasDemandRequirementMaster = [
+    {
+      id: "pas-master-docking",
+      itemCategory: "Docking Station",
+      matchKeywords: ["docking station", "usb c dock"],
+      pasDemandRequired: true,
+      active: true,
+      ownerRole: "OM Purchasing",
+      note: "Hard landing hardware accessory.",
+    },
+    {
+      id: "pas-master-chair-inactive",
+      itemCategory: "Chair",
+      matchKeywords: ["chair"],
+      pasDemandRequired: true,
+      active: false,
+      ownerRole: "OM Purchasing",
+      note: "Inactive rule should not block quote flow.",
+    },
+  ];
+
+  const dockingRequirement = omBusinessFlow.pasDemandRequirement({
+    name: "USB-C Dock",
+    spec: "Docking Station for engineering laptop",
+  }, pasDemandRequirementMaster);
+  const inactiveRequirement = omBusinessFlow.pasDemandRequirement({
+    name: "Office Chair",
+    spec: "Meeting room",
+  }, pasDemandRequirementMaster);
+
+  assert.equal(dockingRequirement.required, true);
+  assert.equal(dockingRequirement.masterRecordId, "pas-master-docking");
+  assert.equal(dockingRequirement.label, "PAS Demand ID Required");
+  assert.equal(inactiveRequirement.required, false);
+  assert.equal(inactiveRequirement.masterRecordId, "");
+});
+
+test("OM Quote DB uses valid-until date as hard stop and Central IT check for reuse", () => {
+  const row = {
+    name: "Mini PC",
+    spec: "Industrial IPC, Intel i5, 16GB RAM",
+    qty: 999,
+  };
+  const validCandidate = {
+    id: "Q-VALID",
+    normalizedNameSpecKey: omBusinessFlow.normalizedNameSpecKey(row),
+    quoteValidUntil: "2026-07-01",
+    referenceQty: 100,
+  };
+  const expiredCandidate = {
+    id: "Q-EXPIRED",
+    normalizedNameSpecKey: omBusinessFlow.normalizedNameSpecKey(row),
+    quoteValidUntil: "2026-05-31",
+    referenceQty: 500,
+  };
+  const today = new Date("2026-06-18T00:00:00Z");
+
+  assert.equal(omBusinessFlow.quoteDbCandidateStatus(expiredCandidate, row, today).status, "Expired");
+  assert.equal(omBusinessFlow.quoteDbCandidateStatus(validCandidate, row, today).status, "Valid - Need Central IT Check");
+  assert.equal(omBusinessFlow.quoteDbCandidateStatus(validCandidate, {
+    ...row,
+    quoteDbCandidateId: "Q-VALID",
+    centralItCheckedAt: "2026-06-18T08:00:00Z",
+  }, today).status, "Reusable");
+  assert.equal(omBusinessFlow.quoteDbCandidateStatus(validCandidate, row, today).quantityBlocksReuse, false);
+});
+
+test("OM Quote DB candidate can fill My Intake row after Central IT confirmation", () => {
+  const row = {
+    id: "REQ-QDB-INTAKE",
+    name: "Mini PC",
+    spec: "Industrial IPC, Intel i5, 16GB RAM",
+    qty: 20,
+  };
+  const today = new Date("2026-06-18T00:00:00Z");
+  const candidate = omBusinessFlow.bestQuoteDbCandidate(row, omBusinessFlow.QUOTE_DB_RECORDS, today);
+
+  assert.equal(candidate.id, "QDB-MINI-PC-I5-202606");
+
+  const patched = omBusinessFlow.applyQuoteDbCandidate(row, candidate, "2026-06-18T08:00:00.000Z", "Giang");
+
+  assert.equal(patched.quoteDbCandidateId, "QDB-MINI-PC-I5-202606");
+  assert.equal(patched.centralItCheckedAt, "2026-06-18T08:00:00.000Z");
+  assert.equal(patched.centralItCheckedBy, "Giang");
+  assert.equal(patched.vendor, "Central IT Sourcing");
+  assert.equal(patched.updatedPriceUsd, 318);
+  assert.equal(patched.unitPriceCurrency, "USD");
+  assert.equal(patched.quoteDate, "2026-06-01");
+  assert.equal(patched.quoteValidUntil, "2026-08-31");
+  assert.equal(patched.quoteExpiry, "2026-08-31");
+  assert.equal(patched.pasDemandNo, "PAS-HARD-IPC-2026");
+  assert.equal(patched.pasMaterialNo, "PAS-MINI-PC-I5");
+});
+
+test("OM Quote DB matches current IPC My Intake records and applies VND quote data", () => {
+  const ipcRow = {
+    id: "REQ-QDB-IPC",
+    name: "IPC 10",
+    spec: "DELL Pro Tower QCT1250, Core i3-14100, 8GB DDR5, 512GB SSD, Integrated graphics card, Keyboard and Mouse, 3Yrs Wty / Line 2",
+    qty: 14,
+  };
+  const ipcPlusRow = {
+    id: "REQ-QDB-IPC-PLUS",
+    name: "IPC+ 28",
+    spec: "DELL Pro Tower (QCT1250), Intel Core i5-14500 vPro, Ram 16GB DDR5, SSD 1TB, RJ45/ USB3.0*3 /USB2.0*3 / HDMI / Serial Port / Power supply 360W, Keyboard and Mouse, 3Yrs Wty / Line 2",
+    qty: 14,
+  };
+  const today = new Date("2026-06-18T00:00:00Z");
+
+  const ipcCandidate = omBusinessFlow.bestQuoteDbCandidate(ipcRow, omBusinessFlow.QUOTE_DB_RECORDS, today);
+  const ipcPlusCandidate = omBusinessFlow.bestQuoteDbCandidate(ipcPlusRow, omBusinessFlow.QUOTE_DB_RECORDS, today);
+
+  assert.equal(ipcCandidate.id, "QDB-IPC-I3-QCT1250-202606");
+  assert.equal(ipcPlusCandidate.id, "QDB-IPC-I5-QCT1250-202606");
+
+  const patched = omBusinessFlow.applyQuoteDbCandidate(ipcPlusRow, ipcPlusCandidate, "2026-06-18T08:00:00.000Z", "Giang");
+
+  assert.equal(patched.vendor, "VVN0000011 CONG TY TNHH CONG NGHE ECOLIV");
+  assert.equal(patched.vendorPartNo, "VVN0000011");
+  assert.equal(patched.updatedPriceVnd, 14200000);
+  assert.equal(patched.updatedPriceUsd, 546.15);
+  assert.equal(patched.unitPriceCurrency, "VND");
+  assert.equal(patched.quoteValidUntil, "2026-08-31");
+  assert.equal(patched.pasDemandNo, "PAS-HARD-IPC-I5-2026");
+  assert.equal(patched.pasMaterialNo, "PAS-IPC-I5-QCT1250");
+});
+
+test("OM purpose project build shares Budget Code across different PAS IDs and items", () => {
+  const rows = [
+    { pasDemandNo: "PAS-A", name: "Mini PC", project: "4CS4", stage: "EVT", purposeLocations: ["SMT", "FATP"] },
+    { pasDemandNo: "PAS-B", name: "Monitor", project: "4CS4", stage: "EVT", purposeLocations: ["FATP", "SMT"] },
+  ];
+
+  assert.equal(omBusinessFlow.purposeProjectBuildKey(rows[0]), omBusinessFlow.purposeProjectBuildKey(rows[1]));
+  assert.equal(omBusinessFlow.budgetCodeForRow(rows[0]), omBusinessFlow.budgetCodeForRow(rows[1]));
+});
+
+test("OM PAS Excel grouping combines items by PAS Demand ID", () => {
+  const groups = omBusinessFlow.groupRowsByPasDemandId([
+    { id: 1, pasDemandNo: "PAS-100", name: "Mini PC" },
+    { id: 2, pasDemandNo: "PAS-100", name: "Monitor" },
+    { id: 3, pasDemandNo: "PAS-200", name: "Barcode Scanner" },
+  ]);
+
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups.map((group) => group.pasDemandId), ["PAS-100", "PAS-200"]);
+  assert.deepEqual(groups[0].rows.map((row) => row.name), ["Mini PC", "Monitor"]);
+});
+
+test("OM PAS Excel grouping normalizes PAS Demand No and exposes merge suggestions", () => {
+  const rows = [
+    { id: "REQ-1", pasDemandNo: " PAS-100 ", name: "Mini PC" },
+    { id: "REQ-2", pasDemandNo: "pas-100", name: "Monitor" },
+    { id: "REQ-3", pasDemandNo: "PAS-200", name: "Barcode Scanner" },
+    { id: "REQ-4", pasDemandNo: "", name: "Keyboard" },
+  ];
+
+  assert.equal(omBusinessFlow.normalizePasDemandNo(" PAS-100 "), "PAS-100");
+  assert.equal(omBusinessFlow.normalizePasDemandNo("pas-100"), "PAS-100");
+
+  const suggestion = omBusinessFlow.pasDemandGroupSuggestion(rows[0], rows);
+  assert.equal(suggestion.hasGroup, true);
+  assert.equal(suggestion.pasDemandId, "PAS-100");
+  assert.deepEqual(suggestion.rowIds, ["REQ-1", "REQ-2"]);
+  assert.equal(suggestion.message, "Same PAS Demand No group: 2 items");
+
+  const noSuggestion = omBusinessFlow.pasDemandGroupSuggestion(rows[2], rows);
+  assert.equal(noSuggestion.hasGroup, false);
+  assert.equal(noSuggestion.message, "No same-demand group");
+});
+
+test("OM PAS Excel export grouping follows OM merge decisions", () => {
+  const rows = [
+    { id: "REQ-1", pasDemandNo: "PAS-100", pasExcelMergeDecision: "merge", name: "Mini PC" },
+    { id: "REQ-2", pasDemandNo: "PAS-100", pasExcelMergeDecision: "merge", name: "Monitor" },
+    { id: "REQ-3", pasDemandNo: "PAS-100", pasExcelMergeDecision: "separate", name: "Dock" },
+    { id: "REQ-4", pasDemandNo: "PAS-200", name: "Barcode Scanner" },
+  ];
+
+  const groups = omBusinessFlow.groupRowsForPasExcelExport(rows);
+
+  assert.deepEqual(groups.map((group) => group.pasDemandId), ["PAS-100", "PAS-100__REQ-3", "PAS-200"]);
+  assert.deepEqual(groups[0].rows.map((row) => row.id), ["REQ-1", "REQ-2"]);
+  assert.deepEqual(groups[1].rows.map((row) => row.id), ["REQ-3"]);
+  assert.equal(groups[0].mergeDecision, "merge");
+  assert.equal(groups[1].mergeDecision, "separate");
+});
+
+test("OM PAS Excel system attachment metadata is stable for merged groups", () => {
+  const rows = [
+    { id: "REQ-1", pasDemandNo: " pas-100 ", pasExcelMergeDecision: "merge", name: "Mini PC" },
+    { id: "REQ-2", pasDemandNo: "PAS-100", pasExcelMergeDecision: "merge", name: "Monitor" },
+  ];
+  const group = omBusinessFlow.groupRowsForPasExcelExport(rows)[0];
+  const summary = omBusinessFlow.pasExcelSystemAttachmentSummary(group, "2026-06-29T08:00:00.000Z");
+
+  assert.equal(summary.fileName, "PAS-100-PAS-Tracking.xlsx");
+  assert.equal(summary.linkedEntityType, "om_pas_excel_group");
+  assert.equal(summary.linkedEntityId, "PAS-100");
+  assert.equal(summary.attachmentKind, "om_pas_tracking_system_excel");
+  assert.equal(summary.visibilityScope, "om_internal");
+  assert.deepEqual(summary.rowIds, ["REQ-1", "REQ-2"]);
+  assert.deepEqual(summary.metadata, {
+    source: "system_generated_pas_excel",
+    pasDemandNo: "PAS-100",
+    mergeDecision: "merge",
+    rowIds: ["REQ-1", "REQ-2"],
+    rowCount: 2,
+    createdAt: "2026-06-29T08:00:00.000Z",
+  });
+});
+
+test("OM PAS Excel system attachment metadata separates row-level override groups", () => {
+  const rows = [
+    { id: "REQ-1", pasDemandNo: "PAS-100", pasExcelMergeDecision: "merge", name: "Mini PC" },
+    { id: "REQ-2", pasDemandNo: "PAS-100", pasExcelMergeDecision: "separate", name: "Dock" },
+  ];
+  const groups = omBusinessFlow.groupRowsForPasExcelExport(rows);
+  const separateSummary = omBusinessFlow.pasExcelSystemAttachmentSummary(groups[1], "2026-06-29T08:00:00.000Z");
+
+  assert.equal(separateSummary.fileName, "PAS-100__REQ-2-PAS-Tracking.xlsx");
+  assert.equal(separateSummary.linkedEntityId, "PAS-100__REQ-2");
+  assert.deepEqual(separateSummary.rowIds, ["REQ-2"]);
+  assert.equal(separateSummary.metadata.mergeDecision, "separate");
 });
 
 test("currency display converts canonical VND to USD without changing source amount", () => {
@@ -60,7 +335,7 @@ test("workflow status maps core ownership stages across roles", () => {
   const buyer = workflowStatus.buildWorkflowStatus({ finalExportedAt: "2026-06-03T00:00:00Z" }, { role: "costOwner" });
   assert.equal(buyer.pendingOwner, "Buyer Handoff");
   assert.equal(buyer.currentStage, "Buyer PR / PO");
-  assert.equal(buyer.nextAction, "Buyer owns PR / PO after OM export");
+  assert.equal(buyer.nextAction, "Buyer owns PR / PO after OM handoff");
 });
 
 test("workflow status exposes OM high-history quote decision owner", () => {
@@ -421,6 +696,43 @@ test("OM quote status separates reusable quote from waiting and expired quote", 
     quoteCompletionReadyAt: "2026-05-20T00:00:00",
     quoteValidUntil: "2026-05-31",
   }, today), "Expired / Requote Required");
+});
+
+test("OM quote retention decision gates Quotation DB candidates by completion and validity", () => {
+  const today = new Date("2026-06-01T00:00:00");
+  const completeQuote = {
+    pasDemandNo: "PAS-1",
+    pasMaterialNo: "PAS-MAT-1",
+    vendor: "Central IT Sourcing",
+    updatedPrice: 318,
+    quoteDate: "2026-05-20",
+    quoteValidUntil: "2026-06-30",
+    quotationPdf: "quote-shot.png",
+    quotationExcel: "quote.xlsx",
+  };
+
+  assert.deepEqual(quote.quotationDbRetentionDecision(completeQuote, today), {
+    eligible: true,
+    status: "Ready for Quotation DB",
+    reason: "Complete quote is valid and can be retained as a Quotation DB candidate after governance sync.",
+    daysRemaining: 29,
+  });
+  assert.equal(quote.quotationDbRetentionDecision({
+    ...completeQuote,
+    quotationExcel: "",
+  }, today).status, "Ready for Quotation DB");
+  assert.equal(quote.quotationDbRetentionDecision({
+    ...completeQuote,
+    quoteValidUntil: "2026-06-08",
+  }, today).status, "Review before Quotation DB");
+  assert.equal(quote.quotationDbRetentionDecision({
+    ...completeQuote,
+    quoteValidUntil: "2026-05-31",
+  }, today).status, "Requote required before Quotation DB");
+  assert.match(quote.quotationDbRetentionDecision({
+    ...completeQuote,
+    vendor: "",
+  }, today).reason, /Missing Vendor/);
 });
 
 test("demand cost dashboard aggregates item x phase x unit qty and amount", () => {
