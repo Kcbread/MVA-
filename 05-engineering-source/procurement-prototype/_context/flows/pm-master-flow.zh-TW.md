@@ -24,10 +24,10 @@
    - Mai 可調整 assignment。
 6. `OM Purchasing` 處理 assigned row。
    - PAS Demand No。
-   - Quote Result / Monitor：報價結果、有效期限、blocker、stage aging、next action。
-   - Export Package。
+   - Quote Result：報價結果、有效期限、blocker、stage aging、next action。
+   - OM Handoff。
 7. `Buyer Handoff`。
-   - OM export 後 Buyer owns PR / PO。
+   - OM Handoff 後 Buyer owns PR / PO。
    - 顯示 handoff days，不再稱為 downstream。
 
 ## Workflow Status 欄位

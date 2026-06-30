@@ -2,7 +2,7 @@
 
 ## 商業定位
 
-Requester 是需求建立者。其責任是把實際需求用正確 scope 建立出來，包含 MFG / Non-MFG、line、station 或 department、item/spec、各 phase qty、MFG/Non-MFG 各自的 need date，以及必要的 Temporary Budget 或 Warehouse Inventory candidate。
+Requester 是需求建立者。其責任是把實際需求用正確 scope 建立出來，包含 MFG / Non-MFG、line、station 或 department、item/spec、各 phase qty、每個品項自己的 Required Delivery Date、Purpose（SMT / FATP），以及必要的 Temporary Budget 或 Warehouse Inventory candidate。Line open date 由 OM Leader 的 Project Stage Calendar 依 phase 帶入，不是 Requester 輸入欄位。
 
 ## 可看資訊
 
@@ -18,6 +18,9 @@ Requester 是需求建立者。其責任是把實際需求用正確 scope 建立
 - 建立需求、儲存草稿、依目前 line + MFG/Non-MFG worksheet 送出需求日期。
 - Request Workspace 是整頁 All-Phase Excel worksheet input，不使用 Add Demand modal 或左側 Source Panel 作為主要入口。
 - 上方 scope 選 project / line；Need Date 跟著目前 MFG 或 Non-MFG worksheet 分開管理，一次編輯一條 line。
+- 上方 scope 選 `Purpose`，只能是 `SMT / FATP`；這不是 project phase，也不是 station / department。`Phase` 保留給 `P1.0 / P1.1 / EVT / DVT / PVT / MP`。
+- `Line open date` 不是 Requester input；每個 Project phase 欄位/phase group 帶入 OM Leader Project Stage Calendar 的 line open date metadata。
+- `Required Delivery Date` 是 requester 需求到廠日期，必須在每個 item row 各自輸入；Dept DRI 可在 review detail 依業務需求更新。
 - Scope 欄位不可合併：G Project 使用 `Year Project` 作父層 program/year-project scope，`Project` 作子層 project code/model；Non-G 保留 requester free-text `Purpose`，`Project` 仍是 project code。
 - `MFG / Non-MFG` 分成兩個 worksheet tab；一列 = `Item / Spec`。
 - Worksheet 表頭為 two-row phase group：`P1.0 / P1.1 / EVT / DVT / PVT / MP`，每個 phase 下展開 station/department qty。
@@ -30,7 +33,7 @@ Requester 是需求建立者。其責任是把實際需求用正確 scope 建立
 - Carryover / Warehouse suggestion：主表只顯示 row hint badge，細節與 candidate 建立放在 row detail/drawer。
 - Requester row 必須有 `Action` intent metadata，預設 `New Buy`；選 `Other` 時必填短文字，完整文字放 Detail / review context，不放主表寬段落。此欄位不等於 workflow approve/reject action。
 - `Save Draft`：只暫存目前主表 qty，不要求 Need Date，不送 Dept DRI。
-- `Submit`：送出目前 line + 目前 MFG/Non-MFG worksheet 下所有有 qty 的 draft rows，不使用 row checkbox；送出前必須填該 worksheet scope 的 Need Date，其他 line 或另一個 worksheet mode 會保留 draft 並顯示排除原因。
+- `Submit`：送出目前 line + 目前 MFG/Non-MFG worksheet 下所有有 qty 的 draft rows，不使用 row checkbox；送出前每個有 qty 的 item row 都必須填自己的 Required Delivery Date，其他 line 或另一個 worksheet mode 會保留 draft 並顯示排除原因。送出時系統記錄每個品項的 `Date of request`。
 - Temporary Budget：填預估金額與原因。
 - Warehouse Inventory：
   - `Create Candidate`：看到相同 Item/Spec 有可用庫存時，建立使用候選。
@@ -41,7 +44,7 @@ Requester 是需求建立者。其責任是把實際需求用正確 scope 建立
 
 - 不看 vendor、supplier、PAS material no、factory material no、OM assignee、FTV code。
 - 不指定 brand/vendor、價格、PAS material、factory material、FTV 或 owner。
-- 不操作 OM quote、PAS Demand No、Export Package。
+- 不操作 OM quote、PAS Demand No、OM Handoff。
 - 不 approve 自己的需求。
 - 不維護 warehouse 實際庫存數量；OM / MFG / Unit warehouse 由各 owner 自己維護與輸入。
 - 不 lock warehouse candidate；lock/reject 屬於對應 item/warehouse owner。
@@ -56,8 +59,8 @@ Requester 是需求建立者。其責任是把實際需求用正確 scope 建立
 
 ## 資料輸入 / 輸出
 
-- 輸入：yearProject、projectCode、Non-G purpose、requestAction、item/spec、line、station/department、phase qty、mode-scoped needDate、temporary budget estimate、warehouse candidate。
-- 輸出：submitted demand lines、warehouse inventory evidence、candidate ledger、revision events、status timeline。
+- 輸入：yearProject、projectCode、Non-G purpose、requestPurpose（SMT / FATP）、requestAction、item/spec、line、station/department、phase qty、item-level Required Delivery Date、temporary budget estimate、warehouse candidate。
+- 輸出：submitted demand lines、Date of request、item-level Required Delivery Date、phase-level Line open date metadata、Required Delivery Date follow Stage date（Line open date - 14 days）、Given LT（Required Delivery Date follow Stage date - Date of request）、warehouse inventory evidence、candidate ledger、revision events、status timeline。
 
 ## 常見風險
 
@@ -74,9 +77,10 @@ Requester 是需求建立者。其責任是把實際需求用正確 scope 建立
 - Copy Demand / Reuse Item 帶入 target line 時 qty = 0，source qty 只能當 reference。
 - MFG / Non-MFG tab 欄位必須符合鎖定 station/department baseline。
 - Add Item popup 可新增 Catalog / Reuse / Copy Demand row；New Item Request 需先完成 pending material master request，且 popup 表格第一欄必須是 Add，分類篩選使用 Lv1 / Lv2 / Lv3。
-- Save Draft 不要求 Need Date；Submit 必須要求目前 MFG/Non-MFG worksheet scope 的 Need Date，且至少一個 phase qty > 0。
+- Save Draft 不要求 Required Delivery Date；Submit 必須要求每個有 qty 的 item row 都有 Required Delivery Date，且至少一個 phase qty > 0。
+- Purpose dropdown 只能選 `SMT / FATP`，不得併入 phase 欄位；Line open date 必須由 Project Stage Calendar 依 Project + Phase metadata 帶入，不得由 Requester 編輯。
 - Create Candidate 後狀態依 owner 顯示 Pending OM / Pending MFG Owner / Pending Unit Owner，未 lock 前不可當正式扣成本。
 
 ## Compact Handoff
 
-Requester owns demand creation and revision. It uses a full-page all-phase Excel worksheet where each row is Item/Spec under the current project/line, edits MFG or Non-MFG station/department qty columns under every phase group, adds rows from the Add Item popup, can save draft or submit the current line plus current MFG/Non-MFG worksheet with its own Need Date, and can create temporary budget and warehouse/carryover candidates, but cannot see procurement-internal fields, choose vendor/brand/price/owner, maintain warehouse stock, or approve/lock/export anything.
+Requester owns demand creation and revision. It uses a full-page all-phase Excel worksheet where each row is Item/Spec under the current project/line, edits MFG or Non-MFG station/department qty columns under every phase group, adds rows from the Add Item popup, can save draft or submit item rows with their own Required Delivery Date and Purpose (SMT/FATP), and can create temporary budget and warehouse/carryover candidates. Line open date is phase metadata from OM Leader Project Stage Calendar, not a Requester input. Requester cannot see procurement-internal fields, choose vendor/brand/price/owner, maintain warehouse stock, or approve/lock/export anything.

@@ -86,4 +86,4 @@ Next: immediate action
 - Cost Manager、Budget Approver 繼續使用共用 Quantity Review evidence；不要用 Dept DRI 的 item switcher 改寫其角色權責。
 - Requester 畫面不得顯示 vendor、PAS material、factory material、OM assignee、FTV 等內部採購欄位。
 - OM Leader 負責追蹤、派工、匯率、OM orchestration；OM Purchasing 處理 assigned rows。
-- Buyer Handoff 是 OM export 後的 PR/PO 所屬階段，不再使用容易誤解的 `Downstream` 作為使用者文案。
+- Buyer Handoff 是 OM Handoff 後的 PR/PO 所屬階段，不再使用容易誤解的 `Downstream` 或 `Export Package` 作為使用者流程文案。

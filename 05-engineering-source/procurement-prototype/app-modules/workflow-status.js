@@ -18,7 +18,7 @@
     "PAS Quote Result": 4,
     "Waiting Requester": 4,
     "Price Review": 5,
-    "Export Package": 6,
+    "OM Handoff": 6,
     "Buyer PR / PO": 7,
     Completed: 9,
   };
@@ -119,7 +119,7 @@
     if (owner === "PAS / Bidding") return "PAS Quote Result";
     if (owner === "Buyer Handoff") return "Buyer PR / PO";
     if (owner === "OM Complete") return "Completed";
-    if (row.finalExportStatus || row.finalExportTarget || row.userAQuoteDecisionStatus === "Requester Confirmed" || row.omStage === "finalExport") return "Export Package";
+    if (row.finalExportStatus || row.finalExportTarget || row.userAQuoteDecisionStatus === "Requester Confirmed" || row.omStage === "finalExport") return "OM Handoff";
     if (row.omStage === "priceReview" || row.priceDecisionStatus === "Price Escalation Required") return "Price Review";
     if (row.pasDemandNo || row.omStage === "pasResult") return "PAS Quote Result";
     if (hasOmSignals(row) || ["Approved", "In Progress"].includes(row.status || "")) return "PAS Demand No";
@@ -148,7 +148,7 @@
     if (stage === "Budget Approval") return row.driApprovedAt || row.approvedAt || submittedAt(row);
     if (stage === "PAS Quote Result") return row.pasDemandNoRecordedAt || row.pasDemandNoUpdatedAt || receivedAt(row);
     if (stage === "Waiting Requester") return row.sentToUserAAt || row.quoteCompletionReadyAt || receivedAt(row);
-    if (stage === "Export Package") return row.userAQuoteDecisionAt || row.finalExportPreparedAt || row.sentToUserAAt || receivedAt(row);
+    if (stage === "OM Handoff") return row.userAQuoteDecisionAt || row.finalExportPreparedAt || row.sentToUserAAt || receivedAt(row);
     if (stage === "Buyer PR / PO") return row.finalExportedAt || row.buyerReceivedAt || row.sentToBuyerAt || submittedAt(row);
     return receivedAt(row) || submittedAt(row);
   }
@@ -160,12 +160,12 @@
     if (owner === "Budget Approver") return "Budget approval decision";
     if (owner === "PAS / Bidding") return "Wait for PAS bidding result";
     if (owner === "Requester") return "Wait for Requester confirmation";
-    if (owner === "Buyer Handoff") return "Buyer owns PR / PO after OM export";
+    if (owner === "Buyer Handoff") return "Buyer owns PR / PO after OM handoff";
     if (owner === "OM Complete") return "No action";
     const stage = currentStage(row);
     if (stage === "PAS Demand No") return "Enter PAS Demand No";
     if (stage === "PAS Quote Result") return "Complete PAS quote result";
-    if (stage === "Export Package") return "Choose Expense/Capex and export package";
+    if (stage === "OM Handoff") return "Choose Expense/Capex and submit handoff";
     return "Review blocker";
   }
 
@@ -189,7 +189,7 @@
       { key: "pasDemandNo", label: "PAS Demand No", done: Boolean(row.pasDemandNo), pending: Boolean(row.sentToOmAt && !row.pasDemandNo), at: row.pasDemandNoUpdatedAt || row.pasDemandNoRecordedAt },
       { key: "quoteReady", label: "Quote Ready", done: isQuoteReady(row), pending: Boolean(row.pasDemandNo && !isQuoteReady(row)), at: row.quoteReadyAt || row.quoteCompletionReadyAt },
       { key: "requesterConfirm", label: "Requester Confirm", done: Boolean(row.userAQuoteDecisionAt), pending: isWaitingRequester(row), at: row.userAQuoteDecisionAt || row.sentToUserAAt },
-      { key: "exportPackage", label: "Export Package", done: Boolean(row.finalExportStatus || row.finalExportedAt), pending: Boolean(row.finalExportStatus && !row.finalExportedAt), at: row.finalExportedAt },
+      { key: "exportPackage", label: "OM Handoff", done: Boolean(row.finalExportStatus || row.finalExportedAt), pending: Boolean(row.finalExportStatus && !row.finalExportedAt), at: row.finalExportedAt },
       { key: "buyerHandoff", label: "Buyer PR / PO", done: pendingOwner(row) === "Buyer Handoff", at: row.buyerReceivedAt || row.finalExportedAt },
     ];
   }

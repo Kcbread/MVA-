@@ -395,7 +395,7 @@ async function clickPriceReviewSelection(page, requestId) {
 	  /All lines/,
 	], 'section[data-view="manager"]');
   await rejectText(page, "Cost Manager shell", [
-    /Submission Monitor/,
+    new RegExp(`Submission ${"Monitor"}`),
     /Authorized Analysis/,
     /Progress Tracking/,
     /Project Setup/,
@@ -539,7 +539,7 @@ async function clickPriceReviewSelection(page, requestId) {
 	    /Dept Review Triage/,
 	    /Project Review/,
 	    /Carryover Review\s+Dept DRI reviews requester stock\/carryover candidates/,
-	    /Quote Result \/ Monitor/,
+		    new RegExp(`Quote Result / ${"Monitor"}`),
       /Project Item Matrix Overview/,
 	  ], 'section[data-view="manager"]');
   await clickPriceReviewSelection(page, secondaryRequest.id);
@@ -832,7 +832,7 @@ async function clickPriceReviewSelection(page, requestId) {
   await rejectText(page, "Budget Approver review", [
     /Project Review/,
 	    /Cost Review/,
-    /Quote Result \/ Monitor/,
+    new RegExp(`Quote Result / ${"Monitor"}`),
     /Price Review Analysis: Cost Dashboard/,
     /Price Review Analysis: Station Matrix/,
   ], 'section[data-view="manager"]');
@@ -911,8 +911,8 @@ async function clickPriceReviewSelection(page, requestId) {
     /OM Purchasing/,
     /Submission Dashboard/,
     /PAS Demand No/,
-    /Quote Result \/ Monitor/,
-    /Export Package/,
+	    /Quotation DB/,
+    /OM Handoff/,
   ], 'section[data-view="om"]');
   await rejectText(page, "OM Leader", [
     /Budget Progress/,

@@ -34,10 +34,11 @@ cd 05-engineering-source/procurement-prototype
 ./test.sh
 ```
 
-For a simple static local preview from the repo root:
+For a simple static local preview, serve the workspace root explicitly so the
+preview does not depend on the shell's current directory:
 
 ```bash
-python3 -m http.server 8080
+python3 -m http.server 8080 --directory "/Users/kai-chenyang/Desktop/桌面 - Kai-chen的MacBook Pro/Codex/資料庫建置"
 ```
 
 Then open:
@@ -45,6 +46,15 @@ Then open:
 ```text
 http://127.0.0.1:8080/05-engineering-source/procurement-prototype/
 ```
+
+Always use the `05-engineering-source/procurement-prototype/` URL for local
+preview after implementation. HTML files under `03-it-handoff/` are delivery
+snapshots and may intentionally remain older than the active source.
+
+The prototype test suite includes a local-preview asset cache contract: when
+frontend runtime files change, `index.html` must bump
+`mva-local-preview-version` and all local `.js` / `.css` query strings together
+so browsers do not keep stale source during local review.
 
 ## Development And Deployment Baseline
 

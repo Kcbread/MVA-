@@ -68,7 +68,7 @@
         history: "Review History",
       },
       queueDefinitions: [
-        { id: "budget", label: "Budget Exception Approval", actionLabel: "Approved / Denied / Revise", nextStage: "OM Export Package" },
+        { id: "budget", label: "Budget Exception Approval", actionLabel: "Approved / Denied / Revise", nextStage: "OM Handoff" },
       ],
       decisionActions: {
         approve: "Approved",

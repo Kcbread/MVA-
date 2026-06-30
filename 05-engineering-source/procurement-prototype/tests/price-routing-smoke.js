@@ -22,6 +22,7 @@ function assertRoute(condition, message, payload) {
       status: "Draft",
       selected: true,
       needDate: "2026-06-30",
+      requiredDeliveryDate: "2026-06-30",
       stationBreakdown: [{ phase: "MP", demandType: "MFG", station: "CG", qty: 1, remark: "" }],
       mp: 1,
       unitPrice: 100,
@@ -30,7 +31,6 @@ function assertRoute(condition, message, payload) {
     currentProject = "P26";
     currentRole = "requester";
     requests = [row, ...requests.filter((item) => item.id !== row.id && item.name !== row.name)];
-    document.getElementById("requestPackageNeedDate").value = "2026-06-30";
     submitRequests();
     let updated = requests.find((item) => item.name === row.name);
     const afterSubmit = {
@@ -103,7 +103,6 @@ function assertRoute(condition, message, payload) {
     currentProject = "P26";
     currentRole = "requester";
     requests = [temp, ...requests.filter((row) => row.id !== temp.id && row.name !== temp.name)];
-    document.getElementById("requestPackageNeedDate").value = "2026-06-30";
     submitRequests();
     let row = requests.find((item) => item.name === temp.name);
     const afterSubmit = {
@@ -189,7 +188,7 @@ function assertRoute(condition, message, payload) {
   assertRoute(temporaryBudgetRoute.afterQuote.omStage === "priceReview", "Temporary Budget quote should enter price review", temporaryBudgetRoute);
   assertRoute(temporaryBudgetRoute.afterDri.priceApprovalStatus === "Pending Budget Approver Review", "Dept DRI approval must wait for Budget Approver", temporaryBudgetRoute);
   assertRoute(!temporaryBudgetRoute.afterDri.projectDriApprovedAt, "Dept DRI approval must not act as Budget Approver", temporaryBudgetRoute);
-  assertRoute(temporaryBudgetRoute.afterBudget.omStage === "finalExport", "Budget Approver approval should move to OM Export Package", temporaryBudgetRoute);
+  assertRoute(temporaryBudgetRoute.afterBudget.omStage === "finalExport", "Budget Approver approval should move to OM Handoff", temporaryBudgetRoute);
   assertRoute(temporaryBudgetRoute.afterBudget.userAQuoteDecisionStatus === "User Confirmation Not Required", "Budget approval should not require Requester confirmation", temporaryBudgetRoute);
 
   const rejectRoute = await page.evaluate(() => {
@@ -287,7 +286,7 @@ function assertRoute(condition, message, payload) {
   assertRoute(omRejectRoute.amendmentStatus === "Waiting OM Amendment", "PAS-stage OM reject amendment should return to OM amendment workflow", omRejectRoute);
   assertRoute(omRejectRoute.amendmentOmStage === "pasResult", "PAS-stage OM reject amendment should reopen OM review stage", omRejectRoute);
 
-  const standardAutoRoute = await page.evaluate(() => {
+  const standardAutoRoute = await page.evaluate(async () => {
     const row = {
       id: "TEST-AUTO-ROUTE",
       project: "P26",
@@ -314,7 +313,7 @@ function assertRoute(condition, message, payload) {
     };
     currentRole = "omMember";
     requests = [row, ...requests.filter((item) => item.id !== row.id)];
-    saveOmQuoteInfoRows([row], { requireComplete: true });
+    await confirmOmQuoteResultRows([row], { requireComplete: true });
     let updated = requests.find((item) => item.id === row.id);
     const afterSave = {
       priceDecisionStatus: updated.priceDecisionStatus,
@@ -322,7 +321,7 @@ function assertRoute(condition, message, payload) {
       omStage: updated.omStage,
       userAQuoteDecisionStatus: updated.userAQuoteDecisionStatus,
     };
-    sendOmPasRowsToUserConfirm([updated]);
+    await sendOmPasRowsToUserConfirm([updated]);
     updated = requests.find((item) => item.id === row.id);
     const afterSend = {
       omStage: updated.omStage,
@@ -347,11 +346,11 @@ function assertRoute(condition, message, payload) {
   assertRoute(standardAutoRoute.afterSave.omStage === "pasResult", "Saved standard quote should stay in PAS Quote Result before User A confirmation", standardAutoRoute);
   assertRoute(standardAutoRoute.afterSend.omStage === "userConfirm", "Standard quote should move to User A confirmation after Send", standardAutoRoute);
   assertRoute(standardAutoRoute.afterSend.userAQuoteDecisionStatus === "Waiting User A Confirmation", "Standard quote should wait User A confirmation", standardAutoRoute);
-  assertRoute(standardAutoRoute.afterRequesterConfirm.omStage === "finalExport", "Auto-cleared standard quote should move to Export Package only after User A confirms", standardAutoRoute);
+  assertRoute(standardAutoRoute.afterRequesterConfirm.omStage === "finalExport", "Auto-cleared standard quote should move to OM Handoff only after User A confirms", standardAutoRoute);
   assertRoute(standardAutoRoute.afterRequesterConfirm.userAQuoteDecisionStatus === "Requester Confirmed", "Requester confirmation should be recorded", standardAutoRoute);
 
   async function assertEscalationRoute(rowPatch, label) {
-    const route = await page.evaluate((input) => {
+    const route = await page.evaluate(async (input) => {
       const row = {
         id: input.id,
         project: "P26",
@@ -376,14 +375,14 @@ function assertRoute(condition, message, payload) {
       };
       currentRole = "omMember";
       requests = [row, ...requests.filter((item) => item.id !== row.id)];
-      saveOmQuoteInfoRows([row], { requireComplete: true });
+      await confirmOmQuoteResultRows([row], { requireComplete: true });
       let updated = requests.find((item) => item.id === row.id);
       const afterQuote = {
         priceDecisionStatus: updated.priceDecisionStatus,
         priceApprovalStatus: updated.priceApprovalStatus,
         omStage: updated.omStage,
       };
-      sendOmPasRowsToUserConfirm([updated]);
+      await sendOmPasRowsToUserConfirm([updated]);
       updated = requests.find((item) => item.id === row.id);
       const afterSend = {
         omStage: updated.omStage,
@@ -425,7 +424,7 @@ function assertRoute(condition, message, payload) {
     assertRoute(route.afterRequesterConfirm.omStage === "priceReview", `${label} should enter price review only after User A confirms`, route);
     assertRoute(route.afterDri.priceApprovalStatus === "Pending Budget Approver Review", `${label} Dept DRI approval should wait for Budget Approver`, route);
     assertRoute(route.afterDri.omStage === "priceReview", `${label} Dept DRI approval should stay in price review`, route);
-    assertRoute(route.afterBudget.omStage === "finalExport", `${label} Budget Approver approval should move to Export Package`, route);
+    assertRoute(route.afterBudget.omStage === "finalExport", `${label} Budget Approver approval should move to OM Handoff`, route);
     assertRoute(route.afterBudget.userAQuoteDecisionStatus === "User Confirmation Not Required", `${label} Budget approval should not require Requester confirmation`, route);
   }
 

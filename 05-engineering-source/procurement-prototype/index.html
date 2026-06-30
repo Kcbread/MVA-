@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="mva-local-preview-version" content="20260629-local-preview-v1" />
+    <meta name="mva-local-preview-version" content="20260629-local-preview-v11" />
     <title>FIH Equipment Management Handoff System</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./layout-contract.css?v=20260629-local-preview-v1" />
-    <link rel="stylesheet" href="./carryover-extension.css?v=20260629-local-preview-v1" />
-    <link rel="stylesheet" href="./styles.css?v=20260629-local-preview-v1" />
+    <link rel="stylesheet" href="./layout-contract.css?v=20260629-local-preview-v11" />
+    <link rel="stylesheet" href="./carryover-extension.css?v=20260629-local-preview-v11" />
+    <link rel="stylesheet" href="./styles.css?v=20260629-local-preview-v11" />
   </head>
   <body>
     <main id="app">
@@ -18,7 +18,7 @@
           <div>
             <p class="eyebrow">FIH Demand Handoff System</p>
             <h1>Equipment Management Purchasing System</h1>
-            <p class="lead">A role-based prototype for Requester demand input, OM quotation, Dept DRI review, Budget Approver approval, and OM export package work.</p>
+            <p class="lead">A role-based prototype for Requester demand input, OM quotation, Dept DRI review, Budget Approver approval, and OM handoff work.</p>
           </div>
           <form class="login-card" id="loginForm">
             <div class="card-close">x</div>
@@ -222,6 +222,13 @@
                 <option value="">Select project</option>
               </select>
             </label>
+            <label class="project-picker">
+              Purpose
+              <select id="requestPurposeLocationInput">
+                <option value="SMT">SMT</option>
+                <option value="FATP">FATP</option>
+              </select>
+            </label>
           </div>
 
           <div class="inner-tabs" aria-label="Requester workspace sections">
@@ -264,10 +271,6 @@
                   Add at least one non-zero phase quantity before submitting to Dept DRI.
                 </div>
                 <div class="request-submit-bar">
-                  <label>
-                    <span id="requestPackageNeedDateLabel">MFG Need Date</span>
-                    <input id="requestPackageNeedDate" type="date" />
-                  </label>
                   <button class="ghost" data-action="saveRequesterDraft">Save Draft</button>
                   <button class="primary" data-action="submitRequests">Submit</button>
                 </div>
@@ -1034,9 +1037,9 @@
           <div class="inner-tabs om-tabs" aria-label="OM purchasing sections">
             <button class="inner-tab active" data-om-tab="submission">Submission Dashboard</button>
             <button class="inner-tab" data-om-tab="pasRequest">PAS Demand No</button>
-            <button class="inner-tab" data-om-tab="quoteConfirm">Quote Result / Monitor</button>
-            <button class="inner-tab" data-om-tab="quoteExpiry">Quote Expiry Watch</button>
-            <button class="inner-tab" data-om-tab="finalExport">Export Package</button>
+            <button class="inner-tab" data-om-tab="quoteConfirm">Quote Result</button>
+            <button class="inner-tab" data-om-tab="quoteExpiry">Quotation DB</button>
+            <button class="inner-tab" data-om-tab="finalExport">OM Handoff</button>
           </div>
 
           <section class="om-panel active" data-om-panel="submission">
@@ -1055,6 +1058,54 @@
                 <button class="mini approve om-rate-save" type="button" data-action="saveOmExchangeRate">Save Rate</button>
               </div>
               <span class="status-pill info" id="omRateStatus">Fallback Rate</span>
+            </section>
+            <section class="om-stage-calendar-utility" aria-label="Project Stage Calendar">
+              <div class="om-stage-calendar-head">
+                <strong>Project Stage Calendar</strong>
+                <span class="rate-helper">OM Leader maintains Year Project + Project + Phase line open dates for requester lead-time calculation.</span>
+              </div>
+              <div class="om-stage-calendar-grid">
+                <label>
+                  Year Project
+                  <select id="omStageCalendarYearProject"></select>
+                </label>
+                <label>
+                  Project
+                  <select id="omStageCalendarProjectCode"></select>
+                </label>
+                <label>
+                  Phase
+                  <input id="omStageCalendarPhase" list="omStageCalendarPhaseOptions" placeholder="EVT, P1.1" />
+                </label>
+                <label>
+                  Line Open Date
+                  <input id="omStageCalendarLineOpenDate" type="date" />
+                </label>
+                <button class="mini approve om-stage-calendar-save" type="button" data-action="saveOmStageCalendar">Save Stage</button>
+              </div>
+              <datalist id="omStageCalendarPhaseOptions">
+                <option value="P1.0"></option>
+                <option value="P1.1"></option>
+                <option value="EVT"></option>
+                <option value="DVT"></option>
+                <option value="PVT"></option>
+                <option value="MP"></option>
+              </datalist>
+              <div class="table-wrap om-stage-calendar-wrap">
+                <table class="data-table om-stage-calendar-table">
+                  <thead>
+                    <tr>
+                      <th>Year Project</th>
+                      <th>Project</th>
+                      <th>Phase</th>
+                      <th>Line Open Date</th>
+                      <th>Required Delivery Date</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody id="omStageCalendarRows"></tbody>
+                </table>
+              </div>
             </section>
             <div class="manager-progress-toolbar om-submission-toolbar">
               <div class="toolbar-label">Submission Status Scope</div>
@@ -1174,6 +1225,7 @@
                   <col class="om-pas-col-item" />
                   <col class="om-pas-col-qty" />
                   <col class="om-pas-col-demand" />
+                  <col class="om-pas-col-quote-db" />
                   <col class="om-pas-col-owner" />
                   <col class="om-pas-col-assignee" />
                   <col class="om-pas-col-status" />
@@ -1188,6 +1240,7 @@
                     <th>Item</th>
                     <th>Qty</th>
                     <th>PAS Demand No</th>
+                    <th>Quotation DB</th>
                     <th>CPD-IEP Owner</th>
                     <th>Assigned To</th>
                     <th>PAS Result Status</th>
@@ -1204,7 +1257,7 @@
           <section class="om-panel" data-om-panel="quoteConfirm">
             <div class="om-workbench-bar">
               <div class="om-action-group om-context-group">
-                <span class="toolbar-label">Quote Result / Monitor</span>
+                <span class="toolbar-label">Quote Result</span>
                 <label>
                   Project Package
                   <select id="omProjectFilter"></select>
@@ -1274,7 +1327,7 @@
           <section class="om-panel" data-om-panel="quoteExpiry">
             <div class="om-workbench-bar">
               <div class="om-action-group om-context-group">
-                <span class="toolbar-label">Quote Expiry Watch</span>
+                <span class="toolbar-label">Quotation DB</span>
                 <label>
                   Project Package
                   <select id="omQuoteExpiryProjectFilter"></select>
@@ -1296,7 +1349,7 @@
                 <span class="record-count" id="omQuoteExpiryCount">0 rows</span>
               </div>
               <div class="om-action-group om-primary-actions">
-                <div class="om-toolbar-hint" id="omQuoteExpiryHint"></div>
+                <div class="om-toolbar-hint" id="omQuoteExpiryHint">Reuse valid quote records after Central IT confirmation. Expiring Soon means &lt;= 7 days; expired records require requote before reuse.</div>
               </div>
             </div>
             <div class="summary-grid om-quote-monitor-summary" id="omQuoteExpirySummary">
@@ -1305,7 +1358,7 @@
               <article class="summary-card"><span>Expiring Soon</span><strong>0</strong></article>
               <article class="summary-card"><span>Expired / Requote</span><strong>0</strong></article>
               <article class="summary-card"><span>Waiting Requester</span><strong>0</strong></article>
-              <article class="summary-card"><span>Ready to Export</span><strong>0</strong></article>
+              <article class="summary-card"><span>Ready for Handoff</span><strong>0</strong></article>
             </div>
             <div class="table-wrap om-table-wrap">
               <table class="data-table workflow-table om-expiry-table">
@@ -1345,7 +1398,7 @@
           <section class="om-panel" data-om-panel="finalExport">
             <div class="om-workbench-bar">
               <div class="om-action-group om-context-group">
-                <span class="toolbar-label">Export Package</span>
+                <span class="toolbar-label">OM Handoff</span>
                 <label>
                   Project Package
                   <select id="omFinalExportProjectFilter"></select>
@@ -1367,11 +1420,14 @@
                   <col class="om-export-col-assignee" />
                   <col class="om-export-col-package" />
                   <col class="om-export-col-purpose" />
+                  <col class="om-export-col-budget" />
                   <col class="om-export-col-pas" />
                   <col class="om-export-col-attachments" />
                   <col class="om-export-col-decision" />
                   <col class="om-export-col-target" />
                   <col class="om-export-col-status" />
+                  <col class="om-export-col-procurement" />
+                  <col class="om-export-col-arrival" />
                   <col class="om-export-col-date" />
                   <col class="om-export-col-actions" />
                   <col class="om-export-col-contact" />
@@ -1384,14 +1440,17 @@
                     <th>Item</th>
                     <th>Qty</th>
                     <th>Assigned To</th>
-                    <th>Export Package / Budget Code</th>
-                    <th>Purpose Location</th>
+                    <th>Handoff Scope / Budget Code</th>
+                    <th>Purpose</th>
+                    <th>Budget Status / Budget #</th>
                     <th>PAS Context</th>
                     <th>Quote Attachments</th>
                     <th>Requester Decision</th>
                     <th>Cost Type / Target</th>
-                    <th>Export Status</th>
-                    <th>Exported At</th>
+                    <th>Handoff Status</th>
+                    <th>PR / PO Tracking</th>
+                    <th>ETA / DTA / Total LT</th>
+                    <th>Handoff Time</th>
                     <th>Actions</th>
                     <th>Contact</th>
                     <th>Detail</th>
@@ -1701,7 +1760,7 @@
               PR / PO Status
               <select id="buyerStatusFilter">
                 <option value="">All statuses</option>
-                <option value="Buyer Received">Buyer Received</option>
+                <option value="Buyer Accepted Handoff">Buyer Accepted Handoff</option>
                 <option value="PR Created">PR Created</option>
                 <option value="PO Issued">PO Issued</option>
                 <option value="Completed">Completed</option>
@@ -1718,7 +1777,7 @@
                   <th>Project</th>
                   <th>Item</th>
                   <th>Tracking Material</th>
-                  <th>Export Package</th>
+                  <th>OM Handoff</th>
                   <th>Buyer Status</th>
                   <th>External System</th>
                   <th>External Request No.</th>
@@ -2279,28 +2338,29 @@
         </section>
       </div>
     </main>
-    <script src="./real-data-seeds.js?v=20260629-local-preview-v1"></script>
-    <script src="./requester-responsibility-data.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/shared-formatters.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/role-guards.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/quote-validity.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/om-business-flow.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/demand-cost-dashboard.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/price-decision.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/lead-time.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/workflow-status.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/workflow-status-table.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/material-coding.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/sap-po-raw-contract.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/horizontal-table-navigator.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/request-worksheet-matrix.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/approval-workbench.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/approval-quantity-review.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/approval-review-surface.js?v=20260629-local-preview-v1"></script>
-    <script src="./app-modules/role-queue-config.js?v=20260629-local-preview-v1"></script>
-    <script src="./app.js?v=20260629-local-preview-v1"></script>
-    <script src="./user-a-flow.js?v=20260629-local-preview-v1"></script>
-  <script src="carryover-extension.js?v=20260629-local-preview-v1"></script>
-  <script src="layout-contract.js?v=20260629-local-preview-v1"></script>
+    <script src="./real-data-seeds.js?v=20260629-local-preview-v11"></script>
+    <script src="./requester-responsibility-data.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/shared-formatters.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/role-guards.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/quote-validity.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/om-business-flow.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/demand-cost-dashboard.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/price-decision.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/lead-time.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/purpose-date.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/workflow-status.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/workflow-status-table.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/material-coding.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/sap-po-raw-contract.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/horizontal-table-navigator.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/request-worksheet-matrix.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/approval-workbench.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/approval-quantity-review.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/approval-review-surface.js?v=20260629-local-preview-v11"></script>
+    <script src="./app-modules/role-queue-config.js?v=20260629-local-preview-v11"></script>
+    <script src="./app.js?v=20260629-local-preview-v11"></script>
+    <script src="./user-a-flow.js?v=20260629-local-preview-v11"></script>
+  <script src="carryover-extension.js?v=20260629-local-preview-v11"></script>
+  <script src="layout-contract.js?v=20260629-local-preview-v11"></script>
 </body>
 </html>

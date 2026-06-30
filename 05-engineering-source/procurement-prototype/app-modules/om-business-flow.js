@@ -7,7 +7,7 @@
       pasDemandRequired: true,
       active: true,
       ownerRole: "OM Purchasing",
-      note: "Hard landing hardware requires PAS Demand ID before Quote Result / Monitor.",
+      note: "Hard landing hardware requires PAS Demand ID before Quote Result.",
     },
     {
       id: "pas-demand-monitor",
@@ -16,7 +16,7 @@
       pasDemandRequired: true,
       active: true,
       ownerRole: "OM Purchasing",
-      note: "Hard landing display hardware requires PAS Demand ID before Quote Result / Monitor.",
+      note: "Hard landing display hardware requires PAS Demand ID before Quote Result.",
     },
     {
       id: "pas-demand-barcode-scanner",
@@ -25,7 +25,7 @@
       pasDemandRequired: true,
       active: true,
       ownerRole: "OM Purchasing",
-      note: "Hard landing scanner hardware requires PAS Demand ID before Quote Result / Monitor.",
+      note: "Hard landing scanner hardware requires PAS Demand ID before Quote Result.",
     },
     {
       id: "pas-demand-computer-peripheral",
@@ -34,7 +34,7 @@
       pasDemandRequired: true,
       active: true,
       ownerRole: "OM Purchasing",
-      note: "Hard landing computer peripheral requires PAS Demand ID before Quote Result / Monitor.",
+      note: "Hard landing computer peripheral requires PAS Demand ID before Quote Result.",
     },
   ];
 
@@ -114,7 +114,7 @@
     const match = hardItemMatch(row, masterRows);
     const required = row.pasDemandRequired === true || Boolean(record?.pasDemandRequired) || match.isHardItem;
     const reason = required
-      ? `${match.reason || `PAS Demand master: ${record?.itemCategory || record?.id || "override"}`}; required before Quote Result / Monitor.`
+      ? `${match.reason || `PAS Demand master: ${record?.itemCategory || record?.id || "override"}`}; required before Quote Result.`
       : "Other request; PAS Demand ID is optional before quote flow.";
     return {
       required,
@@ -127,6 +127,40 @@
   }
 
   const QUOTE_DB_RECORDS = [
+    {
+      id: "QDB-IPC-I3-QCT1250-202606",
+      normalizedNameSpecKey: normalizeText("IPC DELL Pro Tower QCT1250 Core i3 14100 8GB DDR5 512GB SSD Integrated graphics card Keyboard and Mouse 3Yrs Wty"),
+      itemName: "IPC",
+      spec: "DELL Pro Tower QCT1250, Core i3-14100, 8GB DDR5, 512GB SSD, Integrated graphics card, Keyboard and Mouse, 3Yrs Wty",
+      vendor: "VVN0010445 CONG TY CO PHAN KY NGHE BANICO",
+      vendorCode: "VVN0010445",
+      unitPrice: 10870000,
+      unitPriceUsd: 418.08,
+      currency: "VND",
+      quoteDate: "2026-06-01",
+      quoteValidUntil: "2026-08-31",
+      referenceQty: 184,
+      bufferNote: "Imported from current Bidding database and available for Central IT confirmation.",
+      pasDemandId: "PAS-HARD-IPC-I3-2026",
+      pasMaterialNo: "PAS-IPC-I3-QCT1250",
+    },
+    {
+      id: "QDB-IPC-I5-QCT1250-202606",
+      normalizedNameSpecKey: normalizeText("IPC DELL Pro Tower QCT1250 Intel Core i5 14500 vPro Ram 16GB DDR5 SSD 1TB RJ45 USB3 0 3 USB2 0 3 HDMI Serial Port Power supply 360W Keyboard and Mouse 3Yrs Wty"),
+      itemName: "IPC+",
+      spec: "DELL Pro Tower (QCT1250), Intel Core i5-14500 vPro, Ram 16GB DDR5, SSD 1TB, RJ45/ USB3.0*3 /USB2.0*3 / HDMI / Serial Port / Power supply 360W, Keyboard and Mouse, 3Yrs Wty",
+      vendor: "VVN0000011 CONG TY TNHH CONG NGHE ECOLIV",
+      vendorCode: "VVN0000011",
+      unitPrice: 14200000,
+      unitPriceUsd: 546.15,
+      currency: "VND",
+      quoteDate: "2026-06-01",
+      quoteValidUntil: "2026-08-31",
+      referenceQty: 270,
+      bufferNote: "Imported from current Bidding database and available for Central IT confirmation.",
+      pasDemandId: "PAS-HARD-IPC-I5-2026",
+      pasMaterialNo: "PAS-IPC-I5-QCT1250",
+    },
     {
       id: "QDB-MINI-PC-I5-202606",
       normalizedNameSpecKey: normalizeText("Mini PC Industrial IPC Intel i5 16GB RAM"),
@@ -184,7 +218,16 @@
 
   function findQuoteDbCandidates(row = {}, records = QUOTE_DB_RECORDS) {
     const key = normalizedNameSpecKey(row);
-    return records.filter((record) => record.normalizedNameSpecKey === key);
+    const exactMatches = records.filter((record) => record.normalizedNameSpecKey === key);
+    if (exactMatches.length) return exactMatches;
+    const rowTokens = new Set(key.split(" ").filter(Boolean));
+    return records.filter((record) => {
+      const itemKey = normalizeText(record.itemName || "");
+      const specTokens = normalizeText(record.spec || "")
+        .split(" ")
+        .filter((token) => token.length > 1 && !["and", "with"].includes(token));
+      return itemKey && key.includes(itemKey) && specTokens.length && specTokens.every((token) => rowTokens.has(token));
+    });
   }
 
   function bestQuoteDbCandidate(row = {}, records = QUOTE_DB_RECORDS, today = new Date()) {
@@ -264,16 +307,56 @@
     return [...grouped.values()];
   }
 
+  function safePasExcelFilePart(value = "") {
+    const normalized = normalizePasDemandNo(value);
+    return normalized.replace(/[^a-zA-Z0-9._-]+/g, "-") || "PAS-Demand-Pending";
+  }
+
+  function pasExcelSystemFileName(group = {}) {
+    const groupId = group.pasDemandId || group.displayPasDemandId || "PAS-Demand-Pending";
+    return `${safePasExcelFilePart(groupId)}-PAS-Tracking.xlsx`;
+  }
+
+  function pasExcelSystemAttachmentSummary(group = {}, createdAt = new Date().toISOString()) {
+    const rows = group.rows || [];
+    const displayPasDemandId = normalizePasDemandNo(group.displayPasDemandId || group.pasDemandId || "") || "PAS-Demand-Pending";
+    const linkedEntityId = group.pasDemandId || displayPasDemandId;
+    const rowIds = rows.map((row) => row.id).filter(Boolean);
+    const mergeDecision = group.mergeDecision || "merge";
+    return {
+      fileName: pasExcelSystemFileName(group),
+      linkedEntityType: "om_pas_excel_group",
+      linkedEntityId,
+      attachmentKind: "om_pas_tracking_system_excel",
+      visibilityScope: "om_internal",
+      rowIds,
+      metadata: {
+        source: "system_generated_pas_excel",
+        pasDemandNo: displayPasDemandId,
+        mergeDecision,
+        rowIds,
+        rowCount: rows.length,
+        createdAt,
+      },
+    };
+  }
+
   function applyQuoteDbCandidate(row = {}, candidate = {}, checkedAt = new Date().toISOString(), checkedBy = "OM Purchasing") {
+    const currency = candidate.currency || "USD";
+    const candidateUnitPrice = Number(candidate.unitPrice || 0);
+    const candidateUnitPriceUsd = Number(candidate.unitPriceUsd || 0);
+    const candidateUnitPriceVnd = Number(candidate.unitPriceVnd || (currency === "VND" ? candidateUnitPrice : 0));
     return {
       ...row,
       quoteDbCandidateId: candidate.id || row.quoteDbCandidateId || "",
       centralItCheckedAt: checkedAt,
       centralItCheckedBy: checkedBy,
       vendor: row.vendor || candidate.vendor || "",
-      updatedPrice: row.updatedPrice || (candidate.currency === "USD" ? candidate.unitPrice : row.updatedPrice),
-      updatedPriceUsd: row.updatedPriceUsd || (candidate.currency === "USD" ? candidate.unitPrice : row.updatedPriceUsd),
-      unitPriceCurrency: row.unitPriceCurrency || candidate.currency || "USD",
+      vendorPartNo: row.vendorPartNo || candidate.vendorPartNo || candidate.vendorCode || "",
+      updatedPrice: row.updatedPrice || (currency === "USD" ? candidateUnitPrice : candidateUnitPriceUsd || row.updatedPrice),
+      updatedPriceUsd: row.updatedPriceUsd || (currency === "USD" ? candidateUnitPrice : candidateUnitPriceUsd || row.updatedPriceUsd),
+      updatedPriceVnd: row.updatedPriceVnd || (currency === "VND" ? candidateUnitPrice : candidateUnitPriceVnd || row.updatedPriceVnd),
+      unitPriceCurrency: row.unitPriceCurrency || currency,
       quoteDate: row.quoteDate || candidate.quoteDate || "",
       quoteValidUntil: row.quoteValidUntil || candidate.quoteValidUntil || "",
       quoteExpiry: row.quoteExpiry || candidate.quoteValidUntil || "",
@@ -304,6 +387,8 @@
     pasDemandGroupSuggestion,
     groupRowsByPasDemandId,
     groupRowsForPasExcelExport,
+    pasExcelSystemFileName,
+    pasExcelSystemAttachmentSummary,
     applyQuoteDbCandidate,
   };
 

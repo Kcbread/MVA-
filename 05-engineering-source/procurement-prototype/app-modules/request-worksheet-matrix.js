@@ -1,10 +1,17 @@
 (function registerRequestWorksheetMatrixModule(root) {
-  function renderHead({ stages = [], stageLabels = {}, columns = [] } = {}) {
+  function renderHead({ stages = [], stageLabels = {}, columns = [], phaseLineOpenDates = {}, phaseLineOpenSource = "" } = {}) {
     const phaseColspan = columns.length + 1;
     return `
       <tr>
         <th class="request-col-item request-sticky-col" rowspan="2">Item / Spec</th>
-        ${stages.map((stage) => `<th class="request-phase-group-head" colspan="${phaseColspan}" data-request-phase-group="${stage}">${stageLabels[stage] || stage}</th>`).join("")}
+        ${stages.map((stage) => {
+          const lineOpenDate = phaseLineOpenDates[stage] || "";
+          const sourceAttr = phaseLineOpenSource ? ` data-request-phase-line-open-source="${phaseLineOpenSource}"` : "";
+          return `<th class="request-phase-group-head" colspan="${phaseColspan}" data-request-phase-group="${stage}" data-request-phase-line-open-date="${lineOpenDate}"${sourceAttr}>
+            <span>${stageLabels[stage] || stage}</span>
+            ${lineOpenDate ? `<small>Line open ${lineOpenDate}</small>` : ""}
+          </th>`;
+        }).join("")}
         <th class="request-col-row-total request-sticky-right request-sticky-right-total" rowspan="2">Row Total</th>
         <th class="request-col-hint request-sticky-right request-sticky-right-hint" rowspan="2">Hint / Action</th>
         <th class="request-col-actions request-sticky-right request-sticky-right-action" rowspan="2">Action</th>
@@ -17,10 +24,11 @@
       </tr>`;
   }
 
-  function renderPhaseJumpBar({ stages = [], stageLabels = {}, activePhase = "" } = {}) {
+  function renderPhaseJumpBar({ stages = [], stageLabels = {}, activePhase = "", phaseLineOpenDates = {}, phaseLineOpenSource = "" } = {}) {
     return stages.map((stage) => `
-      <button class="phase-jump-chip ${activePhase === stage ? "active" : ""}" type="button" data-request-phase-jump="${stage}">
+      <button class="phase-jump-chip ${activePhase === stage ? "active" : ""}" type="button" data-request-phase-jump="${stage}" data-request-phase-line-open-date="${phaseLineOpenDates[stage] || ""}" data-request-phase-line-open-source="${phaseLineOpenSource || ""}">
         ${stageLabels[stage] || stage}
+        ${phaseLineOpenDates[stage] ? `<small>${phaseLineOpenDates[stage]}</small>` : ""}
       </button>`).join("");
   }
 
