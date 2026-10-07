@@ -1,0 +1,45 @@
+name: Protected table UI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frontend-baseline:
+    name: Table UI unchanged
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject changes to protected frontend files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            BASE_SHA="$HEAD_SHA"
+          fi
+          git diff --exit-code "$BASE_SHA" "$HEAD_SHA" -- \
+            05-engineering-source/procurement-prototype/src/ \
+            05-engineering-source/procurement-prototype/dist/ \
+            05-engineering-source/procurement-prototype/app-modules/ \
+            05-engineering-source/procurement-prototype/app.js \
+            05-engineering-source/procurement-prototype/index.html \
+            ':(glob)05-engineering-source/procurement-prototype/*.css' \
+            05-engineering-source/procurement-prototype/carryover-extension.js \
+            05-engineering-source/procurement-prototype/layout-contract.js \
+            05-engineering-source/procurement-prototype/real-data-seeds.js \
+            05-engineering-source/procurement-prototype/requester-responsibility-data.js \
+            05-engineering-source/procurement-prototype/user-a-flow.js \
+            05-engineering-source/procurement-prototype/scripts/build-frontend.cjs \
+            05-engineering-source/procurement-prototype/scripts/verify-frontend-artifact.cjs \
+            05-engineering-source/fih-procurement-flow-ui-uat/ \
+            05-engineering-source/fih-procurement-flow-ui-uat-original-restored/ \
+            ui-protection/ \
+            .github/workflows/protected-ui.yml
