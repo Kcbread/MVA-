@@ -1,0 +1,31 @@
+{
+  "name": "procurement-prototype",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "node scripts/build-frontend.cjs",
+    "build:check": "node scripts/build-frontend.cjs --check",
+    "prestart": "node scripts/verify-frontend-artifact.cjs",
+    "start": "node server.js",
+    "test": "./test.sh"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "acorn": "^8.18.0",
+    "acorn-walk": "^8.3.5",
+    "axe-core": "^4.12.0",
+    "esbuild": "^0.28.2",
+    "eslint-scope": "^9.1.2",
+    "playwright": "^1.60.0"
+  },
+  "dependencies": {
+    "mysql2": "^3.22.4"
+  }
+}

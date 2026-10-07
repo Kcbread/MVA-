@@ -1,0 +1,637 @@
+const { chromium } = require("playwright");
+
+function rectsOverlap(a, b) {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+async function assertNoPageOverflow(page, label) {
+  const metrics = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  if (metrics.scrollWidth > metrics.clientWidth + 4) {
+    throw new Error(`${label}: page-level horizontal overflow ${metrics.scrollWidth} > ${metrics.clientWidth}`);
+  }
+}
+
+async function assertButtonsStayInsideCells(page, selector, label) {
+  const failures = await page.locator(selector).evaluateAll((buttons) => {
+    const overlaps = [];
+    for (const button of buttons) {
+      const cell = button.closest("td, th");
+      const row = button.closest("tr");
+      if (!cell || !row) continue;
+      const buttonRect = button.getBoundingClientRect();
+      const cellRect = cell.getBoundingClientRect();
+      const cellStyle = getComputedStyle(cell);
+      const isStickyCell = cellStyle.position === "sticky";
+      if (
+        buttonRect.left < cellRect.left - 1 ||
+        buttonRect.right > cellRect.right + 1 ||
+        buttonRect.top < cellRect.top - 1 ||
+        buttonRect.bottom > cellRect.bottom + 1
+      ) {
+        overlaps.push(`button "${button.textContent.trim()}" escapes its cell`);
+        continue;
+      }
+      // Sticky action rails intentionally remain visible over a horizontally
+      // scrollable operation table. Once the button stays inside its own sticky
+      // cell, that overlap is acceptable and mirrors the global UI audit.
+      if (isStickyCell) continue;
+      for (const other of Array.from(row.children)) {
+        if (other === cell) continue;
+        const otherRect = other.getBoundingClientRect();
+        if (buttonRect.left < otherRect.right && buttonRect.right > otherRect.left && buttonRect.top < otherRect.bottom && buttonRect.bottom > otherRect.top) {
+          overlaps.push(`button "${button.textContent.trim()}" overlaps another cell`);
+          break;
+        }
+      }
+    }
+    return overlaps;
+  });
+  if (failures.length) throw new Error(`${label}: ${failures.join("; ")}`);
+}
+
+async function assertVisibleTableCellsDoNotOverlap(page, tableSelector, label) {
+  const failures = await page.locator(tableSelector).evaluate((table) => {
+    const bad = [];
+    for (const row of Array.from(table.querySelectorAll("tbody tr")).slice(0, 12)) {
+      const cells = Array.from(row.children);
+      for (let i = 0; i < cells.length - 1; i += 1) {
+        const a = cells[i].getBoundingClientRect();
+        const b = cells[i + 1].getBoundingClientRect();
+        if (a.width <= 0 || b.width <= 0) continue;
+        const leftStyle = getComputedStyle(cells[i]);
+        const rightStyle = getComputedStyle(cells[i + 1]);
+        if (leftStyle.position === "sticky" || rightStyle.position === "sticky") continue;
+        if (a.right > b.left + 1) bad.push(`row cell ${i + 1} overlaps ${i + 2}`);
+      }
+    }
+    return bad;
+  });
+  if (failures.length) throw new Error(`${label}: ${failures.join("; ")}`);
+}
+
+function assertNoPageErrors(pageErrors, label) {
+  if (pageErrors.length) {
+    throw new Error(`${label}: page errors detected: ${pageErrors.join("; ")}`);
+  }
+}
+
+async function assertTableHasRows(page, selector, label) {
+  const rowCount = await page.locator(`${selector} tbody tr`).count();
+  if (rowCount <= 0) {
+    throw new Error(`${label}: expected rendered rows, found ${rowCount}`);
+  }
+}
+
+async function assertRowHeights(page, tableSelector, { min = 28, max = 96 } = {}, label) {
+  const failures = await page.locator(tableSelector).evaluate((table, limits) => {
+    const bad = [];
+    for (const [index, row] of Array.from(table.querySelectorAll("tbody tr")).slice(0, 10).entries()) {
+      const rect = row.getBoundingClientRect();
+      if (rect.height < limits.min || rect.height > limits.max) {
+        bad.push(`row ${index + 1} height ${Math.round(rect.height)}px outside ${limits.min}-${limits.max}px`);
+      }
+    }
+    return bad;
+  }, { min, max });
+  if (failures.length) throw new Error(`${label}: ${failures.join("; ")}`);
+}
+
+(async () => {
+  const browser = await chromium.launch({ headless: true, ...(process.env.DEMO_BROWSER_CHANNEL ? { channel: process.env.DEMO_BROWSER_CHANNEL } : {}) });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 920 } });
+  const pageErrors = [];
+  page.on("pageerror", (error) => {
+    pageErrors.push(error.message);
+  });
+  await page.goto(`file://${process.cwd()}/index.html`);
+  await page.waitForLoadState("domcontentloaded");
+  assertNoPageErrors(pageErrors, "Initial load");
+  const carryoverCurrency = await page.evaluate(() => ({
+    unitPriceVnd: window.userCarryoverUnitPriceVnd?.({ unitPriceUsd: 300 }),
+    expectedVnd: Math.round(window.amountVndFromUsd?.(300)),
+    pendingSavingUsd: window.managerCarryoverCostSaving?.({ status: "Requester Candidate", reviewStatus: "Pending Dept DRI", carryoverQty: 2, unitPriceUsd: 300 }),
+    appliedSavingUsd: window.managerCarryoverCostSaving?.({ status: "Applied", carryoverQty: 2, unitPriceUsd: 300 }),
+  }));
+  if (carryoverCurrency.unitPriceVnd !== carryoverCurrency.expectedVnd || carryoverCurrency.pendingSavingUsd !== 0 || carryoverCurrency.appliedSavingUsd !== 600) {
+    throw new Error(`Carryover currency conversion failed: ${JSON.stringify(carryoverCurrency)}`);
+  }
+  const omBusinessFlowAudit = await page.evaluate(() => {
+    const flow = window.ProcurementApp?.modules?.omBusinessFlow;
+    if (!flow) return { missing: true };
+    const hard = flow.pasDemandRequirement({ name: "Mini PC", spec: "Industrial IPC i5" });
+    const optional = flow.pasDemandRequirement({ name: "Office Chair", spec: "Meeting room" });
+    const reusable = flow.quoteDbCandidateStatus(
+      {
+        id: "Q-1",
+        normalizedNameSpecKey: flow.normalizedNameSpecKey({ name: "Mini PC", spec: "Industrial IPC i5" }),
+        quoteValidUntil: "2026-07-01",
+        referenceQty: 1,
+      },
+      {
+        name: "Mini PC",
+        spec: "Industrial IPC i5",
+        quoteDbCandidateId: "Q-1",
+        centralItCheckedAt: "2026-06-18T08:00:00Z",
+        qty: 999,
+      },
+      new Date("2026-06-18T00:00:00Z"),
+    );
+    return {
+      hardRequired: hard.required,
+      hardLabel: hard.label,
+      optionalRequired: optional.required,
+      reusableStatus: reusable.status,
+      quantityBlocksReuse: reusable.quantityBlocksReuse,
+    };
+  });
+  if (
+    omBusinessFlowAudit.missing ||
+    !omBusinessFlowAudit.hardRequired ||
+    omBusinessFlowAudit.hardLabel !== "PAS Demand ID Required" ||
+    omBusinessFlowAudit.optionalRequired ||
+    omBusinessFlowAudit.reusableStatus !== "Reusable" ||
+    omBusinessFlowAudit.quantityBlocksReuse
+  ) {
+    throw new Error(`OM business flow browser module audit failed: ${JSON.stringify(omBusinessFlowAudit)}`);
+  }
+
+  await page.evaluate(() => {
+    window.setScreen?.("workspace");
+    window.applyRole?.("requester");
+    window.setView?.("department");
+  });
+  await page.waitForTimeout(250);
+  assertNoPageErrors(pageErrors, "User A request workspace");
+  await assertNoPageOverflow(page, "User A request workspace");
+  await page.getByRole("heading", { name: "Request Worksheet" }).waitFor();
+  await page.getByRole("button", { name: "MFG", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Non-MFG", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Add Item", exact: true }).waitFor();
+  const projectCodeAudit = await page.evaluate(async () => {
+    const projectSelect = document.getElementById("projectSelect");
+    const projectCodeInput = document.getElementById("projectCodeInput");
+    if (!projectSelect || !projectCodeInput || projectCodeInput.tagName !== "SELECT") return { missing: true };
+    const originalProject = projectSelect.value;
+    const originalProjectCode = projectCodeInput.value;
+    projectSelect.value = "P26 Demo line";
+    projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const result = {
+      value: projectCodeInput.value,
+      options: [...projectCodeInput.querySelectorAll("option")].map((option) => option.value),
+    };
+    projectSelect.value = originalProject;
+    projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    projectCodeInput.value = originalProjectCode;
+    projectCodeInput.dispatchEvent(new Event("input", { bubbles: true }));
+    projectCodeInput.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return result;
+  });
+  if (projectCodeAudit.missing) throw new Error("Requester toolbar should expose Year Project and Project selects.");
+  const expectedGProjectCodes = ["4CS4", "CGY4", "PKK4", "WGO5", "ASK5", "KSH5", "MCN5", "MT5", "BZ5", "FL5"];
+  const missingGProjectCodes = expectedGProjectCodes.filter((code) => !projectCodeAudit.options.includes(code));
+  if (missingGProjectCodes.length || projectCodeAudit.options.includes("Bidding list 26")) {
+    throw new Error(`P26 Demo line Project select should include canonical G project codes only, got ${JSON.stringify(projectCodeAudit)}`);
+  }
+  const nonGProjectAudit = await page.evaluate(async () => {
+    const projectTypeSelect = document.getElementById("projectTypeSelect");
+    const projectSelect = document.getElementById("projectSelect");
+    const projectCodeInput = document.getElementById("projectCodeInput");
+    if (!projectTypeSelect || !projectSelect || !projectCodeInput || projectCodeInput.tagName !== "SELECT") return { missing: true };
+    const originalType = projectTypeSelect.value;
+    const originalProject = projectSelect.value;
+    const originalProjectCode = projectCodeInput.value;
+    projectTypeSelect.value = "Non-G";
+    projectTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const nonGYearProjects = [...projectSelect.querySelectorAll("option")].map((option) => option.value);
+    projectSelect.value = "BM2";
+    projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const result = {
+      yearProjects: nonGYearProjects,
+      value: projectCodeInput.value,
+      options: [...projectCodeInput.querySelectorAll("option")].map((option) => option.value),
+    };
+    projectTypeSelect.value = originalType;
+    projectTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    if ([...projectSelect.querySelectorAll("option")].some((option) => option.value === originalProject)) {
+      projectSelect.value = originalProject;
+      projectSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    projectCodeInput.value = originalProjectCode;
+    projectCodeInput.dispatchEvent(new Event("input", { bubbles: true }));
+    projectCodeInput.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return result;
+  });
+  if (nonGProjectAudit.missing) throw new Error("Requester toolbar should expose Non-G Year Project and Project selects.");
+  if (!nonGProjectAudit.yearProjects.includes("BM2") || nonGProjectAudit.value !== "BM2" || !nonGProjectAudit.options.includes("BM2")) {
+    throw new Error(`Non-G BM2 should use Project N-column as both scope and project code, got ${JSON.stringify(nonGProjectAudit)}`);
+  }
+  const projectStatusScopeAudit = await page.evaluate(async () => {
+    window.setView?.("projectStatus");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const typeSelect = document.getElementById("projectStatusProjectTypeFilter");
+    const yearSelect = document.getElementById("projectStatusProjectFilter");
+    const codeSelect = document.getElementById("projectStatusProjectCodeFilter");
+    if (!typeSelect || !yearSelect || !codeSelect) return { missing: true };
+    typeSelect.value = "G";
+    typeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const gYears = [...yearSelect.querySelectorAll("option")].map((option) => option.value);
+    yearSelect.value = "P26 Zombie line";
+    yearSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const gCodes = [...codeSelect.querySelectorAll("option")].map((option) => option.value);
+    typeSelect.value = "Non-G";
+    typeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const nonGState = {
+      yearDisabled: yearSelect.disabled,
+      yearOptions: [...yearSelect.querySelectorAll("option")].map((option) => option.textContent.trim()),
+      codeOptions: [...codeSelect.querySelectorAll("option")].map((option) => option.value),
+    };
+    window.setView?.("department");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return { gYears, gCodes, nonGState };
+  });
+  if (projectStatusScopeAudit.missing) throw new Error("Demand Progress Tracking should expose Project Type / Year Project / Project filters.");
+  if (!projectStatusScopeAudit.gYears.includes("P26 Zombie line") || !projectStatusScopeAudit.gCodes.includes("BZ5") || !projectStatusScopeAudit.gCodes.includes("FL5") || projectStatusScopeAudit.gCodes.includes("Bidding list 26")) {
+    throw new Error(`Demand Progress Tracking should expose canonical G scope master, got ${JSON.stringify(projectStatusScopeAudit)}`);
+  }
+  if (!projectStatusScopeAudit.nonGState.yearDisabled || !projectStatusScopeAudit.nonGState.codeOptions.includes("OR6")) {
+    throw new Error(`Demand Progress Tracking Non-G should disable Year Project and expose Non-G project codes, got ${JSON.stringify(projectStatusScopeAudit)}`);
+  }
+  const phaseHeaderAlign = await page.locator(".request-phase-group-head", { hasText: "EVT" }).first().evaluate((header) => getComputedStyle(header).textAlign);
+  if (phaseHeaderAlign !== "center") throw new Error(`Requester phase group headers should be centered, got ${phaseHeaderAlign}`);
+  await assertVisibleTableCellsDoNotOverlap(page, ".request-table", "User A worksheet initial table");
+  await page.getByRole("button", { name: "Add Item", exact: true }).click();
+  await page.locator("#requestItemPickerModal:not([hidden])").waitFor();
+  const pickerAudit = await page.locator("#requestItemPickerModal .request-item-picker-card").evaluate((card) => {
+    const rect = card.getBoundingClientRect();
+    const headers = [...card.querySelectorAll(".request-item-picker-table thead th")].map((th) => th.textContent.trim());
+    const shell = card.querySelector(".request-item-picker-shell");
+    const tabbar = card.querySelector(".request-item-picker-tabs");
+    return {
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      headers,
+      shellScrolls: shell ? shell.scrollWidth > shell.clientWidth || shell.scrollHeight > shell.clientHeight : false,
+      tabbarFits: tabbar ? tabbar.scrollWidth <= tabbar.clientWidth + 2 : false,
+      hasLevelFilters: Boolean(card.querySelector("#requestItemPickerLevel1") && card.querySelector("#requestItemPickerLevel2") && card.querySelector("#requestItemPickerLevel3")),
+    };
+  });
+  if (pickerAudit.width < 1200) throw new Error(`Add Item popup should be wider for Detail/Spec columns, got ${pickerAudit.width}px`);
+  if (!pickerAudit.height || pickerAudit.height > 920) throw new Error(`Add Item popup should stay within viewport height, got ${pickerAudit.height}px`);
+  if (pickerAudit.headers.join("|") !== "Add|Item|Detail|Spec|Action") throw new Error(`Add Item popup headers mismatch: ${pickerAudit.headers.join("|")}`);
+  if (!pickerAudit.hasLevelFilters) throw new Error("Add Item popup should expose Lv1 / Lv2 / Lv3 filters.");
+  if (!pickerAudit.shellScrolls) throw new Error("Add Item popup table shell should own scrolling.");
+  if (!pickerAudit.tabbarFits) throw new Error("Add Item popup source tabs should wrap inside their tabbar.");
+  await page.locator("#requestItemPickerQuery").fill("monitor");
+  await page.waitForTimeout(50);
+  const monitorSearchAudit = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll("#requestItemPickerRows tr[data-request-picker-row]")];
+    return rows.map((row) => ({
+      item: row.querySelector(".request-picker-item-name")?.textContent?.trim() || "",
+      detail: row.querySelector(".request-picker-detail-cell")?.textContent?.trim() || "",
+      spec: row.querySelector(".request-picker-spec-cell")?.textContent?.trim() || "",
+    }));
+  });
+  if (!monitorSearchAudit.length) throw new Error("Add Item monitor search should return catalog rows.");
+  const monitorNonMatches = monitorSearchAudit.filter((row) => !/monitor/i.test(row.item));
+  if (monitorNonMatches.length) {
+    throw new Error(`Add Item search must only fuzzy match Item column. Non-item matches: ${JSON.stringify(monitorNonMatches.slice(0, 3))}`);
+  }
+  await page.locator("#requestItemPickerQuery").fill("");
+  const lvFilterAudit = await page.evaluate(async () => {
+    const source = window.requestWorksheetMergedSources?.("")
+      .find((item) => item.type === "catalog" && (item.row.level1 || item.row.omCategoryLevel1));
+    const level1 = source?.row?.level1 || source?.row?.omCategoryLevel1 || "";
+    if (!level1) return { skipped: true };
+    const select = document.getElementById("requestItemPickerLevel1");
+    select.value = level1;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const rows = [...document.querySelectorAll("#requestItemPickerRows tr[data-request-picker-row]")];
+    return {
+      level1,
+      rowCount: rows.length,
+      firstDetail: rows[0]?.querySelector(".request-picker-detail-cell")?.textContent || "",
+    };
+  });
+  if (lvFilterAudit.skipped) throw new Error("Add Item popup Lv filter smoke could not find a classified catalog row.");
+  if (lvFilterAudit.rowCount <= 0) throw new Error(`Add Item popup Lv1 filter returned no rows for ${lvFilterAudit.level1}.`);
+  if (!lvFilterAudit.firstDetail.includes(lvFilterAudit.level1)) throw new Error(`Add Item popup Detail cell should show Lv path for ${lvFilterAudit.level1}.`);
+  await page.selectOption("#requestItemPickerLevel1", "");
+  await page.locator("#requestItemPickerQuery").fill("IPC");
+  await page.locator("#requestItemPickerRows [data-add-worksheet-source]").first().waitFor();
+  const firstPickerHeader = await page.locator(".request-item-picker-table thead th").first().textContent();
+  if (firstPickerHeader?.trim() !== "Add") throw new Error("Add Item popup must keep Add as the first table column.");
+  const hiddenPickerHeaders = await page.locator(".request-item-picker-table thead").innerText();
+  if (/Source|Phase Trace/.test(hiddenPickerHeaders)) throw new Error(`Add Item popup should not show Source or Phase Trace headers: ${hiddenPickerHeaders}`);
+  await assertVisibleTableCellsDoNotOverlap(page, ".request-item-picker-table", "Add Item popup source table");
+  await page.locator("#requestItemPickerRows [data-add-worksheet-source]").first().click();
+  const seededRows = await page.evaluate(() => {
+    if (typeof window.addWorksheetRow !== "function") throw new Error("addWorksheetRow helper is not available for worksheet smoke seeding.");
+    const values = [...document.querySelectorAll("#requestItemPickerRows [data-add-worksheet-source]")]
+      .map((button) => button.dataset.addWorksheetSource || "")
+      .filter(Boolean)
+      .slice(0, 39);
+    values.forEach((value) => window.addWorksheetRow(value));
+    return values.length + 1;
+  });
+  if (seededRows < 40) throw new Error(`Requester worksheet smoke expected 40 seeded rows, got ${seededRows}`);
+  await page.locator("#requestItemPickerModal [data-action='closeRequestItemPicker']").click();
+  const pickerHidden = await page.locator("#requestItemPickerModal").evaluate((modal) => modal.hidden);
+  if (!pickerHidden) throw new Error("Add Item popup should close before worksheet qty entry.");
+  await page.locator(".request-table [data-request-worksheet-qty]").first().waitFor();
+  const renderedWorksheetRows = await page.locator(".request-table tbody tr[data-request-row]").count();
+  if (renderedWorksheetRows < 40) throw new Error(`Requester worksheet should render 40 item rows, got ${renderedWorksheetRows}`);
+  const stickyAudit = await page.locator(".request-worksheet-shell").evaluate((wrap) => {
+    wrap.scrollLeft = 3200;
+    const stickyCell = wrap.querySelector("tbody tr[data-request-row] td.request-sticky-col");
+    const stack = stickyCell?.querySelector(".request-item-spec-stack");
+    const spec = stickyCell?.querySelector(".request-spec-summary");
+    const cellStyle = stickyCell ? getComputedStyle(stickyCell) : null;
+    const stackRect = stack?.getBoundingClientRect();
+    const cellRect = stickyCell?.getBoundingClientRect();
+    return {
+      scrollLeft: wrap.scrollLeft,
+      background: cellStyle?.backgroundColor || "",
+      overflow: cellStyle?.overflow || "",
+      hasDivider: Boolean(stickyCell?.querySelector(".request-spec-divider")),
+      specClamp: spec ? getComputedStyle(spec).webkitLineClamp : "",
+      stackWithinCell: Boolean(stackRect && cellRect && stackRect.right <= cellRect.right + 1),
+    };
+  });
+  if (stickyAudit.scrollLeft <= 0) throw new Error("Requester worksheet horizontal scroll smoke did not move the table shell.");
+  if (!/rgb\(255,\s*255,\s*255\)/.test(stickyAudit.background)) throw new Error(`Sticky Item/Spec cell must be opaque white, got ${stickyAudit.background}`);
+  if (stickyAudit.overflow !== "hidden") throw new Error(`Sticky Item/Spec cell must hide overflow, got ${stickyAudit.overflow}`);
+  if (!stickyAudit.hasDivider) throw new Error("Item/Spec cell should include a divider between item and spec.");
+  if (stickyAudit.specClamp !== "2") throw new Error(`Spec summary should clamp to 2 lines, got ${stickyAudit.specClamp}`);
+  if (!stickyAudit.stackWithinCell) throw new Error("Item/Spec text stack should stay inside the sticky cell while horizontally scrolled.");
+  const rowsBeforeRemove = await page.locator(".request-table tbody tr[data-request-row]").count();
+  await page.locator("[data-request-worksheet-remove]").first().click();
+  const confirmVisibleAfterRemove = await page.locator("#confirmModal").evaluate((modal) => !modal.hidden);
+  if (confirmVisibleAfterRemove) throw new Error("Requester worksheet Remove should not open a confirmation modal.");
+  const rowsAfterRemove = await page.locator(".request-table tbody tr[data-request-row]").count();
+  if (rowsAfterRemove !== rowsBeforeRemove - 1) throw new Error(`Requester worksheet Remove should delete one row immediately: ${rowsBeforeRemove} -> ${rowsAfterRemove}`);
+  const firstQty = page.locator(".request-table [data-request-worksheet-qty]").first();
+  await firstQty.fill("-5e.7");
+  const sanitizedQty = await firstQty.inputValue();
+  if (sanitizedQty !== "57") throw new Error(`Worksheet qty should strip negative/decimal/scientific input, got ${sanitizedQty}`);
+  await firstQty.fill("3");
+  await firstQty.press("Enter");
+  const focusedQtyMeta = await page.evaluate(() => ({
+    isQty: Boolean(document.activeElement?.dataset?.requestWorksheetQty),
+    phase: document.activeElement?.dataset?.requestWorksheetPhase || "",
+    column: document.activeElement?.dataset?.requestWorksheetColumn || "",
+  }));
+  if (!focusedQtyMeta.isQty) throw new Error("Enter should move focus to the next worksheet qty cell.");
+  await assertButtonsStayInsideCells(page, ".request-table tbody button", "User A worksheet actions");
+  await assertVisibleTableCellsDoNotOverlap(page, ".request-table", "User A worksheet table");
+  await page.getByRole("button", { name: "Non-MFG", exact: true }).click();
+  await page.getByRole("button", { name: "Add Item", exact: true }).waitFor();
+  await assertVisibleTableCellsDoNotOverlap(page, ".request-table", "User A Non-MFG worksheet");
+  const worksheetScroll = await page.locator(".request-worksheet-shell").evaluate((wrap) => ({
+    scrollWidth: wrap.scrollWidth,
+    clientWidth: wrap.clientWidth,
+  }));
+  if (worksheetScroll.scrollWidth <= worksheetScroll.clientWidth) {
+    throw new Error(`Requester worksheet should scroll inside table shell: ${worksheetScroll.scrollWidth} <= ${worksheetScroll.clientWidth}`);
+  }
+  const editDemandCount = await page.locator("[data-edit-demand]:visible").count();
+  if (editDemandCount > 0) {
+    await page.locator("[data-edit-demand]:visible").first().click();
+    await page.locator("#demandEditorModal:not([hidden])").waitFor();
+    await assertNoPageOverflow(page, "Demand Detail modal");
+    await assertButtonsStayInsideCells(page, ".demand-editor-table tbody button", "Demand Detail modal");
+    await assertVisibleTableCellsDoNotOverlap(page, ".demand-editor-table", "Demand Detail table");
+    await assertRowHeights(page, ".demand-editor-table", { min: 36, max: 92 }, "Demand Detail row height");
+    await page.evaluate(() => { document.getElementById("demandEditorModal").hidden = true; });
+  }
+
+  await page.evaluate(() => {
+    window.applyRole?.("manager");
+    window.setView?.("manager");
+  });
+  await page.waitForTimeout(250);
+  assertNoPageErrors(pageErrors, "Manager dashboard shell");
+  await assertNoPageOverflow(page, "Manager dashboard shell");
+  await assertTableHasRows(page, "#managerDemandCostTable", "Manager demand cost dashboard");
+  await assertTableHasRows(page, "#managerQuantityMatrixTable", "Manager station matrix");
+  await assertVisibleTableCellsDoNotOverlap(page, "#managerDemandCostTable", "Manager demand cost dashboard");
+
+  await page.evaluate(() => {
+    window.applyRole?.("omLeader");
+    window.setView?.("om");
+  });
+  await page.waitForTimeout(250);
+  assertNoPageErrors(pageErrors, "OM Purchasing shell");
+  await assertNoPageOverflow(page, "OM Purchasing shell");
+  await assertButtonsStayInsideCells(page, ".om-rate-utility button", "OM exchange rate utility");
+  const omSubmissionFilterAudit = await page.evaluate(() => {
+    const ids = [
+      "omSubmissionYearFilter",
+      "omSubmissionProjectFilter",
+      "omSubmissionPhaseFilter",
+      "omSubmissionLevel1Filter",
+      "omSubmissionLevel2Filter",
+      "omSubmissionLevel3Filter",
+      "omSubmissionItemFilter",
+    ];
+    const missing = ids.filter((id) => !document.getElementById(id));
+    const valueOptions = (select) => Array.from(select?.options || []).filter((option) => option.value);
+    const change = (select, value) => {
+      select.value = value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    if (missing.length) return { missing };
+    const project = document.getElementById("omSubmissionProjectFilter");
+    const phase = document.getElementById("omSubmissionPhaseFilter");
+    const level1 = document.getElementById("omSubmissionLevel1Filter");
+    const level2 = document.getElementById("omSubmissionLevel2Filter");
+    const level3 = document.getElementById("omSubmissionLevel3Filter");
+    const item = document.getElementById("omSubmissionItemFilter");
+    const statusButton = document.querySelector('[data-om-stage-filter="pendingPasDemand"]');
+    statusButton?.click();
+    const statusOnly = {
+      active: statusButton?.classList.contains("active"),
+      label: document.getElementById("omSubmissionScopeLabel")?.textContent || "",
+    };
+    const projectOption = valueOptions(project)[0]?.value || "";
+    const phaseOption = valueOptions(phase)[0]?.value || "";
+    if (projectOption) change(project, projectOption);
+    if (phaseOption) change(phase, phaseOption);
+    const scopedStatus = document.getElementById("omSubmissionScopeLabel")?.textContent || "";
+    const lv2DisabledBefore = level2.disabled;
+    const lv1Option = valueOptions(level1)[0]?.value || "";
+    if (lv1Option) change(level1, lv1Option);
+    const lv2EnabledAfterLv1 = !level2.disabled;
+    const lv2Option = valueOptions(level2)[0]?.value || "";
+    if (lv2Option) change(level2, lv2Option);
+    const lv3EnabledAfterLv2 = !level3.disabled;
+    const lv3Option = valueOptions(level3)[0]?.value || "";
+    if (lv3Option) change(level3, lv3Option);
+    const itemEnabledAfterLv3 = !item.disabled;
+    document.querySelector('[data-action="clearOmSubmissionFilters"]')?.click();
+    const clearState = {
+      project: project.value,
+      phase: phase.value,
+      level1: level1.value,
+      level2: level2.value,
+      level3: level3.value,
+      item: item.value,
+      activeAll: document.querySelector('[data-om-stage-filter="all"]')?.classList.contains("active"),
+      label: document.getElementById("omSubmissionScopeLabel")?.textContent || "",
+    };
+    return {
+      missing,
+      hasCategoryRail: Boolean(document.getElementById("omCategoryFilterRows")),
+      hasCategoryButtons: Boolean(document.querySelector("[data-om-category-filter]")),
+      statusOnly,
+      projectOption,
+      phaseOption,
+      scopedStatus,
+      lv2DisabledBefore,
+      lv1Option,
+      lv2EnabledAfterLv1,
+      lv2Option,
+      lv3EnabledAfterLv2,
+      lv3Option,
+      itemEnabledAfterLv3,
+      clearState,
+    };
+  });
+  if (omSubmissionFilterAudit.missing?.length) {
+    throw new Error(`OM submission toolbar missing controls: ${omSubmissionFilterAudit.missing.join(", ")}`);
+  }
+  if (omSubmissionFilterAudit.hasCategoryRail || omSubmissionFilterAudit.hasCategoryButtons) {
+    throw new Error(`OM submission toolbar still renders category chip rail: ${JSON.stringify(omSubmissionFilterAudit)}`);
+  }
+  if (!omSubmissionFilterAudit.statusOnly.active || !/Pending PAS Demand/.test(omSubmissionFilterAudit.statusOnly.label)) {
+    throw new Error(`OM status-only filter did not activate globally: ${JSON.stringify(omSubmissionFilterAudit.statusOnly)}`);
+  }
+  if (!omSubmissionFilterAudit.projectOption || !omSubmissionFilterAudit.phaseOption || !/Pending PAS Demand/.test(omSubmissionFilterAudit.scopedStatus)) {
+    throw new Error(`OM Project + Phase + status filter did not produce a scoped label: ${JSON.stringify(omSubmissionFilterAudit)}`);
+  }
+  if (!omSubmissionFilterAudit.lv2DisabledBefore || !omSubmissionFilterAudit.lv1Option || !omSubmissionFilterAudit.lv2Option || !omSubmissionFilterAudit.lv3Option) {
+    throw new Error(`OM LV cascade smoke did not find a complete LV123 path: ${JSON.stringify(omSubmissionFilterAudit)}`);
+  }
+  if (!omSubmissionFilterAudit.lv2EnabledAfterLv1 || !omSubmissionFilterAudit.lv3EnabledAfterLv2 || !omSubmissionFilterAudit.itemEnabledAfterLv3) {
+    throw new Error(`OM LV cascade did not enable children in order: ${JSON.stringify(omSubmissionFilterAudit)}`);
+  }
+  if (
+    omSubmissionFilterAudit.clearState.project
+    || omSubmissionFilterAudit.clearState.phase
+    || omSubmissionFilterAudit.clearState.level1
+    || omSubmissionFilterAudit.clearState.level2
+    || omSubmissionFilterAudit.clearState.level3
+    || omSubmissionFilterAudit.clearState.item
+    || !omSubmissionFilterAudit.clearState.activeAll
+  ) {
+    throw new Error(`OM Clear Filters did not reset toolbar state: ${JSON.stringify(omSubmissionFilterAudit.clearState)}`);
+  }
+  await page.evaluate(() => window.setOmTab?.("quoteExpiry"));
+  await page.waitForTimeout(250);
+  await assertTableHasRows(page, ".om-expiry-table", "OM Leader Quotation DB table");
+  await assertNoPageOverflow(page, "OM Leader Quotation DB shell");
+  await assertVisibleTableCellsDoNotOverlap(page, ".om-expiry-table", "OM Leader Quotation DB table");
+
+  await page.evaluate(() => {
+    window.applyRole?.("omMember");
+    window.setView?.("om");
+  });
+  await page.waitForTimeout(250);
+  await page.evaluate(() => window.setOmTab?.("pasRequest"));
+  await page.waitForTimeout(250);
+  await assertTableHasRows(page, ".om-pas-demand-table", "OM My Intake table");
+  await assertNoPageOverflow(page, "OM My Intake shell");
+  await assertButtonsStayInsideCells(page, ".om-pas-demand-table tbody button", "OM My Intake actions");
+  await assertVisibleTableCellsDoNotOverlap(page, ".om-pas-demand-table", "OM My Intake table");
+  const myIntakeText = await page.locator(".om-pas-demand-table tbody").innerText();
+  if (!myIntakeText.includes("Apply") || (!myIntakeText.includes("VVN0000011") && !myIntakeText.includes("VVN0010445"))) {
+    throw new Error(`OM My Intake should render actionable Quotation DB candidates, saw: ${myIntakeText.slice(0, 500)}`);
+  }
+  await page.evaluate(() => window.setOmTab?.("quoteConfirm"));
+  await page.waitForTimeout(250);
+  await assertTableHasRows(page, ".om-quote-result-table", "OM Quote Result table");
+  await assertNoPageOverflow(page, "OM Quote Result shell");
+  await assertButtonsStayInsideCells(page, ".om-quote-result-table tbody button", "OM Quote Result actions");
+  await assertVisibleTableCellsDoNotOverlap(page, ".om-quote-result-table", "OM Quote Result table");
+  await assertRowHeights(page, ".om-quote-result-table", { min: 34, max: 118 }, "OM Quote Result row height");
+  const quoteScroll = await page.locator(".om-quote-result-wrap").evaluate((wrap) => ({
+    scrollWidth: wrap.scrollWidth,
+    clientWidth: wrap.clientWidth,
+  }));
+  if (quoteScroll.scrollWidth <= quoteScroll.clientWidth) {
+    throw new Error(`OM Quote Result should scroll inside table shell: ${quoteScroll.scrollWidth} <= ${quoteScroll.clientWidth}`);
+  }
+
+  for (const viewport of [
+    { width: 1024, height: 768, label: "tablet" },
+    { width: 760, height: 760, label: "narrow" },
+    { width: 390, height: 820, label: "compact" },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.evaluate(() => {
+      window.setScreen?.("workspace");
+      window.applyRole?.("requester");
+      window.setView?.("department");
+    });
+    await page.waitForTimeout(250);
+    await assertNoPageOverflow(page, `Responsive ${viewport.label} requester workspace`);
+    await page.getByRole("heading", { name: "Request Worksheet" }).waitFor();
+    await page.getByRole("button", { name: "Add Item", exact: true }).waitFor();
+    await assertNoPageOverflow(page, `Responsive ${viewport.label} requester worksheet`);
+    await page.getByRole("button", { name: "Add Item", exact: true }).click();
+    await page.locator("#requestItemPickerModal:not([hidden])").waitFor();
+    await page.locator("#requestItemPickerRows [data-add-worksheet-source]").first().waitFor();
+    await assertNoPageOverflow(page, `Responsive ${viewport.label} Add Item popup`);
+    const responsivePickerScroll = await page.locator(".request-item-picker-shell").evaluate((wrap) => ({
+      scrollWidth: wrap.scrollWidth,
+      clientWidth: wrap.clientWidth,
+      scrollHeight: wrap.scrollHeight,
+      clientHeight: wrap.clientHeight,
+    }));
+    if (responsivePickerScroll.scrollWidth <= responsivePickerScroll.clientWidth && responsivePickerScroll.scrollHeight <= responsivePickerScroll.clientHeight) {
+      throw new Error(`Responsive ${viewport.label} Add Item popup should scroll inside picker shell`);
+    }
+    await page.locator("#requestItemPickerModal [data-action='closeRequestItemPicker']").click();
+    await assertButtonsStayInsideCells(page, ".request-table tbody button", `Responsive ${viewport.label} requester worksheet actions`);
+    await assertVisibleTableCellsDoNotOverlap(page, ".request-table", `Responsive ${viewport.label} requester worksheet`);
+    const responsiveWorksheetScroll = await page.locator(".request-worksheet-shell").evaluate((wrap) => ({
+      scrollWidth: wrap.scrollWidth,
+      clientWidth: wrap.clientWidth,
+    }));
+    if (responsiveWorksheetScroll.scrollWidth <= responsiveWorksheetScroll.clientWidth) {
+      throw new Error(`Responsive ${viewport.label} requester worksheet should scroll inside table shell`);
+    }
+    await page.evaluate(() => {
+      window.applyRole?.("manager");
+      window.setView?.("manager");
+      window.setManagerTab?.("review");
+    });
+    await page.waitForTimeout(250);
+    await assertNoPageOverflow(page, `Responsive ${viewport.label} manager matrix shell`);
+    await page.evaluate(() => {
+      window.applyRole?.("omLeader");
+      window.setView?.("om");
+      window.setOmTab?.("quoteConfirm");
+    });
+    await page.waitForTimeout(250);
+    await assertNoPageOverflow(page, `Responsive ${viewport.label} OM quote result shell`);
+    await assertButtonsStayInsideCells(page, ".om-quote-result-table tbody button", `Responsive ${viewport.label} OM quote result actions`);
+    await assertVisibleTableCellsDoNotOverlap(page, ".om-quote-result-table", `Responsive ${viewport.label} OM quote result table`);
+  }
+
+  await browser.close();
+})();

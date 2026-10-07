@@ -1,0 +1,216 @@
+/* Carryover v1.6: scoped DRI action + Manager/OM read-only visibility. */
+.carryover-card {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #c8d8e6;
+  border-top: 4px solid #1f7db5;
+  background: #fff;
+  color: #12304a;
+}
+
+.carryover-card * {
+  box-sizing: border-box;
+}
+
+.carryover-card h3,
+.carryover-card h4 {
+  margin: 0 0 6px;
+  color: #0b3152;
+}
+
+.carryover-muted {
+  margin: 0 0 12px;
+  color: #596b7c;
+  font-size: 13px;
+}
+
+.carryover-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin: 10px 0 12px;
+}
+
+.carryover-field {
+  display: grid;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.carryover-field label {
+  color: #596b7c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.carryover-field input,
+.carryover-field select {
+  max-width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid #b7c8d8;
+  border-radius: 4px;
+  background: #fff;
+  color: #1d2b36;
+}
+
+.carryover-field--wide {
+  flex: 1 1 220px;
+}
+
+.carryover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.carryover-btn {
+  flex-shrink: 0;
+  max-width: 100%;
+  padding: 7px 12px;
+  border: 1px solid #2b7fb7;
+  border-radius: 4px;
+  background: #2384bd;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.carryover-btn--secondary {
+  border-color: #b7c8d8;
+  background: #fff;
+  color: #12304a;
+}
+
+.carryover-btn--danger {
+  border-color: #b65a5a;
+  background: #b64343;
+}
+
+.carryover-table-shell {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #d7e2ec;
+  background: #fff;
+}
+
+.carryover-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.carryover-table th,
+.carryover-table td {
+  min-height: 28px;
+  padding: 5px 7px;
+  border: 1px solid #9aa9b4;
+  vertical-align: top;
+}
+
+.carryover-table th {
+  background: #e9f1f7;
+  color: #0b3152;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.carryover-cell-identity {
+  width: 150px;
+  min-width: 150px;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.carryover-cell-number {
+  width: 78px;
+  min-width: 78px;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.carryover-cell-note {
+  width: 210px;
+  min-width: 210px;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.carryover-status {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8eef3;
+  color: #3c4a55;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.carryover-status--applied {
+  background: #dff2df;
+  color: #145f28;
+}
+
+.carryover-status--pending {
+  background: #fff2c4;
+  color: #755100;
+}
+
+.carryover-status--rejected {
+  background: #f8d7da;
+  color: #842029;
+}
+
+.carryover-impact-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.carryover-impact-card {
+  min-height: 56px;
+  padding: 10px;
+  border: 1px solid #d7e2ec;
+  background: #f8fbfd;
+}
+
+.carryover-impact-card strong {
+  display: block;
+  color: #0b3152;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.carryover-impact-card span {
+  color: #596b7c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.carryover-readonly-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0 12px;
+  padding: 8px 10px;
+  border: 1px solid #d7e2ec;
+  background: #f7fbff;
+  color: #294458;
+  font-size: 13px;
+}
+

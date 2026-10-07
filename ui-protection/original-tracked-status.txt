@@ -1,0 +1,84 @@
+ M "02-oa-internal-test/Patchnote /20260617 OM QA patchnote intake.csv"
+ M "02-oa-internal-test/Patchnote /20260617 OM QA patchnote intake.md"
+ M "02-oa-internal-test/Patchnote /2026617 System feedback .pptx"
+ M "02-oa-internal-test/Patchnote /README.md"
+ D "02-oa-internal-test/Patchnote /tests/test_om_patchnote_workflow.py"
+ D "02-oa-internal-test/Patchnote /tools/om_patchnote_workflow.py"
+ M 03-it-handoff/README.md
+ M "03-it-handoff/current-docs/IT offical handoff/IT_DELIVERY_LATEST_REVIEW_20260615.md"
+ M "03-it-handoff/current-docs/IT offical handoff/README.md"
+ M "03-it-handoff/current-docs/IT offical handoff/data-dictionary-en.md"
+ M "03-it-handoff/current-docs/IT offical handoff/it-handoff/README.md"
+ M "03-it-handoff/current-docs/IT offical handoff/it-handoff/en/00-naming-rules.md"
+ M "03-it-handoff/current-docs/IT offical handoff/it-handoff/en/01-module-catalog.md"
+ M "03-it-handoff/current-docs/IT offical handoff/it-handoff/en/02-requester-modules.md"
+ M "03-it-handoff/current-docs/IT offical handoff/it-handoff/en/04-om-purchasing-modules.md"
+ M "03-it-handoff/current-docs/IT offical handoff/it-handoff/en/05-cross-role-flow.md"
+ M "03-it-handoff/current-docs/IT offical handoff/it-handoff/en/06-table-information-flow.md"
+ M "03-it-handoff/current-docs/IT offical handoff/it-handoff/en/README.md"
+ M 03-it-handoff/current-docs/IT_DELIVERY_LATEST_REVIEW_20260615.md
+ M 03-it-handoff/current-docs/data-dictionary-en.md
+ M 03-it-handoff/current-docs/it-handoff/README.md
+ M 03-it-handoff/current-docs/it-handoff/en/00-naming-rules.md
+ M 03-it-handoff/current-docs/it-handoff/en/01-module-catalog.md
+ M 03-it-handoff/current-docs/it-handoff/en/02-requester-modules.md
+ M 03-it-handoff/current-docs/it-handoff/en/04-om-purchasing-modules.md
+ M 03-it-handoff/current-docs/it-handoff/en/05-cross-role-flow.md
+ M 03-it-handoff/current-docs/it-handoff/en/06-table-information-flow.md
+ M 03-it-handoff/current-docs/it-handoff/en/README.md
+ M 03-it-handoff/handoff-delivery/20260604/01-website-source/procurement-prototype/scripts/mac-mini-poc-setup.sh
+ M 03-it-handoff/handoff-delivery/20260604/01-website-source/procurement-prototype/test.sh
+ M 03-it-handoff/handoff-delivery/20260608/01-source/procurement-prototype/scripts/mac-mini-poc-setup.sh
+ M 03-it-handoff/handoff-delivery/20260608/01-source/procurement-prototype/test.sh
+ D 03-it-handoff/handoff-delivery/20260608/03-diagrams/01-context-dfd.png
+ D 03-it-handoff/handoff-delivery/20260608/03-diagrams/02-level1-cross-role-dfd.png
+ D 03-it-handoff/handoff-delivery/20260608/03-diagrams/03-closed-loop-dfd.png
+ D 03-it-handoff/handoff-delivery/20260608/03-diagrams/05-cross-role-swimlane.png
+ D 03-it-handoff/handoff-delivery/20260608/03-diagrams/06-workflow-state-machine.png
+ D 03-it-handoff/handoff-delivery/20260608/03-diagrams/07-role-permission-matrix.png
+ D "04-business-reference/flow-diagrams/Data Handoff.jpg"
+ D 04-business-reference/flow-diagrams/Overview.jpg
+ D "04-business-reference/flow-diagrams/Quote Exception.jpg"
+ D "04-business-reference/flow-diagrams/Role Permissions A.jpg"
+ D "04-business-reference/flow-diagrams/Role Permissions B.jpg"
+ D "04-business-reference/flow-diagrams/Submit Approval.jpg"
+ D "04-business-reference/sample-files/Ideal Format 1 line .xlsx"
+ M 05-engineering-source/procurement-prototype/Dockerfile
+ M 05-engineering-source/procurement-prototype/IMPLEMENTATION_LOG.md
+ M 05-engineering-source/procurement-prototype/_context/README.zh-TW.md
+ M 05-engineering-source/procurement-prototype/_context/modules/api-readiness.zh-TW.md
+ M 05-engineering-source/procurement-prototype/_context/modules/table-role-module-map.zh-TW.md
+ M 05-engineering-source/procurement-prototype/_context/roles/01-requester.zh-TW.md
+ M 05-engineering-source/procurement-prototype/_context/roles/04-om-leader.zh-TW.md
+ M 05-engineering-source/procurement-prototype/_context/roles/05-om-purchasing.zh-TW.md
+ M 05-engineering-source/procurement-prototype/_context/roles/08-buyer-handoff.zh-TW.md
+ M 05-engineering-source/procurement-prototype/_doc/testing-standard-op.en.md
+ M 05-engineering-source/procurement-prototype/_doc/testing-standard-op.zh-TW.md
+ M 05-engineering-source/procurement-prototype/app-modules/sap-po-raw-importer.js
+ M 05-engineering-source/procurement-prototype/app.js
+ M 05-engineering-source/procurement-prototype/db/migrations/README.md
+ M 05-engineering-source/procurement-prototype/design-qa.md
+ M 05-engineering-source/procurement-prototype/index.html
+ M 05-engineering-source/procurement-prototype/package-lock.json
+ M 05-engineering-source/procurement-prototype/package.json
+ M 05-engineering-source/procurement-prototype/scripts/mac-mini-poc-setup.sh
+ M 05-engineering-source/procurement-prototype/scripts/update-mac-mini-runtime.sh
+ M 05-engineering-source/procurement-prototype/server.js
+ M 05-engineering-source/procurement-prototype/styles.css
+ M 05-engineering-source/procurement-prototype/test.sh
+ M 05-engineering-source/procurement-prototype/tests/accessibility-smoke.js
+ M 05-engineering-source/procurement-prototype/tests/api.test.js
+ M 05-engineering-source/procurement-prototype/tests/carryover-contract.test.js
+ M 05-engineering-source/procurement-prototype/tests/dri-inline-analysis-contract.test.js
+ M 05-engineering-source/procurement-prototype/tests/global-ui-audit.js
+ M 05-engineering-source/procurement-prototype/tests/layout-smoke.js
+ M 05-engineering-source/procurement-prototype/tests/price-routing-smoke.js
+ M 05-engineering-source/procurement-prototype/tests/role-flow-smoke.js
+ M 05-engineering-source/procurement-prototype/tests/system-contract.test.js
+ M 05-engineering-source/procurement-prototype/tests/text-visibility-contract.test.js
+ M 05-engineering-source/tools/open-design-daemon.sh
+ M 06-deployment/mac-mini/deploy.sh
+ M 06-deployment/mac-mini/hotfix.sh
+ M 06-deployment/mac-mini/sync-runtime-from-source.sh
+ M AGENTS.md
+ M README.md

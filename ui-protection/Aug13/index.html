@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FIH Equipment Management Purchasing System</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./assets/styles.css">
+</head>
+<body>
+  <main id="app">
+    <section id="loginScreen" class="screen login-screen">
+      <div class="brand-line-rule"></div>
+      <div class="login-shell">
+        <div class="login-intro">
+          <p class="eyebrow">FIH Demand Handoff System</p>
+          <h1>Equipment Management Purchasing System</h1>
+          <p class="lead">A role-based prototype for Requester demand input, OM quotation, Dept DRI review, Budget Approver approval, and OM export package work.</p>
+        </div>
+        <form class="login-card" id="loginForm">
+          <div class="card-close" aria-hidden="true">x</div>
+          <h2>Sign in</h2>
+          <p>FIH</p>
+          <label>Employee ID / Account<input id="loginAccountInput" type="text" value="V1524505" autocomplete="username" required></label>
+          <label>Password<input id="loginPasswordInput" type="password" value="123" autocomplete="current-password" required></label>
+          <label>Login role
+            <select id="roleSelect">
+              <option value="requester">Requester</option>
+              <option value="dri">Dept DRI</option>
+              <option value="omLeader">OM Leader (Mai)</option>
+              <option value="omMember">OM Purchasing (Giang / Linh)</option>
+              <option value="manager">Cost Manager</option>
+              <option value="projectDri">Budget Approver</option>
+              <option value="buyer">Buyer Handoff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label id="omOperatorField" hidden>OM operator
+            <select id="omOperatorSelect">
+              <option value="giangth1">Giang</option>
+              <option value="linh1">Linh</option>
+            </select>
+          </label>
+          <div class="login-row"><label class="check"><input type="checkbox"> Remember me</label><a href="#">Forgot password?</a></div>
+          <div id="loginError" class="login-error" role="alert" aria-live="polite"></div>
+          <button class="login-submit" type="submit">Sign in</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="workspaceScreen" class="app-shell" hidden>
+      <header class="app-header">
+        <div class="brand-block"><p class="eyebrow">FIH Equipment Management Handoff System</p><h1 id="pageTitle">Workspace</h1></div>
+        <div class="header-tools"><div class="user-block" id="userBlock"></div><div class="session-note"><strong id="datasetCount">1,248</strong> fictitious DEMO rows<br>Browser-local state · No backend</div><button id="logoutButton" type="button">Logout</button></div>
+      </header>
+      <nav id="workflowSidebar" class="workflow-sidebar" aria-label="Role workflow navigation"></nav>
+      <section class="workspace"><div id="noticeRegion" aria-live="polite"></div><section id="workspaceToolbar" class="workspace-toolbar"></section><section id="workspaceContent"></section></section>
+    </section>
+  </main>
+  <script src="./src/scenarios.js"></script><script src="./src/workflow.js"></script><script src="./src/store.js"></script><script src="./src/renderers.js"></script><script src="./src/app.js"></script>
+</body>
+</html>
